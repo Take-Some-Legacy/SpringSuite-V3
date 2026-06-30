@@ -17,26 +17,40 @@ public class DescriptorToolRuntime {
     private static final String DESCRIPTOR_SENTINEL = "__takesome_tool_descriptor__";
 
     public String resolveExecutable(Path descriptorDir, Map<String, Object> raw) {
-        String direct = firstNonBlank(
-                stringAt(raw, "executable"),
-                stringAt(raw, "binary"),
-                stringAt(raw, "path"),
-                stringAt(raw, "runtime.executable"),
-                stringAt(raw, "windows.executable"),
-                stringAt(raw, "exec.executable"),
-                stringAt(raw, "launcher.executable")
-        );
-        if (direct.isBlank()) {
-            List<String> command = firstListAt(raw, "command", "runtime.command", "windows.command", "exec.command", "launcher.command");
-            if (!command.isEmpty() && !isDescriptorSentinel(command.get(0))) {
-                direct = command.get(0);
+        return resolveExecutable(descriptorDir, descriptorDir, raw);
+    }
+
+    public String resolveExecutable(Path descriptorDir, Path repoRoot, Map<String, Object> raw) {
+        Path normalizedDescriptorDir = descriptorDir.toAbsolutePath().normalize();
+        Path normalizedRepoRoot = repoRoot == null ? normalizedDescriptorDir : repoRoot.toAbsolutePath().normalize();
+        Path packageRoot = resolveConfiguredPath(normalizedRepoRoot, normalizedDescriptorDir, firstNonBlank(
+                stringAt(raw, "package_root"),
+                stringAt(raw, "packageRoot")
+        ), normalizedDescriptorDir);
+
+        ArrayList<String> candidates = new ArrayList<>();
+        addCandidate(candidates, stringAt(raw, "executable"));
+        addCandidate(candidates, stringAt(raw, "binary"));
+        addCandidate(candidates, stringAt(raw, "path"));
+        addCandidate(candidates, stringAt(raw, "runtime.executable"));
+        addCandidate(candidates, stringAt(raw, "windows.executable"));
+        addCandidate(candidates, stringAt(raw, "exec.executable"));
+        addCandidate(candidates, stringAt(raw, "launcher.executable"));
+        addCandidate(candidates, stringAt(raw, "install_path"));
+        addCandidate(candidates, stringAt(raw, "installPath"));
+
+        List<String> command = firstListAt(raw, "command", "runtime.command", "windows.command", "exec.command", "launcher.command");
+        if (!command.isEmpty() && !isDescriptorSentinel(command.get(0))) {
+            addCandidate(candidates, command.get(0));
+        }
+
+        for (String candidate : candidates) {
+            String resolved = resolveCandidate(normalizedDescriptorDir, packageRoot, normalizedRepoRoot, candidate);
+            if (!resolved.isBlank()) {
+                return resolved;
             }
         }
-        String resolved = resolvePathOrPathExecutable(descriptorDir, direct);
-        if (!resolved.isBlank()) {
-            return resolved;
-        }
-        return resolvePackagedExecutable(descriptorDir, raw).orElse("");
+        return resolvePackagedExecutable(normalizedDescriptorDir, raw).orElse("");
     }
 
     public List<String> commandTemplate(Map<String, Object> raw, String executable) {
@@ -79,6 +93,47 @@ public class DescriptorToolRuntime {
         return value != null && value.trim().equalsIgnoreCase(DESCRIPTOR_SENTINEL);
     }
 
+    private void addCandidate(List<String> candidates, String raw) {
+        if (raw != null && !raw.isBlank() && !isDescriptorSentinel(raw)) {
+            candidates.add(raw.trim());
+        }
+    }
+
+    private String resolveCandidate(Path descriptorDir, Path packageRoot, Path repoRoot, String rawPath) {
+        if (rawPath == null || rawPath.isBlank() || isDescriptorSentinel(rawPath)) {
+            return "";
+        }
+        Path candidate = Paths.get(rawPath);
+        if (candidate.isAbsolute() && Files.isRegularFile(candidate)) {
+            return candidate.toAbsolutePath().normalize().toString();
+        }
+        for (Path base : List.of(packageRoot, descriptorDir, repoRoot)) {
+            if (base == null) {
+                continue;
+            }
+            Path resolved = base.resolve(candidate).toAbsolutePath().normalize();
+            if (Files.isRegularFile(resolved)) {
+                return resolved.toString();
+            }
+        }
+        return findOnPath(rawPath).map(path -> path.toAbsolutePath().normalize().toString()).orElse("");
+    }
+
+    private Path resolveConfiguredPath(Path repoRoot, Path descriptorDir, String rawPath, Path fallback) {
+        if (rawPath == null || rawPath.isBlank()) {
+            return fallback;
+        }
+        Path path = Paths.get(rawPath);
+        if (path.isAbsolute()) {
+            return path.toAbsolutePath().normalize();
+        }
+        Path repoRelative = repoRoot.resolve(path).toAbsolutePath().normalize();
+        if (Files.exists(repoRelative)) {
+            return repoRelative;
+        }
+        return descriptorDir.resolve(path).toAbsolutePath().normalize();
+    }
+
     private List<String> wrapPlatformCommand(List<String> command) {
         String first = command.get(0);
         String lower = first.toLowerCase(Locale.ROOT);
@@ -97,21 +152,6 @@ public class DescriptorToolRuntime {
         }
         wrapped.addAll(command);
         return wrapped;
-    }
-
-    private String resolvePathOrPathExecutable(Path descriptorDir, String rawPath) {
-        if (rawPath == null || rawPath.isBlank() || isDescriptorSentinel(rawPath)) {
-            return "";
-        }
-        Path candidate = Paths.get(rawPath);
-        if (candidate.isAbsolute() && Files.isRegularFile(candidate)) {
-            return candidate.toAbsolutePath().normalize().toString();
-        }
-        Path relative = descriptorDir.resolve(candidate).toAbsolutePath().normalize();
-        if (Files.isRegularFile(relative)) {
-            return relative.toString();
-        }
-        return findOnPath(rawPath).map(path -> path.toAbsolutePath().normalize().toString()).orElse("");
     }
 
     private Optional<String> resolvePackagedExecutable(Path descriptorDir, Map<String, Object> raw) {
@@ -216,7 +256,14 @@ public class DescriptorToolRuntime {
     }
 
     private String descriptorId(Map<String, Object> raw) {
-        return firstNonBlank(stringAt(raw, "id"), stringAt(raw, "descriptor_id"), stringAt(raw, "descriptorId"), stringAt(raw, "tool.id"), stringAt(raw, "name"));
+        return firstNonBlank(
+                stringAt(raw, "id"),
+                stringAt(raw, "tool_id"),
+                stringAt(raw, "descriptor_id"),
+                stringAt(raw, "descriptorId"),
+                stringAt(raw, "tool.id"),
+                stringAt(raw, "name")
+        );
     }
 
     private String stringAt(Map<String, Object> raw, String path) {

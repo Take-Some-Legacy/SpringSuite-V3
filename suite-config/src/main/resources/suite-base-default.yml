@@ -8,6 +8,10 @@ server:
 spring:
   application:
     name: spring-suite
+  web:
+    resources:
+      static-locations:
+        - file:./static/
   output:
     ansi:
       enabled: ALWAYS

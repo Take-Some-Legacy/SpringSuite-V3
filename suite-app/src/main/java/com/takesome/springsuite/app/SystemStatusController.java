@@ -8,7 +8,6 @@ import java.lang.management.ManagementFactory;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.springframework.boot.info.BuildProperties;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,11 +15,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class SystemStatusController {
     private final Instant startedAt = Instant.now();
     private final CloudflaredTunnelService cloudflaredTunnelService;
-    private final BuildProperties buildProperties;
+    private final SuiteBuildInfo suiteBuildInfo;
 
-    public SystemStatusController(CloudflaredTunnelService cloudflaredTunnelService, BuildProperties buildProperties) {
+    public SystemStatusController(CloudflaredTunnelService cloudflaredTunnelService, SuiteBuildInfo suiteBuildInfo) {
         this.cloudflaredTunnelService = cloudflaredTunnelService;
-        this.buildProperties = buildProperties;
+        this.suiteBuildInfo = suiteBuildInfo;
     }
 
     @GetMapping("/api/system/status")
@@ -29,7 +28,13 @@ public class SystemStatusController {
         components.put("cloudflared", cloudflaredTunnelService.status());
         components.put("java", Runtime.version().toString());
         components.put("pid", ManagementFactory.getRuntimeMXBean().getPid());
-        components.put("version", buildProperties.getVersion());
+        components.put("name", suiteBuildInfo.name());
+        components.put("version", suiteBuildInfo.version());
+        components.put("build", suiteBuildInfo.build());
+        components.put("buildTime", suiteBuildInfo.time());
+        components.put("gitCommit", suiteBuildInfo.commit());
+        components.put("gitBranch", suiteBuildInfo.branch());
+        components.put("gitDirty", suiteBuildInfo.dirty());
         components.put("projectRoot", System.getProperty("suite.project.root", ""));
         components.put("modulesEnabled", System.getProperty("suite.modules.enabled", ""));
         components.put("modulesDir", System.getProperty("suite.modules.dir", ""));

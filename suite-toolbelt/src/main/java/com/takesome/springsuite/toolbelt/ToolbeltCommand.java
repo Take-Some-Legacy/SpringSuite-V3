@@ -24,8 +24,8 @@ public class ToolbeltCommand implements SuiteCommand {
                 List.of("tools", "tb"),
                 "tools",
                 "Inspect and operate the Suite toolbelt registry.",
-                "Lists discovered descriptor tools and PATH tools, refreshes registry, shows metadata and can dry-run or execute tools if enabled.",
-                "toolbelt <summary|list|info|refresh|dry-run|run> [toolId] [args...]",
+                "Discovers descriptor tools from tools/**/tool.json and PATH tools, builds an in-memory search index, reports inventory and can dry-run or execute tools if enabled.",
+                "toolbelt <summary|inventory|index|search|list|info|refresh|dry-run|run> [toolId|query] [args...]",
                 CommandRiskLevel.PROCESS_CONTROL
         );
     }
@@ -35,15 +35,27 @@ public class ToolbeltCommand implements SuiteCommand {
         String action = invocation.arg(0).isBlank() ? "summary" : invocation.arg(0).trim().toLowerCase();
         return switch (action) {
             case "summary", "status" -> CommandExecutionResult.ok("toolbelt summary", Map.of("summary", toolbeltService.summary()));
+            case "inventory", "inv" -> CommandExecutionResult.ok("toolbelt inventory", Map.of("inventory", toolbeltService.inventory()));
+            case "index" -> CommandExecutionResult.ok("toolbelt index: " + toolbeltService.index().size(), Map.of("index", toolbeltService.index()));
+            case "search", "find" -> search(invocation);
             case "list", "ls" -> CommandExecutionResult.ok("tools: " + toolbeltService.listTools().size(), Map.of(
                     "tools", toolbeltService.listTools().stream().map(this::line).toList()
             ));
             case "info" -> info(invocation);
-            case "refresh", "scan" -> CommandExecutionResult.ok("toolbelt refreshed", Map.of("summary", toolbeltService.refresh()));
+            case "refresh", "scan", "reindex" -> CommandExecutionResult.ok("toolbelt refreshed", Map.of("summary", toolbeltService.refresh()));
             case "dry-run" -> run(invocation, true);
             case "run" -> run(invocation, false);
             default -> CommandExecutionResult.failed("bad_toolbelt_action", "Unknown toolbelt action: " + action);
         };
+    }
+
+    private CommandExecutionResult search(CommandInvocation invocation) {
+        String query = invocation.args().size() <= 1 ? "" : String.join(" ", invocation.args().subList(1, invocation.args().size()));
+        List<ToolDescriptor> results = toolbeltService.search(query, 50, "", "", null, "");
+        return CommandExecutionResult.ok("toolbelt search: " + results.size(), Map.of(
+                "query", query,
+                "results", results.stream().map(this::line).toList()
+        ));
     }
 
     private CommandExecutionResult info(CommandInvocation invocation) {

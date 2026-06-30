@@ -1,0 +1,52 @@
+# SpringSuite workspace filesystem access.
+# Owned by suite-workspace.
+
+suite:
+  workspace:
+    enabled: true
+    # Workspace roots allowed for agent/human file operations.
+    # Relative paths are resolved from the SpringSuite runtime root.
+    roots:
+      - .
+    allow-read: true
+    allow-write: true
+    allow-delete: false
+    create-backups: true
+    max-read-bytes: 65536
+    max-search-results: 100
+    max-tree-items: 500
+    max-file-size-bytes: 2097152
+    deny-segments:
+      - .git
+      - .gradle
+      - .idea
+      - build
+      - out
+      - target
+      - node_modules
+      - __pycache__
+    text-extensions:
+      - .java
+      - .kt
+      - .kts
+      - .gradle
+      - .xml
+      - .yml
+      - .yaml
+      - .json
+      - .md
+      - .txt
+      - .properties
+      - .toml
+      - .ini
+      - .bat
+      - .cmd
+      - .ps1
+      - .sh
+      - .py
+      - .rs
+      - .js
+      - .ts
+      - .css
+      - .html
+      - .gitignore

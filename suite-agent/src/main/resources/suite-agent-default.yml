@@ -1,0 +1,32 @@
+# SpringSuite agent perimeter: MCP endpoint, local OAuth and bridge-token compatibility.
+# Owned by suite-agent.
+
+suite:
+  auth:
+    enabled: true
+    # Same compatibility model as Python NorthStar-Suite:
+    # Bearer <token> or X-NorthStar-Bridge-Token may authorize requests.
+    require-auth-for-mcp: true
+    access-token-env: NORTHSTAR_BRIDGE_ACCESS_TOKEN
+    runtime-root: ""
+    bridge-token-relative-path: authority/bridge_access_token.txt
+    oauth-relative-root: authority/oauth
+    code-ttl: 300s
+    token-ttl: 12h
+    refresh-token-ttl: 720h
+    allow-http-token-bootstrap: false
+    default-scopes:
+      - northstar.read
+      - northstar.write
+    supported-scopes:
+      - northstar.read
+      - northstar.write
+      - northstar.exec
+      - northstar.admin
+  mcp:
+    enabled: true
+    endpoint: /mcp
+    protocol-version: "2025-03-26"
+    server-name: spring-suite
+    server-title: SpringSuite Agent Bridge
+    description: SpringSuite / NOESIS local software-authoring bridge with bounded workspace, toolbelt and command access.

@@ -8,7 +8,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "suite.toolbelt")
 public class ToolbeltProperties {
     private boolean enabled = true;
-    private List<String> roots = new ArrayList<>(List.of("tools/toolbelt"));
+    /**
+     * Canonical descriptor scan roots. Each entry may be absolute or relative to the suite runtime root.
+     * The legacy roots property below is kept as a backward-compatible alias.
+     */
+    private List<String> scanRoots = new ArrayList<>(List.of("tools", "../../Take Some/NorthStar-Suite/tools"));
+    private List<String> roots = new ArrayList<>();
     private boolean includePathTools = true;
     private boolean allowExecution = false;
     private Duration defaultTimeout = Duration.ofSeconds(30);
@@ -24,12 +29,24 @@ public class ToolbeltProperties {
         this.enabled = enabled;
     }
 
+    public List<String> getScanRoots() {
+        return scanRoots;
+    }
+
+    public void setScanRoots(List<String> scanRoots) {
+        this.scanRoots = scanRoots == null ? new ArrayList<>() : new ArrayList<>(scanRoots);
+    }
+
     public List<String> getRoots() {
         return roots;
     }
 
     public void setRoots(List<String> roots) {
         this.roots = roots == null ? new ArrayList<>() : new ArrayList<>(roots);
+    }
+
+    public List<String> effectiveScanRoots() {
+        return scanRoots == null || scanRoots.isEmpty() ? roots : scanRoots;
     }
 
     public boolean isIncludePathTools() {

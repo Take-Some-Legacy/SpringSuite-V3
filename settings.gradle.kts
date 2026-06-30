@@ -22,5 +22,8 @@ include(
     "suite-cloudflared",
     "suite-command",
     "suite-toolbelt",
-    "suite-app"
+    "suite-workspace",
+    "suite-agent",
+    "suite-app",
+    "suite-diagnostics-module"
 )

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Take Some() Suite</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+        :root { color-scheme: dark; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #05080d;
+            color: #dce8ff;
+            font-family: Inter, Segoe UI, Arial, sans-serif;
+        }
+        main {
+            width: min(760px, calc(100vw - 48px));
+            padding: 32px;
+            border: 1px solid #1c3147;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #0b1320, #081018);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, .35);
+        }
+        h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: .02em; }
+        p { color: #93a8c0; line-height: 1.55; }
+        code { color: #b7d4ff; }
+        a { color: #8fc7ff; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>SpringSuite</h1>
+        <p>NOESIS / NorthStar Suite control plane is running.</p>
+        <p><code>static/index.html</code> and <code>static/favicon.ico</code> are external runtime content, not application classes.</p>
+        <p><a href="/api/system/status">/api/system/status</a> · <a href="/api/commands">/api/commands</a> · <a href="/favicon.ico">/favicon.ico</a></p>
+    </main>
+</body>
+</html>

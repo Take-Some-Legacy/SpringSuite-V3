@@ -5,7 +5,7 @@ plugins {
 
 allprojects {
     group = "com.takesome.springsuite"
-    version = "0.1.0-SNAPSHOT"
+    version = "0.1.2"
 }
 
 subprojects {
@@ -32,4 +32,16 @@ subprojects {
     tasks.withType<Test>().configureEach {
         useJUnitPlatform()
     }
+}
+
+tasks.register("buildSignedModules") {
+    group = "modules"
+    description = "Build signed SpringSuite runtime modules without embedding them into the core application."
+    dependsOn(":suite-diagnostics-module:signModuleJar")
+}
+
+tasks.register("deploySignedModules") {
+    group = "modules"
+    description = "Build, sign and copy runtime modules into the external modules directory."
+    dependsOn(":suite-diagnostics-module:deploySignedModule")
 }

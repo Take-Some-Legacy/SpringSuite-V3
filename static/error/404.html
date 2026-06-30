@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>404 · SpringSuite</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+        :root {
+            color-scheme: dark;
+            --panel: rgba(8, 16, 26, .84);
+            --panel-strong: rgba(12, 24, 38, .92);
+            --line: rgba(143, 199, 255, .22);
+            --line-hot: rgba(143, 199, 255, .56);
+            --text: #e6f0ff;
+            --muted: #8fa6bf;
+            --accent: #8fc7ff;
+            --accent-2: #d7b76a;
+            --danger: #ff5570;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            overflow: hidden;
+            display: grid;
+            place-items: center;
+            background:
+                radial-gradient(circle at 20% 15%, rgba(143, 199, 255, .18), transparent 28rem),
+                radial-gradient(circle at 82% 72%, rgba(215, 183, 106, .12), transparent 30rem),
+                linear-gradient(135deg, #03050a 0%, #06101c 46%, #02050a 100%);
+            color: var(--text);
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background:
+                linear-gradient(rgba(143, 199, 255, .045) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(143, 199, 255, .035) 1px, transparent 1px);
+            background-size: 48px 48px;
+            mask-image: radial-gradient(circle at center, black, transparent 78%);
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            inset: auto 0 0;
+            height: 34vh;
+            pointer-events: none;
+            background: linear-gradient(transparent, rgba(3, 5, 10, .94));
+        }
+
+        main {
+            position: relative;
+            z-index: 1;
+            width: min(920px, calc(100vw - 40px));
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            background: linear-gradient(145deg, var(--panel), var(--panel-strong));
+            box-shadow:
+                0 36px 110px rgba(0, 0, 0, .55),
+                inset 0 1px 0 rgba(255, 255, 255, .06);
+            overflow: hidden;
+        }
+
+        .frame {
+            padding: clamp(28px, 6vw, 64px);
+            position: relative;
+        }
+
+        .frame::before,
+        .frame::after {
+            content: "";
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border: 1px solid var(--line-hot);
+            pointer-events: none;
+        }
+
+        .frame::before {
+            top: 20px;
+            left: 20px;
+            border-right: 0;
+            border-bottom: 0;
+        }
+
+        .frame::after {
+            right: 20px;
+            bottom: 20px;
+            border-left: 0;
+            border-top: 0;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 22px;
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .22em;
+            text-transform: uppercase;
+        }
+
+        .eyebrow::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--danger);
+            box-shadow: 0 0 22px var(--danger);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(64px, 15vw, 156px);
+            line-height: .86;
+            letter-spacing: -.08em;
+            text-shadow: 0 0 40px rgba(143, 199, 255, .24);
+        }
+
+        h2 {
+            margin: 18px 0 0;
+            max-width: 780px;
+            font-size: clamp(26px, 5vw, 52px);
+            line-height: 1.02;
+            letter-spacing: -.04em;
+        }
+
+        p {
+            margin: 20px 0 0;
+            max-width: 760px;
+            color: var(--muted);
+            font-size: 17px;
+            line-height: 1.7;
+        }
+
+        .joke {
+            color: var(--text);
+            font-size: clamp(20px, 3vw, 28px);
+            line-height: 1.35;
+        }
+
+        .joke strong { color: var(--accent-2); }
+
+        .status {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin: 34px 0;
+        }
+
+        .cell {
+            min-height: 88px;
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: rgba(4, 8, 14, .54);
+        }
+
+        .label {
+            display: block;
+            color: var(--muted);
+            font-size: 11px;
+            letter-spacing: .18em;
+            text-transform: uppercase;
+        }
+
+        .value {
+            display: block;
+            margin-top: 10px;
+            color: var(--text);
+            font-family: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+            font-size: 15px;
+        }
+
+        nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        a {
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
+            padding: 0 18px;
+            border: 1px solid var(--line-hot);
+            border-radius: 999px;
+            color: var(--text);
+            background: rgba(143, 199, 255, .08);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        a.primary {
+            color: #04101c;
+            background: linear-gradient(135deg, var(--accent), #e8f3ff);
+            border-color: transparent;
+        }
+
+        a:hover { transform: translateY(-1px); }
+
+        .signature {
+            position: absolute;
+            right: clamp(28px, 6vw, 64px);
+            top: clamp(28px, 6vw, 64px);
+            color: rgba(215, 183, 106, .82);
+            font-size: 12px;
+            letter-spacing: .22em;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 720px) {
+            body { overflow: auto; }
+            .signature { position: static; margin-bottom: 22px; }
+            .status { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <section class="frame">
+            <div class="signature">SpringSuite</div>
+            <div class="eyebrow">Route not found</div>
+            <h1>404</h1>
+            <h2>Uh-oh. Unexpected occasions are happening. Or something like that.</h2>
+            <p class="joke">
+                The route went out for coffee, forgot its badge, and is now politely refusing to exist.
+                <strong>Very professional. Very distributed.</strong>
+            </p>
+            <p>
+                No panic: the Suite is still running. This URL just is not mapped to an API endpoint,
+                module route, or external static asset.
+            </p>
+
+            <div class="status" aria-label="Error status">
+                <div class="cell">
+                    <span class="label">Status</span>
+                    <span class="value">404 / Not Found</span>
+                </div>
+                <div class="cell">
+                    <span class="label">Diagnosis</span>
+                    <span class="value">Route missing</span>
+                </div>
+                <div class="cell">
+                    <span class="label">Blame</span>
+                    <span class="value">Probably gremlins</span>
+                </div>
+            </div>
+
+            <nav aria-label="Recovery actions">
+                <a class="primary" href="/">Return to Suite</a>
+                <a href="/api/system/status">System status</a>
+                <a href="/api/commands">Command registry</a>
+            </nav>
+        </section>
+    </main>
+</body>
+</html>

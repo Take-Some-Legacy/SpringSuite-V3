@@ -14,6 +14,9 @@ import org.springframework.core.io.DefaultResourceLoader;
 @ConfigurationPropertiesScan(basePackages = "com.takesome.springsuite")
 public class SpringSuiteApplication {
     public static void main(String[] args) {
+        SuiteBuildInfo buildInfo = SuiteBuildInfo.load();
+        System.out.println(buildInfo.startupLine());
+
         SuiteModuleBootstrapResult modules = SuiteModuleBootstrap.bootstrap();
         SuiteConfigBootstrapResult config = ExternalSuiteConfigBootstrap.bootstrap();
         ConsoleAnsiBootstrap.installEarly(config.consoleAnsiEnabled(), config.consoleAnsiProbe());
