@@ -1,0 +1,15 @@
+package com.takesome.springsuite.module;
+
+public enum SuiteModuleTrustLevel {
+    TRUSTED_HASH,
+    TRUSTED_CERTIFICATE,
+    TRUSTED_PUBLISHER,
+    SIGNED,
+    LOCAL_UNVERIFIED,
+    UNTRUSTED,
+    BLOCKED_HASH,
+    BLOCKED_CERTIFICATE,
+    BLOCKED_PUBLISHER,
+    SIGNATURE_REQUIRED,
+    UNPINNED_SIGNED
+}

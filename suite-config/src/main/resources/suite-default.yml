@@ -1,0 +1,74 @@
+# SpringSuite external configuration.
+# This file is copied to ./config/spring-suite.yml on first launch.
+# Edit the generated file; do not put local machine/domain values into Java code.
+
+server:
+  port: 8090
+
+spring:
+  application:
+    name: spring-suite
+  output:
+    ansi:
+      enabled: ALWAYS
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,loggers
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  file:
+    name: logs/spring-suite.log
+  level:
+    root: INFO
+    operator: INFO
+    com.takesome.springsuite: INFO
+
+suite:
+  console:
+    ansi:
+      enabled: true
+      probe: true
+    command:
+      enabled: true
+      prompt: "> "
+      print-welcome: true
+      allow-shutdown: true
+  operator:
+    logging:
+      ring-buffer-size: 2000
+  cloudflared:
+    enabled: true
+    auto-start: false
+    executable: cloudflared
+    target-url: http://localhost:${server.port}
+    tunnel-name: spring-suite-test
+    hostname: testspring.kaylas-systems.ru
+    extra-args:
+      - --no-autoupdate
+    stop-timeout: 5s
+    recent-log-limit: 300
+
+  toolbelt:
+    enabled: true
+    roots:
+      - tools/toolbelt
+    include-path-tools: true
+    allow-execution: false
+    default-timeout: 30s
+    max-stdout-bytes: 12000
+    max-stderr-bytes: 8000
+    path-tools:
+      - git
+      - java
+      - javac
+      - python
+      - py
+      - cloudflared
+      - gradle

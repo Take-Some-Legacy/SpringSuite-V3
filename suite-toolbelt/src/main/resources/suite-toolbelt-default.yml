@@ -1,0 +1,21 @@
+# SpringSuite toolbelt registry and executor configuration.
+# Owned by suite-toolbelt.
+
+suite:
+  toolbelt:
+    enabled: true
+    roots:
+      - tools/toolbelt
+    include-path-tools: true
+    allow-execution: false
+    default-timeout: 30s
+    max-stdout-bytes: 12000
+    max-stderr-bytes: 8000
+    path-tools:
+      - git
+      - java
+      - javac
+      - python
+      - py
+      - cloudflared
+      - gradle

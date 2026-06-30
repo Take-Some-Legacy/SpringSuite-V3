@@ -1,0 +1,3 @@
+# Runtime settings are externalized.
+# On first launch SpringSuite creates ./config/spring-suite.yml from classpath:suite-default.yml
+# and then reads operational values from that external file.

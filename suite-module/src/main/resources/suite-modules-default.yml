@@ -1,0 +1,22 @@
+# SpringSuite external module loading configuration.
+# Owned by suite-module.
+# This file is read in a minimal pre-bootstrap mode before Spring starts.
+
+suite:
+  modules:
+    enabled: true
+    directory: modules
+    recursive: false
+    trust:
+      # PERMISSIVE/WARN load unsigned local jars unless explicitly blocked.
+      # ENFORCE loads only trusted hashes, trusted signing certificates, trusted publishers, or signed jars if allow-unpinned-signed=true.
+      mode: WARN
+      allow-unsigned-local: true
+      require-signature: false
+      allow-unpinned-signed: false
+      trusted-sha256:
+      blocked-sha256:
+      trusted-certificate-sha256:
+      blocked-certificate-sha256:
+      trusted-publishers:
+      blocked-publishers:

@@ -1,0 +1,15 @@
+# SpringSuite cloudflared tunnel configuration.
+# Owned by suite-cloudflared.
+
+suite:
+  cloudflared:
+    enabled: true
+    auto-start: false
+    executable: cloudflared
+    target-url: http://localhost:${server.port}
+    tunnel-name: spring-suite-test
+    hostname: testspring.kaylas-systems.ru
+    extra-args:
+      - --no-autoupdate
+    stop-timeout: 5s
+    recent-log-limit: 300

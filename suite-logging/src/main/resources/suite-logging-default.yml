@@ -1,0 +1,11 @@
+# SpringSuite logging/console output configuration.
+# Owned by suite-logging.
+
+suite:
+  console:
+    ansi:
+      enabled: true
+      probe: true
+  operator:
+    logging:
+      ring-buffer-size: 2000

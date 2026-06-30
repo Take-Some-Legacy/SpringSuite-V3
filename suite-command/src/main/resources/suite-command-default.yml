@@ -1,0 +1,10 @@
+# SpringSuite interactive command console configuration.
+# Owned by suite-command.
+
+suite:
+  console:
+    command:
+      enabled: true
+      prompt: "> "
+      print-welcome: true
+      allow-shutdown: true
