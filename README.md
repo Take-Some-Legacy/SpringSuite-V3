@@ -1,5 +1,7 @@
 # SpringSuite
 
+![SpringSuite](.github/SpringSuiteBanner.png)
+
 SpringSuite is the first Java Gradle Spring control-plane skeleton for the NOESIS / NorthStar operator workflow.
 
 Current scope:
