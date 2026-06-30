@@ -1,6 +1,7 @@
 # SpringSuite
-
-![SpringSuite](.github/SpringSuiteBanner.png)
+<p align="center">
+  <img src=".github/SpringSuiteBanner.png" alt="NorthStar Engine banner" width="100%">
+</p>
 
 SpringSuite is the first Java Gradle Spring control-plane skeleton for the NOESIS / NorthStar operator workflow.
 
