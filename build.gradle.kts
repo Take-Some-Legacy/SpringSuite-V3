@@ -5,7 +5,7 @@ plugins {
 
 allprojects {
     group = "com.takesome.springsuite"
-    version = "0.1.2"
+    version = "0.1.3"
 }
 
 subprojects {
@@ -37,11 +37,11 @@ subprojects {
 tasks.register("buildSignedModules") {
     group = "modules"
     description = "Build signed SpringSuite runtime modules without embedding them into the core application."
-    dependsOn(":suite-diagnostics-module:signModuleJar")
+    dependsOn(":suite-diagnostics-module:signModuleJar", ":suite-dashboard-module:signModuleJar")
 }
 
 tasks.register("deploySignedModules") {
     group = "modules"
     description = "Build, sign and copy runtime modules into the external modules directory."
-    dependsOn(":suite-diagnostics-module:deploySignedModule")
+    dependsOn(":suite-diagnostics-module:deploySignedModule", ":suite-dashboard-module:deploySignedModule")
 }

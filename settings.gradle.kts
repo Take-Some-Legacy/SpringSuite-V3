@@ -25,5 +25,6 @@ include(
     "suite-workspace",
     "suite-agent",
     "suite-app",
-    "suite-diagnostics-module"
+    "suite-diagnostics-module",
+    "suite-dashboard-module"
 )

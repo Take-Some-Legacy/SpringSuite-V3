@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -28,14 +29,14 @@ public class WorkspacePathPolicy {
             throw new IllegalArgumentException("path escapes configured workspace roots: " + rawPath);
         }
         if (!isNotDenied(resolved)) {
-            throw new IllegalArgumentException("path contains denied segment: " + rawPath);
+            throw new IllegalArgumentException("path denied by workspace policy: " + rawPath);
         }
         return resolved;
     }
 
     public List<Path> allowedRoots() {
         ArrayList<Path> roots = new ArrayList<>();
-        for (String raw : properties.getRoots()) {
+        for (String raw : properties.effectiveRoots()) {
             if (raw == null || raw.isBlank()) {
                 continue;
             }
@@ -46,22 +47,28 @@ public class WorkspacePathPolicy {
     }
 
     public boolean isNotDenied(Path path) {
-        Set<String> denied = properties.getDenySegments().stream()
-                .map(value -> value.toLowerCase(Locale.ROOT))
-                .collect(java.util.stream.Collectors.toSet());
-        for (Path part : path) {
-            if (denied.contains(part.toString().toLowerCase(Locale.ROOT))) {
-                return false;
-            }
-        }
-        return true;
+        Path normalized = path.toAbsolutePath().normalize();
+        Optional<Path> root = allowedRoots().stream().filter(allowed -> startsWith(normalized, allowed)).findFirst();
+        Path policyPath = root.map(value -> relativizeSafe(value, normalized)).orElse(normalized);
+        return !hasDeniedSegment(policyPath) && !matchesDeniedGlob(policyPath);
     }
 
     public String displayPath(Path path) {
+        Path normalized = path.toAbsolutePath().normalize();
+        for (Path root : allowedRoots()) {
+            if (startsWith(normalized, root)) {
+                try {
+                    String rel = root.relativize(normalized).toString().replace('\\', '/');
+                    return rel.isBlank() ? "." : rel;
+                } catch (IllegalArgumentException ignored) {
+                    // Try next root.
+                }
+            }
+        }
         try {
-            return runtimeRoot().relativize(path.toAbsolutePath().normalize()).toString().replace('\\', '/');
+            return runtimeRoot().relativize(normalized).toString().replace('\\', '/');
         } catch (IllegalArgumentException ex) {
-            return path.toAbsolutePath().normalize().toString();
+            return normalized.toString();
         }
     }
 
@@ -71,5 +78,60 @@ public class WorkspacePathPolicy {
 
     private boolean startsWith(Path path, Path root) {
         return path.toAbsolutePath().normalize().startsWith(root.toAbsolutePath().normalize());
+    }
+
+    private Path relativizeSafe(Path root, Path path) {
+        try {
+            return root.toAbsolutePath().normalize().relativize(path.toAbsolutePath().normalize());
+        } catch (IllegalArgumentException ex) {
+            return path;
+        }
+    }
+
+    private boolean hasDeniedSegment(Path policyPath) {
+        Set<String> denied = properties.effectiveDenySegments().stream()
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toSet());
+        for (Path part : policyPath) {
+            if (denied.contains(part.toString().toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesDeniedGlob(Path policyPath) {
+        String rel = policyPath.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
+        if (rel.isBlank() || rel.equals(".")) {
+            return false;
+        }
+        for (String raw : properties.effectiveDenyGlobs()) {
+            if (globMatches(normalizeGlob(raw), rel)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeGlob(String raw) {
+        return raw == null ? "" : raw.trim().replace('\\', '/').toLowerCase(Locale.ROOT);
+    }
+
+    private boolean globMatches(String glob, String rel) {
+        if (glob.isBlank()) {
+            return false;
+        }
+        if (glob.startsWith("**/") && glob.endsWith("/**")) {
+            String segment = glob.substring(3, glob.length() - 3);
+            return rel.equals(segment) || rel.startsWith(segment + "/") || rel.contains("/" + segment + "/") || rel.endsWith("/" + segment);
+        }
+        if (glob.startsWith("**/*")) {
+            return rel.endsWith(glob.substring(4));
+        }
+        String quoted = Pattern.quote(glob)
+                .replace("\\*\\*", "\\E.*\\Q")
+                .replace("\\*", "\\E[^/]*\\Q")
+                .replace("\\?", "\\E.\\Q");
+        return Pattern.compile("^" + quoted + "$").matcher(rel).matches();
     }
 }

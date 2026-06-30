@@ -21,7 +21,10 @@ public class CommandRegistryController {
     }
 
     @PostMapping("/api/commands/execute")
-    public SuiteApiResponse<CommandExecutionResult> execute(@RequestBody CommandExecuteRequest request) {
-        return SuiteApiResponse.ok(commandRegistry.executeRaw(request.line()));
+    public SuiteApiResponse<CommandExecutionResult> execute(@RequestBody CommandExecuteRequest request) throws Exception {
+        return SuiteApiResponse.ok(CommandExecutionContext.runAs(
+                CommandExecutionContext.Source.API,
+                () -> commandRegistry.executeRaw(request.line())
+        ));
     }
 }

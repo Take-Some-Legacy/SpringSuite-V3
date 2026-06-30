@@ -2,11 +2,15 @@ package com.takesome.springsuite.workspace;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "suite.workspace")
 public class WorkspaceProperties {
     private boolean enabled = true;
+    private String activeProfile = "";
     private List<String> roots = new ArrayList<>(List.of("."));
     private boolean allowRead = true;
     private boolean allowWrite = true;
@@ -19,6 +23,10 @@ public class WorkspaceProperties {
     private List<String> denySegments = new ArrayList<>(List.of(
             ".git", ".gradle", ".idea", "build", "out", "target", "node_modules", "__pycache__"
     ));
+    private List<String> denyGlobs = new ArrayList<>(List.of(
+            "**/cache/**", "**/*.ulog.ndjson", "**/profiler_report_*.zip", "**/target/**", "**/build/**"
+    ));
+    private Map<String, WorkspaceProfileProperties> profiles = new LinkedHashMap<>();
     private List<String> textExtensions = new ArrayList<>(List.of(
             ".java", ".kt", ".kts", ".gradle", ".xml", ".yml", ".yaml", ".json", ".md", ".txt",
             ".properties", ".toml", ".ini", ".bat", ".cmd", ".ps1", ".sh", ".py", ".rs", ".js", ".ts",
@@ -32,6 +40,10 @@ public class WorkspaceProperties {
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
+
+    public String getActiveProfile() { return activeProfile; }
+
+    public void setActiveProfile(String value) { this.activeProfile = value == null ? "" : value.trim(); }
 
     public List<String> getRoots() {
         return roots;
@@ -113,11 +125,62 @@ public class WorkspaceProperties {
         this.denySegments = denySegments == null ? new ArrayList<>() : new ArrayList<>(denySegments);
     }
 
+    public List<String> getDenyGlobs() { return denyGlobs; }
+
+    public void setDenyGlobs(List<String> value) { this.denyGlobs = value == null ? new ArrayList<>() : new ArrayList<>(value); }
+
+    public Map<String, WorkspaceProfileProperties> getProfiles() { return profiles; }
+
+    public void setProfiles(Map<String, WorkspaceProfileProperties> value) { this.profiles = value == null ? new LinkedHashMap<>() : new LinkedHashMap<>(value); }
+
     public List<String> getTextExtensions() {
         return textExtensions;
     }
 
     public void setTextExtensions(List<String> textExtensions) {
         this.textExtensions = textExtensions == null ? new ArrayList<>() : new ArrayList<>(textExtensions);
+    }
+
+    public WorkspaceProfileProperties activeProfileProperties() {
+        if (activeProfile == null || activeProfile.isBlank()) { return null; }
+        return profiles.get(activeProfile.trim());
+    }
+
+    public List<String> effectiveRoots() {
+        WorkspaceProfileProperties profile = activeProfileProperties();
+        return profile != null && !profile.getRoots().isEmpty() ? profile.getRoots() : roots;
+    }
+
+    public boolean effectiveAllowRead() {
+        WorkspaceProfileProperties profile = activeProfileProperties();
+        return profile != null && profile.getAllowRead() != null ? profile.getAllowRead() : allowRead;
+    }
+
+    public boolean effectiveAllowWrite() {
+        WorkspaceProfileProperties profile = activeProfileProperties();
+        return profile != null && profile.getAllowWrite() != null ? profile.getAllowWrite() : allowWrite;
+    }
+
+    public boolean effectiveAllowDelete() {
+        WorkspaceProfileProperties profile = activeProfileProperties();
+        return profile != null && profile.getAllowDelete() != null ? profile.getAllowDelete() : allowDelete;
+    }
+
+    public List<String> effectiveDenySegments() {
+        LinkedHashSet<String> merged = new LinkedHashSet<>(denySegments);
+        WorkspaceProfileProperties profile = activeProfileProperties();
+        if (profile != null) { merged.addAll(profile.getDenySegments()); }
+        return List.copyOf(merged);
+    }
+
+    public List<String> effectiveDenyGlobs() {
+        LinkedHashSet<String> merged = new LinkedHashSet<>(denyGlobs);
+        WorkspaceProfileProperties profile = activeProfileProperties();
+        if (profile != null) { merged.addAll(profile.getDenyGlobs()); }
+        return List.copyOf(merged);
+    }
+
+    public List<String> availableProfiles() {
+        return profiles.keySet().stream().sorted().toList();
     }
 }

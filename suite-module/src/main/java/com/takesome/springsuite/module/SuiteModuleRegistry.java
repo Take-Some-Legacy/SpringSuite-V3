@@ -80,6 +80,29 @@ public class SuiteModuleRegistry {
         }
     }
 
+    public SuiteModuleSummary reloadModules() {
+        List<LoadedModule> previous = snapshot();
+        for (LoadedModule loaded : previous) {
+            runLifecycle(loaded, SuiteModuleLifecyclePhase.SHUTDOWN);
+            if (loaded.registered().enabled()) {
+                for (SuiteCommand command : loaded.module().commands()) {
+                    commandRegistry.unregister(command);
+                }
+            }
+        }
+        synchronized (lock) {
+            loadedModules.clear();
+        }
+        loadModules();
+        SuiteModuleSummary summary = summary();
+        logService.append(OperatorLogLevel.INFO, "modules", "module registry reloaded", Map.of(
+                "discovered", summary.discoveredCount(),
+                "active", summary.activeCount(),
+                "commands", summary.commandCount(),
+                "capabilities", summary.capabilityCount()
+        ));
+        return summary;
+    }
     private void loadModules() {
         boolean enabled = Boolean.parseBoolean(System.getProperty("suite.modules.enabled", "true"));
         if (!enabled) {

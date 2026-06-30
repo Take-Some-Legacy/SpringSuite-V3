@@ -125,11 +125,21 @@ public class ConsoleCommandListener {
         if (line == null || line.isBlank()) {
             return;
         }
-        CommandExecutionResult result = commandRegistry.executeRaw(line);
-        printResult(result);
+        try {
+            CommandExecutionResult result = CommandExecutionContext.runAs(
+                    CommandExecutionContext.Source.CONSOLE,
+                    () -> commandRegistry.executeRaw(line)
+            );
+            printResult(result);
+        } catch (Exception ex) {
+            printResult(CommandExecutionResult.failed("command_exception", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()));
+        }
     }
 
     private void printResult(CommandExecutionResult result) {
+        if (Boolean.TRUE.equals(result.data().get("_consoleSilent"))) {
+            return;
+        }
         String marker = result.ok() ? "OK" : "ERR";
         System.out.println(marker + " " + result.code() + " :: " + result.message());
         if (!result.data().isEmpty()) {
