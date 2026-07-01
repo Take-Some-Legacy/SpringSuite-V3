@@ -1,5 +1,6 @@
 package com.takesome.springsuite.command.builtin;
 
+import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.command.CommandDescriptor;
 import com.takesome.springsuite.command.CommandExecutionResult;
 import com.takesome.springsuite.command.CommandInvocation;
@@ -35,7 +36,7 @@ public class ExitCommand implements SuiteCommand {
 
     @Override
     public CommandExecutionResult execute(CommandInvocation invocation) {
-        if (!properties.isAllowShutdown()) {
+        if (!SuiteOperatorMode.isElevated() && !properties.isAllowShutdown()) {
             return CommandExecutionResult.failed("shutdown_disabled", "Console shutdown command is disabled by config");
         }
         Thread shutdownThread = new Thread(() -> {

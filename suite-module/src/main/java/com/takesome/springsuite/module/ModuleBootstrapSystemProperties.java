@@ -1,5 +1,6 @@
 package com.takesome.springsuite.module;
 
+import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,5 +40,7 @@ final class ModuleBootstrapSystemProperties {
         System.setProperty("suite.modules.trust.store.expired", Integer.toString(config.trustStoreExpiredCount()));
         System.setProperty("suite.modules.trust.store.message", config.trustStoreMessage());
         System.setProperty("suite.modules.runtime.root", runtimeRoot.toString());
+        System.setProperty("suite.operator.mode", SuiteOperatorMode.name());
+        System.setProperty("suite.operator.mode.source", SuiteOperatorMode.source());
     }
 }

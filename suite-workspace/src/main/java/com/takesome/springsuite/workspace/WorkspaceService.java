@@ -1,5 +1,6 @@
 package com.takesome.springsuite.workspace;
 
+import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
 import com.takesome.springsuite.workspace.fs.WorkspacePathPolicy;
@@ -78,7 +79,7 @@ public class WorkspaceService {
         if (!Files.isDirectory(target)) {
             throw new IllegalArgumentException("not a directory: " + pathPolicy.displayPath(target));
         }
-        int safeLimit = limit <= 0 ? 100 : Math.min(limit, properties.getMaxTreeItems());
+        int safeLimit = SuiteOperatorMode.isElevated() ? (limit <= 0 ? 1000000 : Math.max(1, limit)) : (limit <= 0 ? 100 : Math.min(limit, properties.getMaxTreeItems()));
         ArrayList<WorkspaceEntry> entries = new ArrayList<>();
         AtomicBoolean truncated = new AtomicBoolean(false);
         try (Stream<Path> stream = Files.list(target)) {
@@ -101,8 +102,8 @@ public class WorkspaceService {
     public WorkspaceListResult tree(String path, int depth, int limit) {
         accessGuard.ensureRead();
         Path target = pathPolicy.resolveSafe(path);
-        int safeDepth = Math.max(0, Math.min(depth <= 0 ? 3 : depth, 12));
-        int safeLimit = limit <= 0 ? properties.getMaxTreeItems() : Math.min(limit, properties.getMaxTreeItems());
+        int safeDepth = SuiteOperatorMode.isElevated() ? (depth <= 0 ? 256 : Math.max(0, depth)) : Math.max(0, Math.min(depth <= 0 ? 3 : depth, 12));
+        int safeLimit = SuiteOperatorMode.isElevated() ? (limit <= 0 ? 1000000 : Math.max(1, limit)) : (limit <= 0 ? properties.getMaxTreeItems() : Math.min(limit, properties.getMaxTreeItems()));
         ArrayList<WorkspaceEntry> entries = new ArrayList<>();
         AtomicBoolean truncated = new AtomicBoolean(false);
         try (Stream<Path> stream = Files.walk(target, safeDepth, FileVisitOption.FOLLOW_LINKS)) {
@@ -128,9 +129,10 @@ public class WorkspaceService {
         Path target = pathPolicy.resolveSafe(path);
         textFilePolicy.ensureTextFile(target);
         int safeOffset = Math.max(0, offset);
-        int safeMax = maxBytes <= 0 ? properties.getMaxReadBytes() : Math.min(maxBytes, properties.getMaxReadBytes());
+        int configuredMax = maxBytes <= 0 ? properties.getMaxReadBytes() : Math.min(maxBytes, properties.getMaxReadBytes());
         try {
             byte[] all = Files.readAllBytes(target);
+            int safeMax = SuiteOperatorMode.isElevated() ? (maxBytes <= 0 ? all.length : Math.max(0, maxBytes)) : configuredMax;
             int start = Math.min(safeOffset, all.length);
             int end = Math.min(all.length, start + safeMax);
             byte[] slice = java.util.Arrays.copyOfRange(all, start, end);

@@ -1,5 +1,6 @@
 package com.takesome.springsuite.toolbelt.execution;
 
+import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.toolbelt.DescriptorToolRuntime;
 import com.takesome.springsuite.toolbelt.ToolDescriptor;
 import com.takesome.springsuite.toolbelt.ToolRunRequest;
@@ -31,7 +32,7 @@ public final class ToolProcessRunner {
         if (descriptor == null) {
             return failed(request.toolId(), List.of(), "", "unknown tool: " + request.toolId(), request.dryRun());
         }
-        if (!properties.isAllowExecution() && !request.dryRun()) {
+        if (!SuiteOperatorMode.isElevated() && !properties.isAllowExecution() && !request.dryRun()) {
             return failed(descriptor.id(), descriptor.commandTemplate(), "", "tool execution disabled by suite.toolbelt.allow-execution=false", false);
         }
         if (!descriptor.available()) {

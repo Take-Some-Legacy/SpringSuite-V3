@@ -1,5 +1,6 @@
 package com.takesome.springsuite.app;
 
+import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.config.ExternalSuiteConfigBootstrap;
 import com.takesome.springsuite.config.SuiteConfigBootstrapResult;
 import com.takesome.springsuite.logging.ConsoleAnsiBootstrap;
@@ -14,10 +15,14 @@ import org.springframework.core.io.DefaultResourceLoader;
 @ConfigurationPropertiesScan(basePackages = "com.takesome.springsuite")
 public class SpringSuiteApplication {
     public static void main(String[] args) {
+        SuiteOperatorMode.promoteFromArgs(args);
         SuiteBuildInfo buildInfo = SuiteBuildInfo.load();
         System.out.println(buildInfo.startupLine());
 
         SuiteModuleBootstrapResult modules = SuiteModuleBootstrap.bootstrap();
+        if (SuiteOperatorMode.isElevated()) {
+            System.err.println("[SpringSuite][WARN] elevated operator mode active; source=" + SuiteOperatorMode.source());
+        }
         SuiteConfigBootstrapResult config = ExternalSuiteConfigBootstrap.bootstrap();
         ConsoleAnsiBootstrap.installEarly(config.consoleAnsiEnabled(), config.consoleAnsiProbe());
         System.out.println("[SpringSuite] launch root: " + config.projectRoot());

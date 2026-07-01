@@ -1,5 +1,6 @@
 package com.takesome.springsuite.toolbelt;
 
+import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

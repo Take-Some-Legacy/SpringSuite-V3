@@ -1,5 +1,6 @@
 package com.takesome.springsuite.workspace.fs;
 
+import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.workspace.WorkspaceProperties;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -24,6 +25,9 @@ public class WorkspacePathPolicy {
         Path resolved = path.isAbsolute()
                 ? path.toAbsolutePath().normalize()
                 : runtimeRoot().resolve(path).toAbsolutePath().normalize();
+        if (SuiteOperatorMode.isElevated()) {
+            return resolved;
+        }
         Optional<Path> root = allowedRoots().stream().filter(allowed -> startsWith(resolved, allowed)).findFirst();
         if (root.isEmpty()) {
             throw new IllegalArgumentException("path escapes configured workspace roots: " + rawPath);
@@ -47,6 +51,9 @@ public class WorkspacePathPolicy {
     }
 
     public boolean isNotDenied(Path path) {
+        if (SuiteOperatorMode.isElevated()) {
+            return true;
+        }
         Path normalized = path.toAbsolutePath().normalize();
         Optional<Path> root = allowedRoots().stream().filter(allowed -> startsWith(normalized, allowed)).findFirst();
         Path policyPath = root.map(value -> relativizeSafe(value, normalized)).orElse(normalized);
