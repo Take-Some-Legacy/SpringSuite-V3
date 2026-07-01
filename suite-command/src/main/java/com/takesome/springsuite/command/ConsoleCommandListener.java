@@ -28,17 +28,20 @@ public class ConsoleCommandListener {
     private final CommandRegistry commandRegistry;
     private final ConsoleCommandProperties properties;
     private final OperatorLogService logService;
+    private final ConsoleShellState shellState;
     private volatile boolean running;
     private Thread listenerThread;
 
     public ConsoleCommandListener(
             CommandRegistry commandRegistry,
             ConsoleCommandProperties properties,
-            OperatorLogService logService
+            OperatorLogService logService,
+            ConsoleShellState shellState
     ) {
         this.commandRegistry = commandRegistry;
         this.properties = properties;
         this.logService = logService;
+        this.shellState = shellState;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -55,7 +58,8 @@ public class ConsoleCommandListener {
         listenerThread.setDaemon(true);
         listenerThread.start();
         logService.append(OperatorLogLevel.INFO, "console", "console command listener started", Map.of(
-                "prompt", properties.getPrompt(),
+                "prompt", prompt(),
+                "mode", shellState.modeBanner(),
                 "completion", "tab"
         ));
     }
@@ -63,7 +67,11 @@ public class ConsoleCommandListener {
     private void runLoop() {
         if (properties.isPrintWelcome()) {
             System.out.println();
-            System.out.println("SpringSuite console ready. Type 'help' or press TAB for commands.");
+            System.out.println("SpringSuite shell ready. " + shellState.modeBanner());
+            if (shellState.modeBanner().startsWith("mode=ELEVATED")) {
+                System.err.println("[SpringSuite][WARN] console running in elevated operator mode: " + shellState.modeBanner());
+            }
+            System.out.println("UNIX-like commands: pwd, cd, ls, cat, grep, mkdir, rm, touch. Use ';', '&&' and '||'.");
         }
 
         try {
@@ -90,7 +98,7 @@ public class ConsoleCommandListener {
         while (running) {
             String line;
             try {
-                line = reader.readLine(properties.getPrompt());
+                line = reader.readLine(prompt());
             } catch (UserInterruptException ex) {
                 continue;
             } catch (EndOfFileException ex) {
@@ -105,7 +113,7 @@ public class ConsoleCommandListener {
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
             while (running) {
-                System.out.print(properties.getPrompt());
+                System.out.print(prompt());
                 System.out.flush();
                 String line = reader.readLine();
                 if (line == null) {
@@ -128,7 +136,7 @@ public class ConsoleCommandListener {
         try {
             CommandExecutionResult result = CommandExecutionContext.runAs(
                     CommandExecutionContext.Source.CONSOLE,
-                    () -> commandRegistry.executeRaw(line)
+                    () -> commandRegistry.executeScript(line)
             );
             printResult(result);
         } catch (Exception ex) {
@@ -136,14 +144,33 @@ public class ConsoleCommandListener {
         }
     }
 
+    private String prompt() {
+        return shellState.prompt(properties.getPrompt());
+    }
+
     private void printResult(CommandExecutionResult result) {
         if (Boolean.TRUE.equals(result.data().get("_consoleSilent"))) {
             return;
         }
+        Object stdout = result.data().get("_stdout");
+        if (stdout != null) {
+            String text = Objects.toString(stdout, "");
+            System.out.print(text);
+            if (!text.endsWith("\n") && !text.endsWith("\r")) {
+                System.out.println();
+            }
+            if (Boolean.TRUE.equals(result.data().get("_consoleRaw"))) {
+                return;
+            }
+        }
         String marker = result.ok() ? "OK" : "ERR";
         System.out.println(marker + " " + result.code() + " :: " + result.message());
         if (!result.data().isEmpty()) {
-            result.data().forEach((key, value) -> printValue("  ", key, value));
+            result.data().forEach((key, value) -> {
+                if (!key.startsWith("_")) {
+                    printValue("  ", key, value);
+                }
+            });
         }
     }
 

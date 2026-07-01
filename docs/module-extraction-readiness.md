@@ -170,3 +170,31 @@ Repository catalog combines:
 - remembered cache entries from `.springsuite/repositories.json`
 
 Current repository is still resolved from the active path by walking upward to the nearest `.git`.
+
+## UNIX-like console policy
+
+The interactive console is a managed shell, not an unrestricted OS shell. It supports a bash-like command surface while routing operations through Suite policies:
+
+```text
+pwd
+cd [path]
+ls [path] [limit]
+tree [path] [depth] [limit]
+cat <path>
+grep <query> [path]
+mkdir <path>
+rm [-r|--recursive] [--dry-run] <path>
+touch <path>
+echo [text...]
+```
+
+Shell chaining is supported:
+
+```text
+command1 ; command2
+command1 && command2
+```
+
+`;` continues regardless of prior result. `&&` executes the next command only if the previous command succeeded.
+
+The shell maintains a virtual current working directory through `ConsoleShellState`. File operations remain constrained by workspace roots, deny lists, and mutation gates.
