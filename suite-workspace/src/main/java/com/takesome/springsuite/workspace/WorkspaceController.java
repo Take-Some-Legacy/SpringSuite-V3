@@ -73,6 +73,66 @@ public class WorkspaceController {
         }
     }
 
+    @GetMapping("/api/workspace/repositories")
+    public SuiteApiResponse<RepositoryDescriptorCatalog> repositoryCatalog(
+            @RequestParam(name = "path", required = false, defaultValue = ".") String path,
+            @RequestParam(name = "ensure", required = false, defaultValue = "false") boolean ensure,
+            @RequestParam(name = "overwrite", required = false, defaultValue = "false") boolean overwrite
+    ) {
+        try {
+            return SuiteApiResponse.ok(workspaceService.repoCatalog(path, ensure, overwrite));
+        } catch (Exception ex) {
+            return SuiteApiResponse.failed("repository_catalog_failed", ex.getMessage(), null);
+        }
+    }
+
+    @PostMapping("/api/workspace/repositories/remember")
+    public SuiteApiResponse<RepositoryDescriptorResult> rememberRepository(
+            @RequestParam(name = "path", required = false, defaultValue = ".") String path,
+            @RequestParam(name = "pinned", required = false, defaultValue = "true") boolean pinned
+    ) {
+        try {
+            return SuiteApiResponse.ok(workspaceService.repoRemember(path, pinned));
+        } catch (Exception ex) {
+            return SuiteApiResponse.failed("repository_remember_failed", ex.getMessage(), null);
+        }
+    }
+
+    @PostMapping("/api/workspace/repositories/forget")
+    public SuiteApiResponse<RepositoryDescriptorCatalog> forgetRepository(
+            @RequestParam(name = "path", required = false, defaultValue = ".") String path
+    ) {
+        try {
+            return SuiteApiResponse.ok(workspaceService.repoForget(path));
+        } catch (Exception ex) {
+            return SuiteApiResponse.failed("repository_forget_failed", ex.getMessage(), null);
+        }
+    }
+
+    @GetMapping("/api/workspace/repository/descriptor")
+    public SuiteApiResponse<RepositoryDescriptorResult> repositoryDescriptor(
+            @RequestParam(name = "path", required = false, defaultValue = ".") String path
+    ) {
+        try {
+            RepositoryDescriptorResult result = workspaceService.repoInfo(path);
+            return result.ok() ? SuiteApiResponse.ok(result) : SuiteApiResponse.failed("repository_descriptor_missing", result.message(), result);
+        } catch (Exception ex) {
+            return SuiteApiResponse.failed("repository_descriptor_read_failed", ex.getMessage(), null);
+        }
+    }
+
+    @PostMapping("/api/workspace/repository/descriptor")
+    public SuiteApiResponse<RepositoryDescriptorResult> ensureRepositoryDescriptor(
+            @RequestParam(name = "path", required = false, defaultValue = ".") String path,
+            @RequestParam(name = "overwrite", required = false, defaultValue = "false") boolean overwrite
+    ) {
+        try {
+            return SuiteApiResponse.ok(workspaceService.repoFile(path, overwrite));
+        } catch (Exception ex) {
+            return SuiteApiResponse.failed("repository_descriptor_write_failed", ex.getMessage(), null);
+        }
+    }
+
     @PostMapping("/api/workspace/write")
     public SuiteApiResponse<WorkspaceWriteResult> write(@RequestBody WorkspaceWriteRequest request) {
         try {

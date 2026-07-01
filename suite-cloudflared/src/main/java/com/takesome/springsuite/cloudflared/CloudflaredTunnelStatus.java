@@ -10,6 +10,7 @@ public record CloudflaredTunnelStatus(
         String targetUrl,
         String tunnelName,
         String hostname,
+        String cacheDirectory,
         String publicUrl,
         Instant startedAt,
         Integer exitCode,

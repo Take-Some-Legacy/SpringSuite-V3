@@ -20,6 +20,13 @@ public class WorkspaceProperties {
     private int maxSearchResults = 100;
     private int maxTreeItems = 500;
     private long maxFileSizeBytes = 2_097_152;
+    private boolean repositoryDescriptorAutoCreate = true;
+    private String repositoryDescriptorFile = ".springsuite-repository.json";
+    private int repositoryDescriptorScanDepth = 8;
+    private boolean repositoryCacheEnabled = true;
+    private boolean repositoryCacheRememberDiscovered = true;
+    private String repositoryCacheFile = ".springsuite/repositories.json";
+    private List<String> repositoryCacheRoots = new ArrayList<>();
     private List<String> denySegments = new ArrayList<>(List.of(
             ".git", ".gradle", ".idea", "build", "out", "target", "node_modules", "__pycache__"
     ));
@@ -115,6 +122,67 @@ public class WorkspaceProperties {
 
     public void setMaxFileSizeBytes(long maxFileSizeBytes) {
         this.maxFileSizeBytes = Math.max(1024, maxFileSizeBytes);
+    }
+
+
+    public boolean isRepositoryDescriptorAutoCreate() {
+        return repositoryDescriptorAutoCreate;
+    }
+
+    public void setRepositoryDescriptorAutoCreate(boolean repositoryDescriptorAutoCreate) {
+        this.repositoryDescriptorAutoCreate = repositoryDescriptorAutoCreate;
+    }
+
+    public String getRepositoryDescriptorFile() {
+        return repositoryDescriptorFile;
+    }
+
+    public void setRepositoryDescriptorFile(String repositoryDescriptorFile) {
+        this.repositoryDescriptorFile = repositoryDescriptorFile == null || repositoryDescriptorFile.isBlank()
+                ? ".springsuite-repository.json"
+                : repositoryDescriptorFile.trim();
+    }
+
+    public int getRepositoryDescriptorScanDepth() {
+        return repositoryDescriptorScanDepth;
+    }
+
+    public void setRepositoryDescriptorScanDepth(int repositoryDescriptorScanDepth) {
+        this.repositoryDescriptorScanDepth = Math.max(1, repositoryDescriptorScanDepth);
+    }
+
+    public boolean isRepositoryCacheEnabled() {
+        return repositoryCacheEnabled;
+    }
+
+    public void setRepositoryCacheEnabled(boolean repositoryCacheEnabled) {
+        this.repositoryCacheEnabled = repositoryCacheEnabled;
+    }
+
+    public boolean isRepositoryCacheRememberDiscovered() {
+        return repositoryCacheRememberDiscovered;
+    }
+
+    public void setRepositoryCacheRememberDiscovered(boolean repositoryCacheRememberDiscovered) {
+        this.repositoryCacheRememberDiscovered = repositoryCacheRememberDiscovered;
+    }
+
+    public String getRepositoryCacheFile() {
+        return repositoryCacheFile;
+    }
+
+    public void setRepositoryCacheFile(String repositoryCacheFile) {
+        this.repositoryCacheFile = repositoryCacheFile == null || repositoryCacheFile.isBlank()
+                ? ".springsuite/repositories.json"
+                : repositoryCacheFile.trim();
+    }
+
+    public List<String> getRepositoryCacheRoots() {
+        return repositoryCacheRoots;
+    }
+
+    public void setRepositoryCacheRoots(List<String> repositoryCacheRoots) {
+        this.repositoryCacheRoots = repositoryCacheRoots == null ? new ArrayList<>() : new ArrayList<>(repositoryCacheRoots);
     }
 
     public List<String> getDenySegments() {

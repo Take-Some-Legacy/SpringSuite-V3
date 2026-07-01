@@ -1,4 +1,4 @@
-package com.takesome.springsuite.command.builtin;
+package com.takesome.springsuite.cloudflaredmodule;
 
 import com.takesome.springsuite.cloudflared.CloudflaredTunnelService;
 import com.takesome.springsuite.command.CommandDescriptor;

@@ -9,6 +9,7 @@ suite:
     target-url: http://localhost:${server.port}
     tunnel-name: spring-suite-test
     hostname: testspring.kaylas-systems.ru
+    cache-directory: .springsuite/cloudflared
     extra-args:
       - --no-autoupdate
     stop-timeout: 5s

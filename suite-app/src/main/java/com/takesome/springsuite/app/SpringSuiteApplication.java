@@ -17,6 +17,8 @@ public class SpringSuiteApplication {
     public static void main(String[] args) {
         SuiteOperatorMode.promoteFromArgs(args);
         SuiteBuildInfo buildInfo = SuiteBuildInfo.load();
+        System.setProperty("suite.version", buildInfo.version());
+        System.setProperty("suite.build", buildInfo.build());
         System.out.println(buildInfo.startupLine());
 
         SuiteModuleBootstrapResult modules = SuiteModuleBootstrap.bootstrap();

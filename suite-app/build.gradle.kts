@@ -63,7 +63,7 @@ dependencies {
     implementation(project(":suite-logging"))
     implementation(project(":suite-config"))
     implementation(project(":suite-module"))
-    implementation(project(":suite-cloudflared"))
+    implementation(project(":suite-cloudflared-module"))
     implementation(project(":suite-command"))
     implementation(project(":suite-toolbelt"))
     implementation(project(":suite-workspace"))

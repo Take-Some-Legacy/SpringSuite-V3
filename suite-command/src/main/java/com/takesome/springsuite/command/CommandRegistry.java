@@ -55,7 +55,7 @@ public class CommandRegistry {
         CommandInvocation invocation = new CommandInvocation(rawLine, commandName, tokens.subList(1, tokens.size()), Instant.now());
         activeExecutions.incrementAndGet();
         try {
-            CommandExecutionResult result = command.execute(invocation);
+            CommandExecutionResult result = ConsoleProgress.run(command.descriptor().name(), () -> command.execute(invocation));
             logService.append(result.ok() ? OperatorLogLevel.INFO : OperatorLogLevel.WARN,
                     "command",
                     rawLine,

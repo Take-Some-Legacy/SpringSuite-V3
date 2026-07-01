@@ -1,6 +1,5 @@
 package com.takesome.springsuite.app;
 
-import com.takesome.springsuite.cloudflared.CloudflaredTunnelService;
 import com.takesome.springsuite.core.api.SuiteApiResponse;
 import com.takesome.springsuite.core.status.SuiteComponentStatus;
 import com.takesome.springsuite.core.status.SuiteSystemStatus;
@@ -14,18 +13,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class SystemStatusController {
     private final Instant startedAt = Instant.now();
-    private final CloudflaredTunnelService cloudflaredTunnelService;
     private final SuiteBuildInfo suiteBuildInfo;
 
-    public SystemStatusController(CloudflaredTunnelService cloudflaredTunnelService, SuiteBuildInfo suiteBuildInfo) {
-        this.cloudflaredTunnelService = cloudflaredTunnelService;
+    public SystemStatusController(SuiteBuildInfo suiteBuildInfo) {
         this.suiteBuildInfo = suiteBuildInfo;
     }
 
     @GetMapping("/api/system/status")
     public SuiteApiResponse<SuiteSystemStatus> status() {
         Map<String, Object> components = new LinkedHashMap<>();
-        components.put("cloudflared", cloudflaredTunnelService.status());
         components.put("java", Runtime.version().toString());
         components.put("pid", ManagementFactory.getRuntimeMXBean().getPid());
         components.put("name", suiteBuildInfo.name());

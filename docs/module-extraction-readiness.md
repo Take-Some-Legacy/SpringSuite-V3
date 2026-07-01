@@ -1,0 +1,172 @@
+# SpringSuite module extraction readiness
+
+## Goal
+
+Keep the bootable suite small and stable by leaving only runtime-critical infrastructure in the system layer and moving feature surfaces into deployable SuiteModule jars.
+
+## System layer: keep in app/runtime
+
+These parts should stay system-owned because they define boot, configuration, command routing, module loading, auth, logging, and filesystem safety boundaries:
+
+- `suite-core` — API DTOs, status model, runtime operator mode.
+- `suite-config` — external configuration bootstrap and config contributors.
+- `suite-logging` — operator log pipeline and console/Jansi integration.
+- `suite-module` — module bootstrap, trust, registry, lifecycle, publisher management.
+- `suite-command` — command registry, console listener, command context, shared console progress.
+- `suite-agent` — MCP/OAuth/bridge-token surface.
+- `suite-workspace` — workspace path policy and local mutation API.
+- `suite-toolbelt` — descriptor-driven tool discovery/execution kernel.
+
+## Already module-shaped
+
+These are good examples for the next extraction wave:
+
+- `suite-dashboard-module`
+- `suite-diagnostics-module`
+
+Both should remain outside the core app dependency graph and be deployed through signed module jars.
+
+## Next extraction candidates
+
+### 1. Cloudflared tunnel surface
+
+Phase 1 complete:
+
+- `suite-cloudflared` is now the low-level runtime library: service, properties and config contributor.
+- `suite-cloudflared-module` owns the feature surface: REST controller and console `tunnel` command.
+- `suite-command` no longer depends on `suite-cloudflared`.
+- `suite-app` depends on `suite-cloudflared-module` instead of directly depending on `suite-cloudflared`.
+
+Remaining externalization target:
+
+- Add a web-extension SPI before trying to load the REST controller from an external signed jar.
+- Then remove the direct `suite-app -> suite-cloudflared-module` dependency and deploy the module through the runtime modules directory.
+
+### 2. Dashboard UI
+
+Already extracted as a module. Keep improving it as the reference pattern for feature modules.
+
+### 3. Diagnostics commands
+
+Already extracted as a module. Use this as the reference for read-only operational commands.
+
+### 4. Optional workspace enrichments
+
+The workspace kernel should stay system-owned, but non-critical features can become modules later:
+
+- advanced tree renderers
+- symbolic analysis
+- heavy search/indexing
+- project-specific workspace reports
+
+### 5. Optional toolbelt adapters
+
+The descriptor-driven toolbelt kernel should stay system-owned. Vendor/tool-specific command façades can become modules.
+
+## Dependency-pressure notes
+
+Current strong coupling to reduce next:
+
+- `suite-app -> suite-cloudflared-module` is now the only remaining cloudflared feature coupling
+- `suite-command -> suite-cloudflared` has been removed
+
+The desired end state is:
+
+```text
+suite-app
+  -> suite-core
+  -> suite-config
+  -> suite-logging
+  -> suite-module
+  -> suite-command
+  -> suite-agent
+  -> suite-workspace
+  -> suite-toolbelt
+
+feature modules
+  -> suite-module
+  -> suite-command when they expose commands
+```
+
+## Cloudflared runtime data policy
+
+Cloudflared must not write tunnel credentials/cache into the OS user profile by default. The runtime process is now prepared to use a local project directory:
+
+```text
+.springsuite/cloudflared
+```
+
+The child process receives local HOME-style environment variables and runs with that directory as its working directory. This keeps generated tunnel/cache data scoped to the current suite working directory.
+
+## Console progress policy
+
+Console progress is centralized in `suite-command` through `ctongfei/progressbar`. Commands executed from the interactive console can show progress without leaking terminal UI behavior into REST/API/MCP callers.
+
+
+## Repository descriptor policy
+
+A workspace may contain many repositories. A repository is any directory containing `.git`. The current repository is resolved from the active workspace path by walking upward until the nearest `.git` is found. Repository catalog discovery also scans configured workspace roots for nested repositories.
+
+```text
+.springsuite-repository.json
+```
+
+The descriptor stores:
+
+- full repository path
+- `.git` directory path
+- dataset roots for examples and analysis
+- analysis target categories
+- excluded/generated paths
+- build/test/deploy commands
+- workspace safe roots
+- module extraction hints
+
+The workspace module owns descriptor creation through `RepositoryDescriptorService`. On startup it checks configured workspace roots and creates a missing descriptor when `suite.workspace.repository-descriptor-auto-create=true`.
+
+Repository catalog API:
+
+```text
+GET /api/workspace/repositories?path=.
+GET /api/workspace/repositories?path=some/sub/repo&ensure=true
+```
+
+Console:
+
+```text
+workspace repos [path] [--ensure] [--overwrite]
+workspace repo [path] [--overwrite]
+```
+
+`workspace repos` returns all detected repositories and marks the current repository according to the path argument.
+
+## Repository memory/cache policy
+
+Repository descriptors and repository memory are separate:
+
+```text
+<repo>/.springsuite-repository.json       # descriptor committed with/near the repository
+<workspace>/.springsuite/repositories.json # local suite memory/cache, ignored by git
+```
+
+The cache remembers selected repositories between runs. Sources of remembered repositories:
+
+- explicit config: `suite.workspace.repository-cache-roots`
+- startup/catalog scans when `suite.workspace.repository-cache-remember-discovered=true`
+- manual commands: `workspace remember-repo [path]`
+- REST: `POST /api/workspace/repositories/remember?path=...`
+
+Forgetting:
+
+```text
+workspace forget-repo [path]
+POST /api/workspace/repositories/forget?path=...
+```
+
+Repository catalog combines:
+
+- scanned repositories under workspace roots
+- configured cache roots
+- remembered cache entries from `.springsuite/repositories.json`
+
+Current repository is still resolved from the active path by walking upward to the nearest `.git`.

@@ -16,6 +16,13 @@ suite:
     max-search-results: 100
     max-tree-items: 500
     max-file-size-bytes: 2097152
+    repository-descriptor-auto-create: true
+    repository-descriptor-file: .springsuite-repository.json
+    repository-descriptor-scan-depth: 8
+    repository-cache-enabled: true
+    repository-cache-remember-discovered: true
+    repository-cache-file: .springsuite/repositories.json
+    repository-cache-roots: []
     deny-segments:
       - .git
       - .gradle

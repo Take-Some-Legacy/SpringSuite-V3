@@ -7,6 +7,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -79,8 +81,19 @@ public class CloudflaredTunnelService {
             }
 
             List<String> command = command();
+            Path runtimeDirectory = runtimeDirectory();
             try {
+                Files.createDirectories(runtimeDirectory);
+                Path processCacheDirectory = runtimeDirectory.resolve("cache");
+                Files.createDirectories(processCacheDirectory);
                 ProcessBuilder builder = new ProcessBuilder(command);
+                builder.directory(runtimeDirectory.toFile());
+                Map<String, String> environment = builder.environment();
+                environment.put("CLOUDFLARED_HOME", runtimeDirectory.toString());
+                environment.put("HOME", runtimeDirectory.toString());
+                environment.put("USERPROFILE", runtimeDirectory.toString());
+                environment.put("XDG_CONFIG_HOME", runtimeDirectory.toString());
+                environment.put("XDG_CACHE_HOME", processCacheDirectory.toString());
                 builder.redirectErrorStream(true);
                 process = builder.start();
                 startedAt = Instant.now();
@@ -91,7 +104,8 @@ public class CloudflaredTunnelService {
                 clearRecentLinesLocked();
                 operatorLogService.append(OperatorLogLevel.INFO, "cloudflared", "cloudflared process started", Map.of(
                         "pid", process.pid(),
-                        "command", command
+                        "command", command,
+                        "runtimeDirectory", runtimeDirectory.toString()
                 ));
                 processTaskExecutor.execute(this::readProcessOutput);
             } catch (IOException ex) {
@@ -100,7 +114,8 @@ public class CloudflaredTunnelService {
                 lastError = ex.getMessage();
                 operatorLogService.append(OperatorLogLevel.ERROR, "cloudflared", "failed to start cloudflared", Map.of(
                         "error", ex.getMessage(),
-                        "command", command
+                        "command", command,
+                        "runtimeDirectory", runtimeDirectory.toString()
                 ));
             }
             return statusLocked();
@@ -190,6 +205,14 @@ public class CloudflaredTunnelService {
         return command;
     }
 
+    private Path runtimeDirectory() {
+        String raw = properties.getCacheDirectory();
+        Path configured = Path.of(raw == null || raw.isBlank() ? ".springsuite/cloudflared" : raw.trim());
+        return configured.isAbsolute()
+                ? configured.normalize()
+                : Path.of("").toAbsolutePath().normalize().resolve(configured).normalize();
+    }
+
     private void readProcessOutput() {
         Process current;
         synchronized (lock) {
@@ -247,6 +270,7 @@ public class CloudflaredTunnelService {
                 properties.getTargetUrl(),
                 properties.getTunnelName(),
                 properties.getHostname(),
+                runtimeDirectory().toString(),
                 publicUrl,
                 startedAt,
                 exitCode,

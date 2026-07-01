@@ -1,5 +1,7 @@
-package com.takesome.springsuite.cloudflared;
+package com.takesome.springsuite.cloudflaredmodule;
 
+import com.takesome.springsuite.cloudflared.CloudflaredTunnelService;
+import com.takesome.springsuite.cloudflared.CloudflaredTunnelStatus;
 import com.takesome.springsuite.core.api.SuiteApiResponse;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;

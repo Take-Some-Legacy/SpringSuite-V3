@@ -20,6 +20,7 @@ include(
     "suite-config",
     "suite-module",
     "suite-cloudflared",
+    "suite-cloudflared-module",
     "suite-command",
     "suite-toolbelt",
     "suite-workspace",

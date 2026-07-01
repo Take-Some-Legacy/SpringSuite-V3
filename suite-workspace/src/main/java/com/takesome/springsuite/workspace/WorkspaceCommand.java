@@ -25,7 +25,7 @@ public class WorkspaceCommand implements SuiteCommand {
                 "workspace",
                 "Browse, read, search and edit files inside configured workspace roots.",
                 "Filesystem capability for agents and humans. Reads and writes are bounded by suite.workspace roots, deny-list, file-size limits and write/delete gates. Prefer REST write for large content; console write is for short text patches.",
-                "workspace <summary|roots|list|tree|read|search|write|mkdir|delete> [args...]",
+                "workspace <summary|roots|repo|list|tree|read|search|write|mkdir|delete> [args...]",
                 CommandRiskLevel.LOCAL_MUTATION
         );
     }
@@ -36,6 +36,10 @@ public class WorkspaceCommand implements SuiteCommand {
         return switch (action) {
             case "summary", "status", "help" -> CommandExecutionResult.ok("workspace summary", Map.of("workspace", workspaceService.summary()));
             case "roots" -> CommandExecutionResult.ok("workspace roots", Map.of("roots", workspaceService.summary().roots()));
+            case "repo", "repository" -> repository(invocation);
+            case "repos", "repositories" -> repositories(invocation);
+            case "remember-repo", "remember" -> rememberRepository(invocation);
+            case "forget-repo", "forget" -> forgetRepository(invocation);
             case "list", "ls" -> list(invocation);
             case "tree" -> tree(invocation);
             case "read", "cat" -> read(invocation);
@@ -45,6 +49,46 @@ public class WorkspaceCommand implements SuiteCommand {
             case "delete", "rm" -> delete(invocation);
             default -> CommandExecutionResult.failed("bad_workspace_action", "Unknown workspace action: " + action);
         };
+    }
+
+    private CommandExecutionResult repository(CommandInvocation invocation) {
+        String path = invocation.arg(1).isBlank() ? "." : invocation.arg(1);
+        boolean overwrite = invocation.args().contains("--overwrite");
+        RepositoryDescriptorResult result = workspaceService.repoFile(path, overwrite);
+        return new CommandExecutionResult(
+                result.ok(),
+                result.ok() ? "ok" : "repository_descriptor_failed",
+                result.message(),
+                Map.of("result", result),
+                java.time.Instant.now()
+        );
+    }
+
+    private CommandExecutionResult repositories(CommandInvocation invocation) {
+        String path = invocation.arg(1).isBlank() ? "." : invocation.arg(1);
+        boolean ensure = invocation.args().contains("--ensure");
+        boolean overwrite = invocation.args().contains("--overwrite");
+        RepositoryDescriptorCatalog result = workspaceService.repoCatalog(path, ensure, overwrite);
+        return CommandExecutionResult.ok("workspace repositories", Map.of("result", result));
+    }
+
+    private CommandExecutionResult rememberRepository(CommandInvocation invocation) {
+        String path = invocation.arg(1).isBlank() ? "." : invocation.arg(1);
+        boolean pinned = !invocation.args().contains("--unpinned");
+        RepositoryDescriptorResult result = workspaceService.repoRemember(path, pinned);
+        return new CommandExecutionResult(
+                result.ok(),
+                result.ok() ? "ok" : "repository_remember_failed",
+                result.message(),
+                Map.of("result", result),
+                java.time.Instant.now()
+        );
+    }
+
+    private CommandExecutionResult forgetRepository(CommandInvocation invocation) {
+        String path = invocation.arg(1).isBlank() ? "." : invocation.arg(1);
+        RepositoryDescriptorCatalog result = workspaceService.repoForget(path);
+        return CommandExecutionResult.ok("workspace repository forgotten", Map.of("result", result));
     }
 
     private CommandExecutionResult list(CommandInvocation invocation) {

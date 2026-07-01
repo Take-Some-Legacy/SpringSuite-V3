@@ -28,12 +28,19 @@ public class WorkspaceService {
     private final WorkspaceTextFilePolicy textFilePolicy;
     private final WorkspaceEntryFactory entryFactory;
     private final WorkspaceSearchEngine searchEngine;
+    private final RepositoryDescriptorService repositoryDescriptorService;
     private final WorkspaceBackupPlanner backupPlanner = new WorkspaceBackupPlanner();
 
-    public WorkspaceService(WorkspaceProperties properties, OperatorLogService logService, WorkspacePathPolicy pathPolicy) {
+    public WorkspaceService(
+            WorkspaceProperties properties,
+            OperatorLogService logService,
+            WorkspacePathPolicy pathPolicy,
+            RepositoryDescriptorService repositoryDescriptorService
+    ) {
         this.properties = properties;
         this.logService = logService;
         this.pathPolicy = pathPolicy;
+        this.repositoryDescriptorService = repositoryDescriptorService;
         this.accessGuard = new WorkspaceAccessGuard(properties);
         this.textFilePolicy = new WorkspaceTextFilePolicy(properties, pathPolicy);
         this.entryFactory = new WorkspaceEntryFactory(pathPolicy);
@@ -237,4 +244,33 @@ public class WorkspaceService {
         accessGuard.ensureRead();
         return searchEngine.search(query, path, limit, regex, caseSensitive);
     }
+    public RepositoryDescriptorResult repoInfo(String path) {
+        accessGuard.ensureRead();
+        return repositoryDescriptorService.read(path);
+    }
+
+    public RepositoryDescriptorResult repoFile(String path, boolean overwrite) {
+        accessGuard.ensureWrite();
+        return repositoryDescriptorService.ensure(path, overwrite);
+    }
+
+    public RepositoryDescriptorCatalog repoCatalog(String path, boolean ensureMissing, boolean overwrite) {
+        if (ensureMissing || overwrite) {
+            accessGuard.ensureWrite();
+        } else {
+            accessGuard.ensureRead();
+        }
+        return repositoryDescriptorService.repositories(path, ensureMissing, overwrite);
+    }
+
+    public RepositoryDescriptorResult repoRemember(String path, boolean pinned) {
+        accessGuard.ensureWrite();
+        return repositoryDescriptorService.remember(path, pinned, "manual");
+    }
+
+    public RepositoryDescriptorCatalog repoForget(String path) {
+        accessGuard.ensureWrite();
+        return repositoryDescriptorService.forget(path);
+    }
+
 }

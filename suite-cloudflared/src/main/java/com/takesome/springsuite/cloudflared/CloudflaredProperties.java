@@ -13,6 +13,7 @@ public class CloudflaredProperties {
     private String targetUrl = "";
     private String tunnelName = "";
     private String hostname = "";
+    private String cacheDirectory = ".springsuite/cloudflared";
     private List<String> extraArgs = new ArrayList<>();
     private Duration stopTimeout = Duration.ofSeconds(5);
     private int recentLogLimit = 300;
@@ -63,6 +64,14 @@ public class CloudflaredProperties {
 
     public void setHostname(String hostname) {
         this.hostname = hostname == null ? "" : hostname.trim();
+    }
+
+    public String getCacheDirectory() {
+        return cacheDirectory;
+    }
+
+    public void setCacheDirectory(String cacheDirectory) {
+        this.cacheDirectory = cacheDirectory == null || cacheDirectory.isBlank() ? ".springsuite/cloudflared" : cacheDirectory.trim();
     }
 
     public List<String> getExtraArgs() {

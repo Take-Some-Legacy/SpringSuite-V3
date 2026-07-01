@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class DashboardSuiteModule implements SuiteModule {
-    public static final String VERSION = "0.1.2";
+    public static final String VERSION = "0.1.5";
 
     private final SuiteModuleManifest manifest = new SuiteModuleManifest(
             "spring-suite-dashboard",
