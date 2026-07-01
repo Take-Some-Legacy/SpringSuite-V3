@@ -1,0 +1,41 @@
+{
+  "schema": "com.takesome.springsuite.repository.v1",
+  "generatedAt": "2026-07-01T08:32:54.691520Z",
+  "repository": {
+    "name": "suite-cloudflared-wrapper-go",
+    "rootPath": "C:\\Users\\Aiden\\Documents\\Repos\\SpringSuite\\goSrc\\suite-cloudflared-wrapper-go",
+    "gitDirectory": "",
+    "descriptorPath": "C:\\Users\\Aiden\\Documents\\Repos\\SpringSuite\\goSrc\\suite-cloudflared-wrapper-go\\.springsuite-repository.json",
+    "descriptorFile": ".springsuite-repository.json",
+    "suiteVersion": "0.1.9"
+  },
+  "dataset": {
+    "roots": [
+      "cmd",
+      "internal",
+      "docs",
+      "configs"
+    ],
+    "examples": [
+      "configs/example.json"
+    ],
+    "analysisTargets": [
+      "process-wrapper",
+      "runtime-cache",
+      "stdout-stderr-contract",
+      "spring-suite-sidecar"
+    ],
+    "excludeGlobs": [
+      ".git/**",
+      "build/**",
+      ".springsuite/**"
+    ]
+  },
+  "analysis": {
+    "primaryLanguage": "Go",
+    "buildTool": "go",
+    "compileCommand": "go build ./cmd/suite-cloudflared-wrapper",
+    "testCommand": "go test ./..."
+  },
+  "vendoredIn": "SpringSuite/goSrc"
+}

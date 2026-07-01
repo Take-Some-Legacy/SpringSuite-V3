@@ -1,0 +1,39 @@
+{
+  "schema": "com.takesome.springsuite.tool.v1",
+  "id": "suite-repo-indexer",
+  "name": "suite-repo-indexer",
+  "title": "Suite Repo Indexer",
+  "kind": "go-sidecar",
+  "description": "Scans remembered repositories, discovers .git roots, builds dataset/hash index JSON for SpringSuite.",
+  "executable": "suiteBinaries/suite-repo-indexer.exe",
+  "default_args": [
+    "doctor"
+  ],
+  "validation_args": [
+    "doctor"
+  ],
+  "capabilities": [
+    "repo-scan",
+    "dataset-index",
+    "hash-cache",
+    "json-output"
+  ],
+  "tags": [
+    "go",
+    "sidecar",
+    "repository",
+    "indexer"
+  ],
+  "safe_commands": [
+    "version",
+    "doctor",
+    "help",
+    "index",
+    "scan"
+  ],
+  "runtime": {
+    "working_directory": "."
+  },
+  "source_type": "suite-local",
+  "package_root": "."
+}

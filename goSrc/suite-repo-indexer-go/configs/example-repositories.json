@@ -1,0 +1,10 @@
+{
+  "schema": "com.takesome.springsuite.repository-cache.v1",
+  "repositories": [
+    {
+      "name": "SpringSuite",
+      "rootPath": "C:\\Users\\Aiden\\Documents\\Repos\\SpringSuite",
+      "pinned": true
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "com.takesome.springsuite.repository.v1",
+  "generatedAt": "2026-07-01T09:04:44.504360Z",
+  "repository": {
+    "name": "suite-tail-watcher-go",
+    "rootPath": "C:\\Users\\Aiden\\Documents\\Repos\\SpringSuite\\goSrc\\suite-tail-watcher-go",
+    "gitDirectory": "",
+    "descriptorPath": "C:\\Users\\Aiden\\Documents\\Repos\\SpringSuite\\goSrc\\suite-tail-watcher-go\\.springsuite-repository.json",
+    "descriptorFile": ".springsuite-repository.json",
+    "suiteVersion": "0.1.9"
+  },
+  "dataset": {
+    "roots": [
+      "cmd",
+      "docs",
+      "configs"
+    ],
+    "examples": [
+      "configs/example.json"
+    ],
+    "analysisTargets": [
+      "tail-f",
+      "log-watcher",
+      "file-watch",
+      "jsonl-event-stream"
+    ],
+    "excludeGlobs": [
+      ".git/**",
+      "build/**",
+      ".springsuite/**"
+    ]
+  },
+  "analysis": {
+    "primaryLanguage": "Go",
+    "buildTool": "go",
+    "compileCommand": "go build ./cmd/suite-tail-watcher",
+    "testCommand": "go test ./..."
+  },
+  "vendoredIn": "SpringSuite/goSrc"
+}

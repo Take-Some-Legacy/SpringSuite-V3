@@ -192,6 +192,40 @@ public class CloudflaredTunnelService {
     }
 
     private List<String> command() {
+        if (shouldUseWrapper()) {
+            return wrapperCommand();
+        }
+        if (properties.isWrapperEnabled() && properties.getWrapperExecutable() != null && !properties.getWrapperExecutable().isBlank()) {
+            operatorLogService.append(OperatorLogLevel.WARN, "cloudflared", "cloudflared wrapper unavailable; falling back to legacy cloudflared executable", Map.of(
+                    "wrapperExecutable", resolveExecutablePath(properties.getWrapperExecutable()).toString(),
+                    "fallbackExecutable", properties.getExecutable()
+            ));
+        }
+        return legacyCloudflaredCommand();
+    }
+
+    private List<String> wrapperCommand() {
+        ArrayList<String> command = new ArrayList<>();
+        command.add(resolveExecutablePath(properties.getWrapperExecutable()).toString());
+        command.add("run");
+        if (!properties.getTunnelName().isBlank()) {
+            command.add("--mode");
+            command.add("run");
+            command.add("--tunnel");
+            command.add(properties.getTunnelName());
+        }
+        command.add("--url");
+        command.add(properties.getTargetUrl());
+        command.add("--runtime-dir");
+        command.add(runtimeDirectory().toString());
+        if (!properties.getExtraArgs().isEmpty()) {
+            command.add("--");
+            command.addAll(properties.getExtraArgs());
+        }
+        return command;
+    }
+
+    private List<String> legacyCloudflaredCommand() {
         ArrayList<String> command = new ArrayList<>();
         command.add(properties.getExecutable());
         command.add("tunnel");
@@ -203,6 +237,24 @@ public class CloudflaredTunnelService {
             command.add(properties.getTunnelName());
         }
         return command;
+    }
+
+    private boolean shouldUseWrapper() {
+        if (!properties.isWrapperEnabled()) {
+            return false;
+        }
+        String executable = properties.getWrapperExecutable();
+        if (executable == null || executable.isBlank()) {
+            return false;
+        }
+        return Files.isRegularFile(resolveExecutablePath(executable));
+    }
+
+    private Path resolveExecutablePath(String raw) {
+        Path path = Path.of(raw == null ? "" : raw.trim());
+        return path.isAbsolute()
+                ? path.toAbsolutePath().normalize()
+                : Path.of("").toAbsolutePath().normalize().resolve(path).normalize();
     }
 
     private Path runtimeDirectory() {

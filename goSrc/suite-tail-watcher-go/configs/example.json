@@ -1,0 +1,7 @@
+{
+  "path": "logs",
+  "interval": "1s",
+  "recursive": true,
+  "json": true,
+  "lines": 100
+}

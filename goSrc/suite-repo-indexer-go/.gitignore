@@ -1,0 +1,17 @@
+# Go
+/build/
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.txt
+
+# Suite local runtime/cache
+/.springsuite/
+
+# Editors
+.idea/
+.vscode/
+*.iml
+.DS_Store

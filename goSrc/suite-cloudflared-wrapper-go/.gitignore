@@ -1,0 +1,16 @@
+# Go
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.txt
+
+# Local runtime/cache
+/.springsuite/
+
+# Editors
+.idea/
+.vscode/
+*.iml
+.DS_Store

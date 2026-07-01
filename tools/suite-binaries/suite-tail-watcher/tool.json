@@ -1,0 +1,45 @@
+{
+  "schema": "com.takesome.springsuite.tool.v1",
+  "id": "suite-tail-watcher",
+  "name": "suite-tail-watcher",
+  "title": "Suite Tail Watcher",
+  "kind": "go-sidecar",
+  "source_type": "suite-local",
+  "package_root": ".",
+  "description": "Tails log files, watches directories and streams line-oriented events for SpringSuite.",
+  "executable": "suiteBinaries/suite-tail-watcher.exe",
+  "default_args": [
+    "doctor",
+    "--path",
+    "logs"
+  ],
+  "validation_args": [
+    "doctor",
+    "--path",
+    "logs"
+  ],
+  "capabilities": [
+    "tail-f",
+    "log-watch",
+    "file-watch",
+    "jsonl-event-stream"
+  ],
+  "tags": [
+    "go",
+    "sidecar",
+    "logs",
+    "tail",
+    "watcher"
+  ],
+  "safe_commands": [
+    "version",
+    "doctor",
+    "help",
+    "tail",
+    "watch",
+    "stream"
+  ],
+  "runtime": {
+    "working_directory": "."
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "schema": "com.takesome.springsuite.tool.v1",
+  "id": "suite-cloudflared-wrapper",
+  "name": "suite-cloudflared-wrapper",
+  "title": "Suite Cloudflared Wrapper",
+  "kind": "go-sidecar",
+  "description": "Runs cloudflared with SpringSuite-local runtime/cache directories and JSON lifecycle events.",
+  "executable": "suiteBinaries/suite-cloudflared-wrapper.exe",
+  "default_args": [
+    "version"
+  ],
+  "validation_args": [
+    "doctor",
+    "--url",
+    "http://localhost:8090"
+  ],
+  "capabilities": [
+    "process-wrapper",
+    "cloudflared",
+    "tunnel",
+    "runtime-cache"
+  ],
+  "tags": [
+    "go",
+    "sidecar",
+    "cloudflared",
+    "tunnel"
+  ],
+  "safe_commands": [
+    "version",
+    "doctor",
+    "help"
+  ],
+  "runtime": {
+    "working_directory": "."
+  },
+  "source_type": "suite-local",
+  "package_root": "."
+}

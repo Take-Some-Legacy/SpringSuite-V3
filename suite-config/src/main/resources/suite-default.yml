@@ -47,6 +47,8 @@ suite:
     enabled: true
     auto-start: false
     executable: cloudflared
+    wrapper-enabled: true
+    wrapper-executable: suiteBinaries/suite-cloudflared-wrapper.exe
     target-url: http://localhost:${server.port}
     tunnel-name: spring-suite-test
     hostname: testspring.kaylas-systems.ru
@@ -57,8 +59,8 @@ suite:
 
   toolbelt:
     enabled: true
-    roots:
-      - tools/toolbelt
+    scan-roots:
+      - tools
     include-path-tools: true
     allow-execution: false
     default-timeout: 30s

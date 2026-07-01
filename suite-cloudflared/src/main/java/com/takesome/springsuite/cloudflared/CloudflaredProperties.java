@@ -10,6 +10,8 @@ public class CloudflaredProperties {
     private boolean enabled = false;
     private boolean autoStart = false;
     private String executable = "";
+    private boolean wrapperEnabled = true;
+    private String wrapperExecutable = "suiteBinaries/suite-cloudflared-wrapper.exe";
     private String targetUrl = "";
     private String tunnelName = "";
     private String hostname = "";
@@ -40,6 +42,24 @@ public class CloudflaredProperties {
 
     public void setExecutable(String executable) {
         this.executable = executable;
+    }
+
+    public boolean isWrapperEnabled() {
+        return wrapperEnabled;
+    }
+
+    public void setWrapperEnabled(boolean wrapperEnabled) {
+        this.wrapperEnabled = wrapperEnabled;
+    }
+
+    public String getWrapperExecutable() {
+        return wrapperExecutable;
+    }
+
+    public void setWrapperExecutable(String wrapperExecutable) {
+        this.wrapperExecutable = wrapperExecutable == null || wrapperExecutable.isBlank()
+                ? "suiteBinaries/suite-cloudflared-wrapper.exe"
+                : wrapperExecutable.trim();
     }
 
     public String getTargetUrl() {

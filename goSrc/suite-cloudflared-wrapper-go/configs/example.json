@@ -1,0 +1,11 @@
+{
+  "cloudflared": "cloudflared",
+  "mode": "quick",
+  "url": "http://localhost:8090",
+  "tunnel": "",
+  "runtimeDir": ".springsuite/cloudflared",
+  "extraArgs": [
+    "--no-autoupdate"
+  ],
+  "json": false
+}

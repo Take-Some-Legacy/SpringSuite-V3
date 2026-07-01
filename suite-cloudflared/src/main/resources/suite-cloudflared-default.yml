@@ -6,6 +6,8 @@ suite:
     enabled: true
     auto-start: false
     executable: cloudflared
+    wrapper-enabled: true
+    wrapper-executable: suiteBinaries/suite-cloudflared-wrapper.exe
     target-url: http://localhost:${server.port}
     tunnel-name: spring-suite-test
     hostname: testspring.kaylas-systems.ru

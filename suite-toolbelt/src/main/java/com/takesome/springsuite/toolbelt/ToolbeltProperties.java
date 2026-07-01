@@ -11,9 +11,10 @@ public class ToolbeltProperties {
     private boolean enabled = true;
     /**
      * Canonical descriptor scan roots. Each entry may be absolute or relative to the suite runtime root.
+     * SpringSuite must discover its own tools from the runtime root by default.
      * The legacy roots property below is kept as a backward-compatible alias.
      */
-    private List<String> scanRoots = new ArrayList<>(List.of("tools", "../../Take Some/NorthStar-Suite/tools"));
+    private List<String> scanRoots = new ArrayList<>(List.of("tools"));
     private List<String> roots = new ArrayList<>();
     private boolean includePathTools = true;
     private boolean allowExecution = false;

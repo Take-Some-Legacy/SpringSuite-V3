@@ -51,6 +51,8 @@ suite:
     enabled: true
     auto-start: false
     executable: cloudflared
+    wrapper-enabled: true
+    wrapper-executable: suiteBinaries/suite-cloudflared-wrapper.exe
     target-url: http://localhost:${server.port}
     tunnel-name: spring-suite-test
     hostname: testspring.kaylas-systems.ru
@@ -62,10 +64,9 @@ suite:
   toolbelt:
     enabled: true
     # Tool descriptor scan roots. Relative paths are resolved from the SpringSuite runtime root.
-    # Keep the second path while SpringSuite reuses the Python NorthStar-Suite toolbelt.
+    # By default SpringSuite reads only its own local tools from ./tools.
     scan-roots:
       - tools
-      - ../../Take Some/NorthStar-Suite/tools
     include-path-tools: true
     allow-execution: false
     default-timeout: 30s
