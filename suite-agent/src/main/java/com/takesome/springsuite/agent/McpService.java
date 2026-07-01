@@ -25,6 +25,7 @@ public class McpService {
     private final WorkspaceService workspaceService;
     private final ToolbeltService toolbeltService;
     private final CommandRegistry commandRegistry;
+    private final BasicKnowledgeStore basicKnowledgeStore;
     private final AgentAuditService audit;
 
     public McpService(
@@ -34,6 +35,7 @@ public class McpService {
             WorkspaceService workspaceService,
             ToolbeltService toolbeltService,
             CommandRegistry commandRegistry,
+            BasicKnowledgeStore basicKnowledgeStore,
             AgentAuditService audit
     ) {
         this.properties = properties;
@@ -42,6 +44,7 @@ public class McpService {
         this.workspaceService = workspaceService;
         this.toolbeltService = toolbeltService;
         this.commandRegistry = commandRegistry;
+        this.basicKnowledgeStore = basicKnowledgeStore;
         this.audit = audit;
     }
 
@@ -49,7 +52,7 @@ public class McpService {
         return orderedMap(
                 "ok", true,
                 "name", properties.getServerName(),
-                "version", "0.1.9",
+                "version", "0.1.10",
                 "title", properties.getServerTitle(),
                 "description", properties.getDescription(),
                 "endpoint", properties.getEndpoint(),
@@ -108,7 +111,7 @@ public class McpService {
         return orderedMap(
                 "name", properties.getServerName(),
                 "title", properties.getServerTitle(),
-                "version", "0.1.9",
+                "version", "0.1.10",
                 "description", properties.getDescription()
         );
     }
@@ -132,6 +135,10 @@ public class McpService {
         out.add(tool("workspace.delete", "Delete a workspace path. Requires delete gate and admin scope.", schema(orderedMap("path", str("Path."), "recursive", bool("Recursive directory delete."), "dryRun", bool("Validate only.")), List.of("path")), false));
         out.add(tool("toolbelt.search", "Search discovered Suite tools.", schema(orderedMap("query", str("Tool query."), "limit", integer("Maximum tools.")), List.of()), true));
         out.add(tool("toolbelt.inventory", "Return toolbelt inventory and index summary.", schema(Map.of(), List.of()), true));
+        out.add(tool("basicKnowledge.remember", "Save or update a global BasicKnowledge fact shared across repositories.", schema(orderedMap("key", str("Stable key."), "value", str("Value to remember."), "tags", array("Tags."), "source", str("Source label.")), List.of("key", "value")), false));
+        out.add(tool("basicKnowledge.search", "Search global BasicKnowledge facts.", schema(orderedMap("query", str("Search query.")), List.of()), true));
+        out.add(tool("basicKnowledge.list", "List all global BasicKnowledge facts.", schema(Map.of(), List.of()), true));
+        out.add(tool("basicKnowledge.dump", "Dump the BasicKnowledge database metadata and items.", schema(Map.of(), List.of()), true));
         out.add(tool("toolbelt.run", "Run a discovered toolbelt tool by id/name when execution is enabled.", schema(orderedMap("toolId", str("Tool id/name/public name."), "args", array("Arguments."), "cwd", str("Working directory."), "stdin", str("Optional stdin."), "timeoutSec", integer("Timeout seconds."), "dryRun", bool("Dry-run command construction.")), List.of("toolId")), false));
         out.add(tool("command.execute", "Execute a SpringSuite console command line.", schema(orderedMap("line", str("Command line.")), List.of("line")), false));
         for (ToolIndexEntry entry : toolbeltService.index()) {
@@ -159,6 +166,10 @@ public class McpService {
             case "workspace.delete" -> workspaceService.delete(new WorkspaceDeleteRequest(strAt(args, "path", ""), boolAt(args, "recursive", false), boolAt(args, "dryRun", true)));
             case "toolbelt.search" -> toolbeltService.search(strAt(args, "query", strAt(args, "q", "")), intAt(args, "limit", 50), "", "", null, "");
             case "toolbelt.inventory" -> toolbeltService.inventory();
+            case "basicKnowledge.remember" -> basicKnowledgeStore.remember(strAt(args, "key", ""), strAt(args, "value", ""), listAt(args, "tags"), strAt(args, "source", "agent"));
+            case "basicKnowledge.search" -> basicKnowledgeStore.search(strAt(args, "query", strAt(args, "q", "")));
+            case "basicKnowledge.list" -> basicKnowledgeStore.list();
+            case "basicKnowledge.dump" -> basicKnowledgeStore.dump();
             case "toolbelt.run" -> toolbeltService.run(toolRunRequest(strAt(args, "toolId", ""), args));
             case "command.execute" -> commandRegistry.executeRaw(strAt(args, "line", ""));
             default -> dynamicTool(name, args);
@@ -173,6 +184,14 @@ public class McpService {
             }
         }
         throw new McpException(-32602, "unknown tool: " + name);
+    }
+
+    private List<String> listAt(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream().map(item -> item == null ? "" : String.valueOf(item)).filter(item -> !item.isBlank()).toList();
     }
 
     private ToolRunRequest toolRunRequest(String toolId, Map<String, Object> args) {

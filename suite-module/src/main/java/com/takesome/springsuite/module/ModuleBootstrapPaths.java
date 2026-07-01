@@ -1,5 +1,6 @@
 package com.takesome.springsuite.module;
 
+import com.takesome.springsuite.config.SuiteWorkingDirectoryBootstrap;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -8,11 +9,7 @@ final class ModuleBootstrapPaths {
     }
 
     static Path resolveRuntimeRoot() {
-        String explicit = firstNonBlank(System.getProperty("suite.home"), env("SPRING_SUITE_HOME"));
-        if (!explicit.isBlank()) {
-            return Paths.get(explicit).toAbsolutePath().normalize();
-        }
-        return Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        return SuiteWorkingDirectoryBootstrap.install();
     }
 
     static Path resolveRuntimePath(Path runtimeRoot, String configuredPath) {
@@ -35,4 +32,5 @@ final class ModuleBootstrapPaths {
         }
         return "";
     }
+
 }

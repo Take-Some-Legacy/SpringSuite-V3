@@ -76,24 +76,35 @@ public final class DashboardCommand implements SuiteCommand {
         }
 
         int rendered = 0;
+        int patchedLines = 0;
+        String previousFrame = "";
         System.out.print(TerminalAnsi.HIDE_CURSOR);
         try {
             for (; rendered < ticks; rendered++) {
-                clearScreen();
-                System.out.print(renderer.render(true));
-                System.out.print(TerminalAnsi.color(TerminalAnsi.BRIGHT_GREEN, "\n  dashboard/watch> live refresh: 1s | q / Esc / Enter -> main CLI "));
+                String frame = liveFrame();
+                if (rendered == 0) {
+                    System.out.print(TerminalAnsi.CLEAR);
+                    System.out.print(frame);
+                    patchedLines += frameLines(frame).length;
+                } else {
+                    patchedLines += patchFrame(previousFrame, frame);
+                }
+                previousFrame = frame;
                 System.out.flush();
                 if (waitForReturnHotkey(1000)) {
                     break;
                 }
             }
         } finally {
+            System.out.print(TerminalAnsi.cursorTo(lastLine(previousFrame) + 1, 1));
             System.out.print(TerminalAnsi.SHOW_CURSOR + TerminalAnsi.RESET);
         }
         System.out.println();
         return CommandExecutionResult.ok("dashboard watch returned to main CLI", Map.of(
                 "interactive", true,
                 "frames", rendered + 1,
+                "patchedLines", patchedLines,
+                "updateMode", "line-diff",
                 "moduleId", manifest.id(),
                 "_consoleSilent", CommandExecutionContext.isConsole()
         ));
@@ -125,7 +136,35 @@ public final class DashboardCommand implements SuiteCommand {
         return fallback;
     }
 
-    private void clearScreen() {
-        System.out.print(TerminalAnsi.CLEAR);
+    private String liveFrame() {
+        return renderer.render(true)
+                + TerminalAnsi.color(TerminalAnsi.BRIGHT_GREEN, "\n  dashboard/watch> live refresh: 1s | q / Esc / Enter -> main CLI ");
+    }
+
+    private int patchFrame(String previousFrame, String nextFrame) {
+        String[] previous = frameLines(previousFrame);
+        String[] next = frameLines(nextFrame);
+        int max = Math.max(previous.length, next.length);
+        int changed = 0;
+        for (int i = 0; i < max; i++) {
+            String before = i < previous.length ? previous[i] : "";
+            String after = i < next.length ? next[i] : "";
+            if (!before.equals(after)) {
+                System.out.print(TerminalAnsi.cursorTo(i + 1, 1));
+                System.out.print(TerminalAnsi.CLEAR_LINE);
+                System.out.print(after);
+                changed++;
+            }
+        }
+        System.out.print(TerminalAnsi.cursorTo(next.length + 1, 1));
+        return changed;
+    }
+
+    private String[] frameLines(String frame) {
+        return (frame == null ? "" : frame).split("\\R", -1);
+    }
+
+    private int lastLine(String frame) {
+        return Math.max(1, frameLines(frame).length);
     }
 }

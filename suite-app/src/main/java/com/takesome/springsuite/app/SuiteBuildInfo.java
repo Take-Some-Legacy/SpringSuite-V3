@@ -11,7 +11,7 @@ import org.springframework.boot.info.BuildProperties;
 public final class SuiteBuildInfo {
     private static final String BUILD_INFO_RESOURCE = "META-INF/build-info.properties";
     private static final String DEFAULT_NAME = "spring-suite";
-    private static final String DEFAULT_VERSION = "0.1.9";
+    private static final String DEFAULT_VERSION = "0.1.10";
     private static final String UNKNOWN = "unknown";
 
     private final String name;

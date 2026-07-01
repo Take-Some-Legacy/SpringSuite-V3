@@ -145,14 +145,7 @@ public final class ExternalSuiteConfigBootstrap {
     }
 
     private static Path resolveProjectRoot() {
-        String explicit = firstNonBlank(
-                System.getProperty("suite.home"),
-                System.getenv("SPRING_SUITE_HOME")
-        );
-        if (!explicit.isBlank()) {
-            return Paths.get(explicit).toAbsolutePath().normalize();
-        }
-        return Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        return SuiteWorkingDirectoryBootstrap.install();
     }
 
     private static Path resolveProjectRelativePath(Path projectRoot, String configuredPath) {

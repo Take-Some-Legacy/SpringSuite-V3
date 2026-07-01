@@ -32,6 +32,9 @@ public class SystemStatusController {
         components.put("gitBranch", suiteBuildInfo.branch());
         components.put("gitDirty", suiteBuildInfo.dirty());
         components.put("projectRoot", System.getProperty("suite.project.root", ""));
+        components.put("workingDirectory", System.getProperty("suite.working.directory", ""));
+        components.put("launchDirectory", System.getProperty("suite.launch.dir", ""));
+        components.put("userDir", System.getProperty("user.dir", ""));
         components.put("modulesEnabled", System.getProperty("suite.modules.enabled", ""));
         components.put("modulesDir", System.getProperty("suite.modules.dir", ""));
         components.put("modulesRecursive", System.getProperty("suite.modules.recursive", ""));

@@ -18,10 +18,16 @@ public final class TerminalAnsi {
     public static final String BRIGHT_MAGENTA = "\033[95m";
     public static final String BRIGHT_CYAN = "\033[96m";
     public static final String CLEAR = "\033[2J\033[H";
+    public static final String HOME = "\033[H";
+    public static final String CLEAR_LINE = "\033[2K";
     public static final String HIDE_CURSOR = "\033[?25l";
     public static final String SHOW_CURSOR = "\033[?25h";
 
     private TerminalAnsi() {
+    }
+
+    public static String cursorTo(int row, int column) {
+        return "\033[" + Math.max(1, row) + ";" + Math.max(1, column) + "H";
     }
 
     public static String color(String color, String text) {

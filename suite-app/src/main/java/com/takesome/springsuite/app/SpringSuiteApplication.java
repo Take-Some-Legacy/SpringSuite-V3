@@ -3,12 +3,14 @@ package com.takesome.springsuite.app;
 import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.config.ExternalSuiteConfigBootstrap;
 import com.takesome.springsuite.config.SuiteConfigBootstrapResult;
+import com.takesome.springsuite.config.SuiteWorkingDirectoryBootstrap;
 import com.takesome.springsuite.logging.ConsoleAnsiBootstrap;
 import com.takesome.springsuite.module.SuiteModuleBootstrap;
 import com.takesome.springsuite.module.SuiteModuleBootstrapResult;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import java.nio.file.Path;
 import org.springframework.core.io.DefaultResourceLoader;
 
 @SpringBootApplication(scanBasePackages = "com.takesome.springsuite")
@@ -20,6 +22,9 @@ public class SpringSuiteApplication {
         System.setProperty("suite.version", buildInfo.version());
         System.setProperty("suite.build", buildInfo.build());
         System.out.println(buildInfo.startupLine());
+
+        Path workingDirectory = SuiteWorkingDirectoryBootstrap.installFromArgs(args);
+        System.out.println("[SpringSuite] working directory: " + workingDirectory);
 
         SuiteModuleBootstrapResult modules = SuiteModuleBootstrap.bootstrap();
         if (SuiteOperatorMode.isElevated()) {
