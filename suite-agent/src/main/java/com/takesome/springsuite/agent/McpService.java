@@ -49,7 +49,7 @@ public class McpService {
         return orderedMap(
                 "ok", true,
                 "name", properties.getServerName(),
-                "version", "0.1.6",
+                "version", "0.1.7",
                 "title", properties.getServerTitle(),
                 "description", properties.getDescription(),
                 "endpoint", properties.getEndpoint(),
@@ -108,7 +108,7 @@ public class McpService {
         return orderedMap(
                 "name", properties.getServerName(),
                 "title", properties.getServerTitle(),
-                "version", "0.1.6",
+                "version", "0.1.7",
                 "description", properties.getDescription()
         );
     }

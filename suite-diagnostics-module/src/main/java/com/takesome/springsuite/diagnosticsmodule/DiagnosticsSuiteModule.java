@@ -11,7 +11,7 @@ public final class DiagnosticsSuiteModule implements SuiteModule {
     private final SuiteModuleManifest manifest = new SuiteModuleManifest(
             "spring-suite-diagnostics",
             "SpringSuite Diagnostics Module",
-            "0.1.6",
+            "0.1.7",
             "TakeSome / SuiteLab",
             "External signed diagnostics module loaded outside the SpringSuite core jar.",
             List.of(),

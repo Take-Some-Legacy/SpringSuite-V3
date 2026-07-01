@@ -98,9 +98,9 @@ Cloudflared must not write tunnel credentials/cache into the OS user profile by 
 
 The child process receives local HOME-style environment variables and runs with that directory as its working directory. This keeps generated tunnel/cache data scoped to the current suite working directory.
 
-## Console progress policy
+## Console output policy
 
-Console progress is centralized in `suite-command` through `ctongfei/progressbar`. Commands executed from the interactive console can show progress without leaking terminal UI behavior into REST/API/MCP callers.
+Interactive console commands must keep stdout clean and shell-like. Automatic progress rendering is disabled for regular commands; long-running commands may opt into explicit progress output only when it improves operator feedback and does not corrupt the prompt.
 
 
 ## Repository descriptor policy

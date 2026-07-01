@@ -116,21 +116,27 @@ public class CommandRegistry {
         CommandInvocation invocation = new CommandInvocation(rawLine, commandName, tokens.subList(1, tokens.size()), Instant.now());
         activeExecutions.incrementAndGet();
         try {
-            CommandExecutionResult result = ConsoleProgress.run(command.descriptor().name(), () -> command.execute(invocation));
-            logService.append(result.ok() ? OperatorLogLevel.INFO : OperatorLogLevel.WARN,
-                    "command",
-                    rawLine,
-                    Map.of("ok", result.ok(), "code", result.code(), "command", command.descriptor().name()));
+            CommandExecutionResult result = command.execute(invocation);
+            if (!CommandExecutionContext.isConsole()) {
+                logService.append(result.ok() ? OperatorLogLevel.INFO : OperatorLogLevel.WARN,
+                        "command",
+                        rawLine,
+                        Map.of("ok", result.ok(), "code", result.code(), "command", command.descriptor().name()));
+            }
             return result;
         } catch (Exception ex) {
-            logService.append(OperatorLogLevel.ERROR, "command", "command failed", Map.of(
-                    "line", rawLine,
-                    "command", command.descriptor().name(),
-                    "error", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()
-            ));
+            if (!CommandExecutionContext.isConsole()) {
+                logService.append(OperatorLogLevel.ERROR, "command", "command failed", Map.of(
+                        "line", rawLine,
+                        "command", command.descriptor().name(),
+                        "error", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()
+                ));
+            }
             return CommandExecutionResult.failed("command_exception", ex.getMessage() == null
                     ? ex.getClass().getSimpleName()
                     : ex.getMessage());
+        } finally {
+            activeExecutions.decrementAndGet();
         }
     }
 
