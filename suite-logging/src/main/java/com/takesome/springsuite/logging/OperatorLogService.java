@@ -93,13 +93,45 @@ public class OperatorLogService {
     }
 
     private void writeSlf4j(OperatorLogEntry entry) {
-        String line = "[{}] {} :: {}";
+        String metadataJson = OperatorJsonFormatter.pretty(entry.metadata());
+        boolean hasMetadata = metadataJson != null && !metadataJson.isBlank();
+        String line = hasMetadata ? "[{}] {} ::\n{}" : "[{}] {}";
         switch (entry.level()) {
-            case TRACE -> log.trace(line, entry.source(), entry.message(), entry.metadata());
-            case DEBUG -> log.debug(line, entry.source(), entry.message(), entry.metadata());
-            case INFO -> log.info(line, entry.source(), entry.message(), entry.metadata());
-            case WARN -> log.warn(line, entry.source(), entry.message(), entry.metadata());
-            case ERROR -> log.error(line, entry.source(), entry.message(), entry.metadata());
+            case TRACE -> {
+                if (hasMetadata) {
+                    log.trace(line, entry.source(), entry.message(), metadataJson);
+                } else {
+                    log.trace(line, entry.source(), entry.message());
+                }
+            }
+            case DEBUG -> {
+                if (hasMetadata) {
+                    log.debug(line, entry.source(), entry.message(), metadataJson);
+                } else {
+                    log.debug(line, entry.source(), entry.message());
+                }
+            }
+            case INFO -> {
+                if (hasMetadata) {
+                    log.info(line, entry.source(), entry.message(), metadataJson);
+                } else {
+                    log.info(line, entry.source(), entry.message());
+                }
+            }
+            case WARN -> {
+                if (hasMetadata) {
+                    log.warn(line, entry.source(), entry.message(), metadataJson);
+                } else {
+                    log.warn(line, entry.source(), entry.message());
+                }
+            }
+            case ERROR -> {
+                if (hasMetadata) {
+                    log.error(line, entry.source(), entry.message(), metadataJson);
+                } else {
+                    log.error(line, entry.source(), entry.message());
+                }
+            }
         }
     }
 
