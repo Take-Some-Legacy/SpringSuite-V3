@@ -1,0 +1,64 @@
+# SpringSuite FN operator module configuration.
+# Owned by suite-fn-module.
+
+suite:
+  fn:
+    enabled: true
+    button-count: 12
+    namespace: fn
+    dispatch-mode: explicit-operator-action
+    default-destination: active-chat
+    buttons:
+      - code: FN-01
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-02
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-03
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-04
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-05
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-06
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-07
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-08
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-09
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-10
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-11
+        enabled: false
+        title: Unassigned
+        route: ""
+      - code: FN-12
+        enabled: true
+        title: Send Desktop Screenshot
+        route: desktop.screenshot.send
+        risk-tier: visual-private
+        destination: active-chat
+        args:
+          target: virtual
+          maxWidth: 1600

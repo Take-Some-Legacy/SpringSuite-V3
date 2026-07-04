@@ -11,8 +11,8 @@ suite:
     include-path-tools: true
     allow-execution: false
     default-timeout: 30s
-    max-stdout-bytes: 12000
-    max-stderr-bytes: 8000
+    max-stdout-bytes: 8000000
+    max-stderr-bytes: 64000
     path-tools:
       - git
       - java

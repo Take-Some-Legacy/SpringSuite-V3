@@ -1,0 +1,42 @@
+{
+  "schema": "com.takesome.springsuite.tool.v1",
+  "id": "suite-desktop-capture",
+  "name": "suite-desktop-capture",
+  "title": "Suite Desktop Capture",
+  "kind": "go-sidecar",
+  "source_type": "suite-local",
+  "package_root": ".",
+  "description": "Explicit one-shot desktop PNG helper for SpringSuite FN/MCP handoff.",
+  "executable": "suiteBinaries/suite-desktop-capture.exe",
+  "default_args": [
+    "doctor"
+  ],
+  "validation_args": [
+    "doctor"
+  ],
+  "capabilities": [
+    "desktop-screenshot",
+    "image-png",
+    "json-output",
+    "base64-output",
+    "fn-handoff"
+  ],
+  "tags": [
+    "go",
+    "sidecar",
+    "desktop",
+    "screenshot",
+    "vision",
+    "fn"
+  ],
+  "safe_commands": [
+    "version",
+    "doctor",
+    "help",
+    "screenshot",
+    "capture"
+  ],
+  "runtime": {
+    "working_directory": "."
+  }
+}

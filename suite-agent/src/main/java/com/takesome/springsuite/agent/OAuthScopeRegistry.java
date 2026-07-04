@@ -50,6 +50,9 @@ public class OAuthScopeRegistry {
         if (tool.equals("workspace.delete")) {
             return List.of(READ, WRITE, ADMIN);
         }
+        if (tool.equals("fn.trigger") || tool.startsWith("desktop.")) {
+            return List.of(READ, EXEC);
+        }
         if (tool.equals("command.execute") || tool.equals("toolbelt.run") || tool.startsWith("tool_")) {
             return List.of(READ, WRITE, EXEC);
         }
@@ -66,6 +69,12 @@ public class OAuthScopeRegistry {
         }
         if (tool.equals("workspace.write") || tool.equals("workspace.mkdir")) {
             return "write";
+        }
+        if (tool.startsWith("desktop.")) {
+            return "visual_private";
+        }
+        if (tool.equals("fn.trigger")) {
+            return "operator_action";
         }
         if (tool.equals("command.execute") || tool.equals("toolbelt.run") || tool.startsWith("tool_")) {
             return "exec";
