@@ -67,3 +67,32 @@ POST /api/tunnel/cloudflared/restart
 GET  /api/tunnel/cloudflared/logs
 GET  /actuator/health
 ```
+
+## OpenAI integration
+
+SpringSuite includes the `suite-openai` module for server-side OpenAI access. It keeps secrets outside Java code and resolves bearer credentials in this order when `suite.openai.auth.mode=auto`:
+
+1. OpenAI Workload Identity Federation, when `OPENAI_EXTERNAL_OIDC_JWT`, `OPENAI_IDENTITY_PROVIDER_ID`, and `OPENAI_SERVICE_ACCOUNT_ID` are available.
+2. `OPENAI_ACCESS_TOKEN`, for externally managed short-lived access tokens.
+3. `OPENAI_API_KEY`, used as the bearer credential fallback.
+
+Runtime endpoints:
+
+- `GET /api/openai/status` — credential source, fingerprint, cache path, expiry and refresh window; no secret is returned.
+- `POST /api/openai/auth/refresh` — forces workload-identity token refresh and updates the app-token cache.
+- `POST /api/openai/responses` — sends a Responses API request through the configured token provider.
+
+Console commands:
+
+- `openai status`
+- `openai setup` — opens the local browser binding page.
+- `openai refresh`
+- `openai ask <prompt>`
+
+Browser setup:
+
+- `GET /openai/setup` — local-only HTML page for first OpenAI credential binding.
+- `POST /api/openai/link/api-key` — stores a local API key credential on the server side.
+- `POST /api/openai/link/unlink` — removes the local credential.
+
+The workload-identity token cache defaults to `authority/openai/app_access_token.json` under the Suite runtime root. The browser-linked local credential defaults to `authority/openai/local_credentials.json`.

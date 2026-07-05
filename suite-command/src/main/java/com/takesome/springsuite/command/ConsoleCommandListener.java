@@ -133,14 +133,31 @@ public class ConsoleCommandListener {
         if (line == null || line.isBlank()) {
             return;
         }
+        long started = System.nanoTime();
+        String sanitizedLine = sanitizeConsoleLine(line);
         try {
             CommandExecutionResult result = CommandExecutionContext.runAs(
                     CommandExecutionContext.Source.CONSOLE,
                     () -> commandRegistry.executeScript(line)
             );
+            long durationMs = (System.nanoTime() - started) / 1_000_000L;
+            logService.append(result.ok() ? OperatorLogLevel.INFO : OperatorLogLevel.WARN, "console", "console command completed", Map.of(
+                    "line", sanitizedLine,
+                    "ok", result.ok(),
+                    "code", result.code(),
+                    "durationMs", durationMs,
+                    "activeExecutions", commandRegistry.activeExecutions()
+            ));
             printResult(result);
         } catch (Exception ex) {
-            printResult(CommandExecutionResult.failed("command_exception", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()));
+            long durationMs = (System.nanoTime() - started) / 1_000_000L;
+            String message = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+            logService.append(OperatorLogLevel.ERROR, "console", "console command exception", Map.of(
+                    "line", sanitizedLine,
+                    "durationMs", durationMs,
+                    "error", message
+            ));
+            printResult(CommandExecutionResult.failed("command_exception", message));
         }
     }
 
@@ -207,6 +224,19 @@ public class ConsoleCommandListener {
         System.out.println(indent + "- " + Objects.toString(item, ""));
     }
 
+
+    private String sanitizeConsoleLine(String line) {
+        String value = line == null ? "" : line.trim();
+        if (value.isBlank()) {
+            return "";
+        }
+        value = value.replaceAll("(?i)(authorization\s*[:=]\s*bearer\s+)[^\s]+", "$1<redacted>");
+        value = value.replaceAll("(?i)(api[-_]?key\s*[:=]\s*)[^\s]+", "$1<redacted>");
+        value = value.replaceAll("sk-[A-Za-z0-9_-]+", "sk-<redacted>");
+        value = value.replaceAll("sess-[A-Za-z0-9_-]+", "sess-<redacted>");
+        return value.length() > 500 ? value.substring(0, 500) + "..." : value;
+    }
+
     private final class RegistryCompleter implements Completer {
         @Override
         public void complete(LineReader reader, ParsedLine line, List<Candidate> candidates) {
@@ -243,6 +273,7 @@ public class ConsoleCommandListener {
                 case "tunnel", "cf", "cloudflared" -> subcommands.addAll(List.of("status", "start", "stop", "restart", "logs"));
                 case "publishers", "publisher", "pubs" -> subcommands.addAll(List.of("list", "fingerprint", "trust-cert", "trust-publisher", "block-cert", "revoke", "deploy", "build", "sign"));
                 case "logs", "log" -> subcommands.addAll(List.of("20", "50", "100"));
+                case "openai", "oai" -> subcommands.addAll(List.of("status", "setup", "refresh", "ask"));
                 default -> {
                     // no command-specific completions
                 }

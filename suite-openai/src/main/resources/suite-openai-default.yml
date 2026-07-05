@@ -1,0 +1,49 @@
+# SpringSuite OpenAI integration.
+# Owned by suite-openai. Secrets stay in environment variables or local runtime credential files.
+
+suite:
+  openai:
+    enabled: true
+    base-url: https://api.openai.com/v1
+    auth:
+      # auto = workload identity when fully configured, otherwise OPENAI_ACCESS_TOKEN,
+      # otherwise OPENAI_API_KEY, otherwise local browser-linked API key.
+      # Supported values: auto, workload-identity, access-token, api-key, local, disabled.
+      mode: auto
+      api-key-env: OPENAI_API_KEY
+      access-token-env: OPENAI_ACCESS_TOKEN
+      organization-id: ""
+      organization-id-env: OPENAI_ORGANIZATION
+      project-id: ""
+      project-id-env: OPENAI_PROJECT
+      token-refresh-skew: 5m
+      cache-access-tokens: true
+      token-cache-relative-path: authority/openai/app_access_token.json
+      workload-identity:
+        enabled: true
+        token-url: https://auth.openai.com/oauth/token
+        grant-type: urn:ietf:params:oauth:grant-type:token-exchange
+        subject-token-type: urn:ietf:params:oauth:token-type:jwt
+        subject-token-env: OPENAI_EXTERNAL_OIDC_JWT
+        subject-token-file: ""
+        identity-provider-id: ""
+        identity-provider-id-env: OPENAI_IDENTITY_PROVIDER_ID
+        service-account-id: ""
+        service-account-id-env: OPENAI_SERVICE_ACCOUNT_ID
+        request-timeout: 20s
+    local-credential:
+      enabled: true
+      relative-path: authority/openai/local_credentials.json
+    browser-setup:
+      enabled: true
+      # Keep true unless the Suite control plane itself is protected by strong auth.
+      local-only: true
+      auto-open-on-startup: false
+      setup-path: /openai/setup
+      setup-token-ttl: 15m
+    responses:
+      model: gpt-5.5
+      endpoint: /responses
+      store: false
+      request-timeout: 120s
+      max-output-tokens: 4096
