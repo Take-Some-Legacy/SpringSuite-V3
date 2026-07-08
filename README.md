@@ -511,3 +511,61 @@ windows-ui-automation-desktop-action-executor
 `DesktopActionExecutorRegistry` is now the injection point for execution. `DesktopApprovalService` asks the registry for the default executor instead of depending on a single executor bean, so adding future backends will not break Spring injection.
 
 Disabled skeleton backends implement `DesktopActionExecutor`, but they only expose descriptors and return `executor_disabled` if called. `ExecutionGuardService` also rejects disabled backends before invocation.
+
+## Desktop executor selection policy v1
+
+Executor selection is now configurable without enabling real desktop input.
+
+Policy endpoint:
+
+```text
+GET /api/desktop-helper/executors/policy
+```
+
+Configuration:
+
+```yaml
+suite:
+  desktop-helper:
+    executor:
+      default-id: noop-desktop-action-executor
+      allowed-real-input: false
+    executors:
+      noop-desktop-action-executor:
+        enabled: true
+      clipboard-desktop-action-executor:
+        enabled: false
+      keyboard-desktop-action-executor:
+        enabled: false
+      mouse-desktop-action-executor:
+        enabled: false
+      browser-dom-desktop-action-executor:
+        enabled: false
+      windows-ui-automation-desktop-action-executor:
+        enabled: false
+```
+
+Selection behavior:
+
+```text
+DesktopActionExecutorRegistry
+        в†“
+DesktopExecutionPolicy
+        в†“
+static executor descriptor + config override
+        в†“
+effective descriptor
+```
+
+The registry returns effective descriptors from `/api/desktop-helper/executors`, so UI and control-plane clients see configured state rather than only hardcoded backend metadata.
+
+Real desktop input remains globally blocked by default:
+
+```yaml
+suite:
+  desktop-helper:
+    executor:
+      allowed-real-input: false
+```
+
+When `allowed-real-input=false`, an executor with `realInputEnabled=true` is still reported as a real-input-capable backend and is blocked by `ExecutionGuardService`. Skeleton backends can be enabled for selection/testing metadata, but they do not perform real input and may still return `executor_disabled` until a real backend implementation replaces the skeleton.

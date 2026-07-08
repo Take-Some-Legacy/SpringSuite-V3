@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 public class ExecutionGuardService {
     public GuardResult validateExecutorReady(
             DesktopActionExecutor executor,
+            DesktopActionExecutor.Descriptor effectiveDescriptor,
             DesktopApprovalToken token,
             DesktopSnapshot snapshot,
             String requestedSnapshotId,
@@ -25,7 +26,7 @@ public class ExecutionGuardService {
         if (executor == null) {
             return GuardResult.failed("executor_missing", "No DesktopActionExecutor is available.", guards, warnings, Map.of());
         }
-        DesktopActionExecutor.Descriptor descriptor = executor.descriptor();
+        DesktopActionExecutor.Descriptor descriptor = effectiveDescriptor == null ? executor.descriptor() : effectiveDescriptor;
         guards.add("executor:present:" + descriptor.id());
         if (!descriptor.enabled()) {
             warnings.add("Executor backend is disabled and cannot run actions.");

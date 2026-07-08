@@ -1,7 +1,6 @@
 package com.takesome.springsuite.desktop;
 
 import com.takesome.springsuite.core.api.SuiteApiResponse;
-import java.util.List;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,8 +18,14 @@ public class DesktopActionExecutorController {
     public SuiteApiResponse<Map<String, Object>> executors() {
         return SuiteApiResponse.ok(Map.of(
                 "summary", registry.summary(),
+                "policy", registry.policySnapshot(),
                 "executors", registry.descriptors()
         ));
+    }
+
+    @GetMapping("/api/desktop-helper/executors/policy")
+    public SuiteApiResponse<Map<String, Object>> policy() {
+        return SuiteApiResponse.ok(registry.policySnapshot());
     }
 
     @GetMapping("/api/desktop-helper/executors/{id}")

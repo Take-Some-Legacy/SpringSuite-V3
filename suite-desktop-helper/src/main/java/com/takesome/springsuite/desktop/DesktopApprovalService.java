@@ -303,8 +303,10 @@ public class DesktopApprovalService {
 
         List<DesktopDryRunStep> dryRunSteps = pass == null ? List.of() : pass.steps();
         DesktopActionExecutor actionExecutor = executorRegistry.defaultExecutor();
+        DesktopActionExecutor.Descriptor actionExecutorDescriptor = executorRegistry.defaultDescriptor();
         ExecutionGuardService.GuardResult guard = executionGuardService.validateExecutorReady(
                 actionExecutor,
+                actionExecutorDescriptor,
                 token,
                 snapshot,
                 requestedSnapshotId,
@@ -316,7 +318,7 @@ public class DesktopApprovalService {
             return DesktopActionExecutionResult.failed(guard.code(), guard.message(), token.tokenId(), requestedSnapshotId, guard.warnings(), guard.metadata());
         }
 
-        executionAuditService.recordExecutionRequested(token, snapshot, actions, actionExecutor.descriptor());
+        executionAuditService.recordExecutionRequested(token, snapshot, actions, actionExecutorDescriptor);
         DesktopActionExecutionResult executorResult = actionExecutor.execute(new DesktopActionExecutor.ExecutionContext(
                 token,
                 snapshot,
@@ -327,7 +329,7 @@ public class DesktopApprovalService {
                 Instant.now(),
                 Map.of(
                         "dryRunPassExpiresAt", pass == null ? "" : pass.expiresAt().toString(),
-                        "executor", actionExecutor.descriptor().id()
+                        "executor", actionExecutorDescriptor.id()
                 )
         ));
 
@@ -345,7 +347,7 @@ public class DesktopApprovalService {
         resultMetadata.put("activeTokens", tokens.size());
         resultMetadata.put("activeDryRunPasses", dryRunPasses.size());
         resultMetadata.put("tokenMarkedUsed", safeRequest.markTokenUsed());
-        resultMetadata.put("executor", actionExecutor.descriptor());
+        resultMetadata.put("executor", actionExecutorDescriptor);
         resultMetadata.put("executionMode", "executor-abstraction");
 
         DesktopActionExecutionResult result = new DesktopActionExecutionResult(
@@ -360,7 +362,7 @@ public class DesktopApprovalService {
                 resultWarnings,
                 resultMetadata
         );
-        executionAuditService.recordExecutionResult(result, actionExecutor.descriptor(), safeRequest.markTokenUsed());
+        executionAuditService.recordExecutionResult(result, actionExecutorDescriptor, safeRequest.markTokenUsed());
         return result;
     }
 

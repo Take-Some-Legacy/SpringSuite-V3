@@ -24,6 +24,8 @@ public class DesktopHelperProperties {
     private int maxApprovalTokenTtlSeconds = 900;
     private int maxScreenTextChars = 12_000;
     private int maxSuggestionCount = 6;
+    private ExecutorPolicy executor = new ExecutorPolicy();
+    private Map<String, ExecutorOverride> executors = defaultExecutorOverrides();
     private List<String> sensitiveFieldHints = List.of(
             "password",
             "passcode",
@@ -168,6 +170,26 @@ public class DesktopHelperProperties {
         this.maxSuggestionCount = clamp(maxSuggestionCount, 1, 20, 6);
     }
 
+    public ExecutorPolicy getExecutor() {
+        return executor;
+    }
+
+    public void setExecutor(ExecutorPolicy executor) {
+        this.executor = executor == null ? new ExecutorPolicy() : executor;
+    }
+
+    public Map<String, ExecutorOverride> getExecutors() {
+        return executors;
+    }
+
+    public void setExecutors(Map<String, ExecutorOverride> executors) {
+        LinkedHashMap<String, ExecutorOverride> merged = new LinkedHashMap<>(defaultExecutorOverrides());
+        if (executors != null) {
+            merged.putAll(executors);
+        }
+        this.executors = merged;
+    }
+
     public List<String> getSensitiveFieldHints() {
         return sensitiveFieldHints;
     }
@@ -203,6 +225,57 @@ public class DesktopHelperProperties {
         defaults.put("browser-form", new Surface(true, "read-plan", List.of("field-detection", "fill-plan", "validation-hints"), "extension-or-accessibility"));
         defaults.put("keyboard-mouse", new Surface(false, "write", List.of("type", "hotkey", "click"), "accessibility-driver"));
         return defaults;
+    }
+
+    private static Map<String, ExecutorOverride> defaultExecutorOverrides() {
+        LinkedHashMap<String, ExecutorOverride> defaults = new LinkedHashMap<>();
+        defaults.put("noop-desktop-action-executor", new ExecutorOverride(true));
+        defaults.put("clipboard-desktop-action-executor", new ExecutorOverride(false));
+        defaults.put("keyboard-desktop-action-executor", new ExecutorOverride(false));
+        defaults.put("mouse-desktop-action-executor", new ExecutorOverride(false));
+        defaults.put("browser-dom-desktop-action-executor", new ExecutorOverride(false));
+        defaults.put("windows-ui-automation-desktop-action-executor", new ExecutorOverride(false));
+        return defaults;
+    }
+
+    public static final class ExecutorPolicy {
+        private String defaultId = "noop-desktop-action-executor";
+        private boolean allowedRealInput = false;
+
+        public String getDefaultId() {
+            return defaultId;
+        }
+
+        public void setDefaultId(String defaultId) {
+            this.defaultId = valueOr(defaultId, "noop-desktop-action-executor");
+        }
+
+        public boolean isAllowedRealInput() {
+            return allowedRealInput;
+        }
+
+        public void setAllowedRealInput(boolean allowedRealInput) {
+            this.allowedRealInput = allowedRealInput;
+        }
+    }
+
+    public static final class ExecutorOverride {
+        private Boolean enabled;
+
+        public ExecutorOverride() {
+        }
+
+        public ExecutorOverride(Boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public Boolean getEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(Boolean enabled) {
+            this.enabled = enabled;
+        }
     }
 
     public static final class Surface {

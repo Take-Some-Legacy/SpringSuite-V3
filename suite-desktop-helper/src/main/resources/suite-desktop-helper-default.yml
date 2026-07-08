@@ -20,6 +20,22 @@ suite:
     max-approval-token-ttl-seconds: 900
     max-screen-text-chars: 12000
     max-suggestion-count: 6
+    executor:
+      default-id: noop-desktop-action-executor
+      allowed-real-input: false
+    executors:
+      noop-desktop-action-executor:
+        enabled: true
+      clipboard-desktop-action-executor:
+        enabled: false
+      keyboard-desktop-action-executor:
+        enabled: false
+      mouse-desktop-action-executor:
+        enabled: false
+      browser-dom-desktop-action-executor:
+        enabled: false
+      windows-ui-automation-desktop-action-executor:
+        enabled: false
     sensitive-field-hints:
       - password
       - passcode
