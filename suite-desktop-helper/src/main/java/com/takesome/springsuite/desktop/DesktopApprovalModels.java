@@ -179,6 +179,76 @@ public final class DesktopApprovalModels {
         }
     }
 
+    public record DesktopActionExecutionRequest(
+            String approvalToken,
+            String snapshotId,
+            List<DesktopApprovedAction> actions,
+            boolean requireFreshDryRun,
+            boolean markTokenUsed,
+            Map<String, Object> metadata
+    ) {
+        public DesktopActionExecutionRequest {
+            approvalToken = text(approvalToken);
+            snapshotId = text(snapshotId);
+            actions = actions == null ? List.of() : List.copyOf(actions);
+            requireFreshDryRun = requireFreshDryRun || !metadataFlag(metadata, "allowWithoutDryRun");
+            markTokenUsed = markTokenUsed || !metadataFlag(metadata, "keepTokenActive");
+            metadata = DesktopHelperModels.safeMap(metadata);
+        }
+    }
+
+    public record DesktopActionExecutionResult(
+            boolean ok,
+            String code,
+            String message,
+            String tokenId,
+            String snapshotId,
+            boolean simulated,
+            boolean executed,
+            List<DesktopExecutionStep> steps,
+            List<String> warnings,
+            Map<String, Object> metadata
+    ) {
+        public DesktopActionExecutionResult {
+            code = textOr(code, ok ? "ok" : "failed");
+            message = text(message);
+            tokenId = text(tokenId);
+            snapshotId = text(snapshotId);
+            steps = steps == null ? List.of() : List.copyOf(steps);
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+            metadata = DesktopHelperModels.safeMap(metadata);
+        }
+
+        public static DesktopActionExecutionResult failed(String code, String message, String tokenId, String snapshotId, List<String> warnings, Map<String, Object> metadata) {
+            return new DesktopActionExecutionResult(false, code, message, tokenId, snapshotId, true, false, List.of(), warnings, metadata);
+        }
+    }
+
+    public record DesktopExecutionStep(
+            int order,
+            String actionId,
+            String action,
+            String targetFieldId,
+            String status,
+            String preview,
+            boolean simulated,
+            boolean executed,
+            List<String> guards,
+            List<String> warnings,
+            Map<String, Object> metadata
+    ) {
+        public DesktopExecutionStep {
+            actionId = text(actionId);
+            action = textOr(action, "noop").toLowerCase();
+            targetFieldId = text(targetFieldId);
+            status = textOr(status, "simulated");
+            preview = text(preview);
+            guards = guards == null ? List.of() : List.copyOf(guards);
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+            metadata = DesktopHelperModels.safeMap(metadata);
+        }
+    }
+
     static boolean isWriteAction(String action) {
         return switch (text(action).toLowerCase()) {
             case "fill", "type", "paste", "select", "check", "uncheck", "click", "hotkey", "submit" -> true;
@@ -197,5 +267,22 @@ public final class DesktopApprovalModels {
     static String textOr(String value, String fallback) {
         String normalized = text(value);
         return normalized.isBlank() ? text(fallback) : normalized;
+    }
+
+    private static boolean metadataFlag(Map<String, Object> metadata, String key) {
+        if (metadata == null || !metadata.containsKey(key)) {
+            return false;
+        }
+        Object value = metadata.get(key);
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof String text) {
+            return switch (text.trim().toLowerCase()) {
+                case "true", "1", "yes", "y", "on" -> true;
+                default -> false;
+            };
+        }
+        return false;
     }
 }

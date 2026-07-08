@@ -3,6 +3,8 @@ package com.takesome.springsuite.desktop;
 import com.takesome.springsuite.core.api.SuiteApiResponse;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopActionDryRunRequest;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopActionDryRunResult;
+import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopActionExecutionRequest;
+import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopActionExecutionResult;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopApprovalRequest;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopApprovalResult;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopApprovalToken;
@@ -44,6 +46,14 @@ public class DesktopApprovalController {
     @PostMapping("/api/desktop-helper/actions/dry-run")
     public SuiteApiResponse<DesktopActionDryRunResult> dryRun(@RequestBody(required = false) DesktopActionDryRunRequest request) {
         DesktopActionDryRunResult result = desktopApprovalService.dryRun(request);
+        return result.ok()
+                ? SuiteApiResponse.ok(result)
+                : SuiteApiResponse.failed(result.code(), result.message(), result);
+    }
+
+    @PostMapping("/api/desktop-helper/actions/execute")
+    public SuiteApiResponse<DesktopActionExecutionResult> execute(@RequestBody(required = false) DesktopActionExecutionRequest request) {
+        DesktopActionExecutionResult result = desktopApprovalService.execute(request);
         return result.ok()
                 ? SuiteApiResponse.ok(result)
                 : SuiteApiResponse.failed(result.code(), result.message(), result);

@@ -332,4 +332,61 @@ Dry-run guards check:
 - sensitive actions were explicitly allowed and contain no hidden automatic secret write;
 - submit actions are blocked by default.
 
-The next milestone after this layer is a dry-run-backed execution stub, then a real executor only after guards, audit trail and explicit operator approval are all stable.
+A successful dry-run records a short-lived pass tied to token id, snapshot id and action signature. The execution stub requires that pass before it can consume the token.
+
+## Desktop execution stub v1
+
+The execution stub is the final safety layer before any real keyboard, mouse or clipboard bridge. It still performs no real desktop input. It validates the token and prior dry-run pass, verifies the current snapshot, marks the token as used, writes an audit entry and returns a simulated execution result.
+
+Execution-stub flow:
+
+```text
+POST /api/desktop-helper/actions/dry-run
+        в†“
+DryRunPass recorded for tokenId + snapshotId + action signature
+        в†“
+POST /api/desktop-helper/actions/execute
+        в†“
+validate desktop.actions.execute scope
+validate token not expired/used
+validate fresh current snapshot
+validate prior dry-run pass
+mark token used
+return simulated DesktopActionExecutionResult
+```
+
+Approval token for execution must include `desktop.actions.execute`:
+
+```json
+{
+  "snapshotId": "snapshot-id-from-context-current",
+  "purpose": "simulate approved contact-form fill",
+  "operator": "local-operator",
+  "scopes": ["desktop.actions.dry-run", "desktop.actions.execute"],
+  "ttlSeconds": 120,
+  "actions": [
+    {
+      "actionId": "fill:email",
+      "action": "fill",
+      "targetFieldId": "email",
+      "label": "Email",
+      "value": "user@example.com",
+      "write": true,
+      "sensitive": false,
+      "submit": false
+    }
+  ]
+}
+```
+
+Execute after successful dry-run:
+
+```json
+{
+  "approvalToken": "token-id-from-approval-response",
+  "snapshotId": "snapshot-id-from-context-current",
+  "markTokenUsed": true
+}
+```
+
+The response has `simulated=true` and `executed=false`. Real typing, clicking, pasting and submitting remain reserved for a future executor behind the same guard chain.

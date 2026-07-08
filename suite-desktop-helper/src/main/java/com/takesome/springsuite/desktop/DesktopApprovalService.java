@@ -2,11 +2,14 @@ package com.takesome.springsuite.desktop;
 
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopActionDryRunRequest;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopActionDryRunResult;
+import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopActionExecutionRequest;
+import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopActionExecutionResult;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopApprovalRequest;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopApprovalResult;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopApprovalToken;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopApprovedAction;
 import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopDryRunStep;
+import com.takesome.springsuite.desktop.DesktopApprovalModels.DesktopExecutionStep;
 import com.takesome.springsuite.desktop.DesktopBridgeModels.DesktopSnapshot;
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopFieldPlan;
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopFormField;
@@ -31,6 +34,7 @@ public class DesktopApprovalService {
     private final DesktopSnapshotCache snapshotCache;
     private final OperatorLogService logService;
     private final ConcurrentHashMap<String, DesktopApprovalToken> tokens = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, DryRunPass> dryRunPasses = new ConcurrentHashMap<>();
 
     public DesktopApprovalService(
             DesktopHelperProperties properties,
@@ -117,6 +121,7 @@ public class DesktopApprovalService {
         ));
         return DesktopApprovalResult.ok("Desktop approval token issued.", token, warnings, Map.of(
                 "activeTokens", tokens.size(),
+                "activeDryRunPasses", dryRunPasses.size(),
                 "ttl", ttl.toString()
         ));
     }
@@ -139,9 +144,11 @@ public class DesktopApprovalService {
         }
         if (token.expired()) {
             tokens.remove(token.tokenId());
+            dryRunPasses.remove(token.tokenId());
             return DesktopActionDryRunResult.failed("approval_token_expired", "Approval token has expired.", token.tokenId(), token.snapshotId(), List.of(), Map.of("expiresAt", token.expiresAt()));
         }
         if (token.used()) {
+            dryRunPasses.remove(token.tokenId());
             return DesktopActionDryRunResult.failed("approval_token_used", "Approval token has already been consumed.", token.tokenId(), token.snapshotId(), List.of(), Map.of());
         }
         if (!token.scopes().contains("desktop.actions.dry-run") && !token.scopes().contains("desktop.actions.execute")) {
@@ -168,8 +175,23 @@ public class DesktopApprovalService {
             steps.add(step);
         }
 
+        boolean passRecorded = false;
+        if (allAllowed && !safeRequest.markTokenUsed()) {
+            DryRunPass pass = new DryRunPass(
+                    token.tokenId(),
+                    requestedSnapshotId,
+                    actionSignature(actions),
+                    Instant.now(),
+                    minInstant(Instant.now().plus(properties.getContextTtl()), token.expiresAt()),
+                    steps
+            );
+            dryRunPasses.put(token.tokenId(), pass);
+            passRecorded = true;
+        }
+
         if (safeRequest.markTokenUsed()) {
             tokens.computeIfPresent(token.tokenId(), (ignored, existing) -> existing.markUsed());
+            dryRunPasses.remove(token.tokenId());
             warnings.add("Approval token marked as used by dry-run request.");
         }
 
@@ -178,6 +200,7 @@ public class DesktopApprovalService {
                 "snapshotId", requestedSnapshotId,
                 "steps", steps.size(),
                 "wouldExecute", allAllowed,
+                "passRecorded", passRecorded,
                 "warnings", warnings.size()
         ));
         return new DesktopActionDryRunResult(
@@ -192,7 +215,120 @@ public class DesktopApprovalService {
                 Map.of(
                         "snapshotFresh", snapshotOk,
                         "activeTokens", tokens.size(),
+                        "activeDryRunPasses", dryRunPasses.size(),
+                        "dryRunPassRecorded", passRecorded,
                         "executionMode", "dry-run-only"
+                )
+        );
+    }
+
+    public DesktopActionExecutionResult execute(DesktopActionExecutionRequest request) {
+        DesktopActionExecutionRequest safeRequest = request == null
+                ? new DesktopActionExecutionRequest("", "", List.of(), true, true, Map.of())
+                : request;
+        if (!properties.isEnabled()) {
+            return DesktopActionExecutionResult.failed("desktop_helper_disabled", "Desktop helper is disabled.", "", "", List.of(), Map.of());
+        }
+        if (safeRequest.approvalToken().isBlank()) {
+            return DesktopActionExecutionResult.failed("approval_token_missing", "Approval token is required for desktop action execution stub.", "", safeRequest.snapshotId(), List.of(), Map.of());
+        }
+
+        cleanupExpired();
+        DesktopApprovalToken token = tokens.get(safeRequest.approvalToken());
+        if (token == null) {
+            return DesktopActionExecutionResult.failed("approval_token_not_found", "Approval token was not found or has expired.", safeRequest.approvalToken(), safeRequest.snapshotId(), List.of(), Map.of());
+        }
+        if (token.expired()) {
+            tokens.remove(token.tokenId());
+            dryRunPasses.remove(token.tokenId());
+            return DesktopActionExecutionResult.failed("approval_token_expired", "Approval token has expired.", token.tokenId(), token.snapshotId(), List.of(), Map.of("expiresAt", token.expiresAt()));
+        }
+        if (token.used()) {
+            dryRunPasses.remove(token.tokenId());
+            return DesktopActionExecutionResult.failed("approval_token_used", "Approval token has already been consumed.", token.tokenId(), token.snapshotId(), List.of(), Map.of());
+        }
+        if (!token.scopes().contains("desktop.actions.execute")) {
+            return DesktopActionExecutionResult.failed("approval_scope_denied", "Approval token does not include desktop action execute scope.", token.tokenId(), token.snapshotId(), List.of(), Map.of("scopes", token.scopes()));
+        }
+
+        ArrayList<String> warnings = new ArrayList<>();
+        Optional<DesktopSnapshot> current = snapshotCache.current();
+        DesktopSnapshot snapshot = current.orElse(null);
+        String requestedSnapshotId = firstText(safeRequest.snapshotId(), token.snapshotId());
+        boolean snapshotOk = validateSnapshot(snapshot, requestedSnapshotId, token, warnings);
+        if (!snapshotOk) {
+            return DesktopActionExecutionResult.failed("snapshot_guard_failed", "Fresh snapshot validation failed; execution stub refused to proceed.", token.tokenId(), requestedSnapshotId, warnings, Map.of("requiresFreshSnapshot", true));
+        }
+
+        List<DesktopApprovedAction> actions = safeRequest.actions().isEmpty() ? token.actions() : safeRequest.actions();
+        if (actions.isEmpty()) {
+            return DesktopActionExecutionResult.failed("execution_actions_missing", "No actions are available for execution stub.", token.tokenId(), requestedSnapshotId, warnings, Map.of());
+        }
+
+        DryRunPass pass = dryRunPasses.get(token.tokenId());
+        if (safeRequest.requireFreshDryRun()) {
+            String signature = actionSignature(actions);
+            if (pass == null) {
+                return DesktopActionExecutionResult.failed("dry_run_pass_required", "A successful dry-run pass is required before execution stub.", token.tokenId(), requestedSnapshotId, warnings, Map.of("required", true));
+            }
+            if (pass.expired()) {
+                dryRunPasses.remove(token.tokenId());
+                return DesktopActionExecutionResult.failed("dry_run_pass_expired", "The prior dry-run pass has expired; run dry-run again.", token.tokenId(), requestedSnapshotId, warnings, Map.of("expiresAt", pass.expiresAt()));
+            }
+            if (!pass.snapshotId().equals(requestedSnapshotId)) {
+                return DesktopActionExecutionResult.failed("dry_run_snapshot_mismatch", "Dry-run pass snapshotId does not match execution request.", token.tokenId(), requestedSnapshotId, warnings, Map.of("dryRunSnapshotId", pass.snapshotId()));
+            }
+            if (!pass.actionSignature().equals(signature)) {
+                return DesktopActionExecutionResult.failed("dry_run_action_mismatch", "Dry-run pass action set does not match execution request.", token.tokenId(), requestedSnapshotId, warnings, Map.of());
+            }
+        }
+
+        ArrayList<DesktopExecutionStep> steps = new ArrayList<>();
+        for (int i = 0; i < actions.size(); i++) {
+            DesktopApprovedAction action = actions.get(i);
+            steps.add(new DesktopExecutionStep(
+                    i + 1,
+                    action.actionId(),
+                    action.action(),
+                    action.targetFieldId(),
+                    "simulated",
+                    preview(action),
+                    true,
+                    false,
+                    List.of("approval:token-valid", "snapshot:fresh", "dry-run:pass", "executor:stub-only"),
+                    List.of("No real desktop input was performed."),
+                    Map.of("label", action.label(), "reason", action.reason())
+            ));
+        }
+
+        if (safeRequest.markTokenUsed()) {
+            tokens.computeIfPresent(token.tokenId(), (ignored, existing) -> existing.markUsed());
+            dryRunPasses.remove(token.tokenId());
+        }
+
+        logService.append(OperatorLogLevel.INFO, SOURCE, "desktop action execution stub completed", Map.of(
+                "tokenId", token.tokenId(),
+                "snapshotId", requestedSnapshotId,
+                "steps", steps.size(),
+                "simulated", true,
+                "executed", false,
+                "tokenMarkedUsed", safeRequest.markTokenUsed()
+        ));
+        return new DesktopActionExecutionResult(
+                true,
+                "ok",
+                "Execution stub completed; no real desktop input was performed.",
+                token.tokenId(),
+                requestedSnapshotId,
+                true,
+                false,
+                steps,
+                warnings,
+                Map.of(
+                        "activeTokens", tokens.size(),
+                        "activeDryRunPasses", dryRunPasses.size(),
+                        "tokenMarkedUsed", safeRequest.markTokenUsed(),
+                        "executionMode", "stub-only"
                 )
         );
     }
@@ -206,8 +342,10 @@ public class DesktopApprovalService {
         cleanupExpired();
         return Map.of(
                 "activeTokens", tokens.size(),
+                "activeDryRunPasses", dryRunPasses.size(),
                 "approvalTtl", approvalTtl(0).toString(),
-                "dryRunOnly", true
+                "dryRunOnly", false,
+                "executionStubOnly", true
         );
     }
 
@@ -374,8 +512,34 @@ public class DesktopApprovalService {
         for (Map.Entry<String, DesktopApprovalToken> entry : tokens.entrySet()) {
             if (entry.getValue().expired()) {
                 tokens.remove(entry.getKey());
+                dryRunPasses.remove(entry.getKey());
             }
         }
+        for (Map.Entry<String, DryRunPass> entry : dryRunPasses.entrySet()) {
+            if (entry.getValue().expired() || !tokens.containsKey(entry.getKey())) {
+                dryRunPasses.remove(entry.getKey());
+            }
+        }
+    }
+
+    private String actionSignature(List<DesktopApprovedAction> actions) {
+        ArrayList<String> parts = new ArrayList<>();
+        for (DesktopApprovedAction action : actions) {
+            parts.add(String.join("|",
+                    action.actionId(),
+                    action.action(),
+                    action.targetFieldId(),
+                    Boolean.toString(action.write()),
+                    Boolean.toString(action.sensitive()),
+                    Boolean.toString(action.submit()),
+                    action.value().isBlank() ? "" : Integer.toString(action.value().hashCode())
+            ));
+        }
+        return String.join("\n", parts);
+    }
+
+    private Instant minInstant(Instant left, Instant right) {
+        return left.isBefore(right) ? left : right;
     }
 
     private boolean bool(Object value, boolean fallback) {
@@ -406,5 +570,27 @@ public class DesktopApprovalService {
             return value == null ? "" : value;
         }
         return value.substring(0, Math.max(0, limit)) + "…";
+    }
+
+    private record DryRunPass(
+            String tokenId,
+            String snapshotId,
+            String actionSignature,
+            Instant passedAt,
+            Instant expiresAt,
+            List<DesktopDryRunStep> steps
+    ) {
+        private DryRunPass {
+            tokenId = tokenId == null ? "" : tokenId.trim();
+            snapshotId = snapshotId == null ? "" : snapshotId.trim();
+            actionSignature = actionSignature == null ? "" : actionSignature;
+            passedAt = passedAt == null ? Instant.now() : passedAt;
+            expiresAt = expiresAt == null ? passedAt : expiresAt;
+            steps = steps == null ? List.of() : List.copyOf(steps);
+        }
+
+        boolean expired() {
+            return Instant.now().isAfter(expiresAt);
+        }
     }
 }
