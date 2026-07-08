@@ -107,6 +107,7 @@ public class DesktopHelperService {
         sidecarContract.put("approvalEndpoints", List.of("POST /api/desktop-helper/approvals", "POST /api/desktop-helper/actions/dry-run", "POST /api/desktop-helper/actions/execute"));
         sidecarContract.put("executorRegistryEndpoints", List.of("GET /api/desktop-helper/executors", "GET /api/desktop-helper/executors/{id}", "GET /api/desktop-helper/executors/policy"));
         sidecarContract.put("bridgeRegistryEndpoints", List.of("GET /api/desktop-helper/bridges", "GET /api/desktop-helper/bridges/{id}", "GET /api/desktop-helper/bridges/policy"));
+        sidecarContract.put("realInputSelfTestEndpoint", "POST /api/desktop-helper/real-input/self-test");
         sidecarContract.put("executorContract", List.of("DesktopActionExecutor", "DesktopActionExecutorRegistry", "NoopDesktopActionExecutor", "RealDesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"));
         sidecarContract.put("bridgeContract", List.of("DesktopBridgeAdapter", "DesktopBridgeAdapterRegistry", "ClipboardBridgeAdapter", "KeyboardBridgeAdapter", "MouseBridgeAdapter", "BrowserDomBridgeAdapter", "WindowsUiAutomationBridgeAdapter"));
         sidecarContract.put("writeActions", "disabled by default; real input requires executor.allowed-real-input=true, bridge.allowed-real-input=true, enabled real executor, enabled bridge, approval token, dry-run pass, fresh snapshot and audit logging.");
@@ -523,6 +524,7 @@ public class DesktopHelperService {
                 "GET /api/desktop-helper/bridges",
                 "GET /api/desktop-helper/bridges/{id}",
                 "GET /api/desktop-helper/bridges/policy",
+                "POST /api/desktop-helper/real-input/self-test",
                 "POST /api/desktop-helper/context/analyze",
                 "POST /api/desktop-helper/hints",
                 "POST /api/desktop-helper/form-fill/plan"

@@ -46,7 +46,7 @@ public class DesktopActionExecutorRegistry {
         return find(policy.defaultExecutorId())
                 .filter(this::isSelectable)
                 .or(() -> executors.values().stream().filter(this::isSelectable).findFirst())
-                .orElseThrow(() -> new IllegalStateException("No enabled no-real-input DesktopActionExecutor is available."));
+                .orElseThrow(() -> new IllegalStateException("No enabled DesktopActionExecutor is available under current execution policy."));
     }
 
     public DesktopActionExecutor.Descriptor defaultDescriptor() {
@@ -78,6 +78,6 @@ public class DesktopActionExecutorRegistry {
 
     private boolean isSelectable(DesktopActionExecutor executor) {
         DesktopActionExecutor.Descriptor descriptor = policy.effectiveDescriptor(executor.descriptor());
-        return descriptor.enabled() && !descriptor.realInputEnabled();
+        return descriptor.enabled() && (!descriptor.realInputEnabled() || policy.allowedRealInput());
     }
 }

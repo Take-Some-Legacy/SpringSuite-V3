@@ -675,3 +675,71 @@ Hotkey action example:
 ```
 
 The browser DOM and Windows UI Automation bridges are intentionally metadata-only until their external extension/sidecar implementations are wired. They expose the contract but do not perform input.
+
+## Real input self-test harness
+
+The self-test endpoint validates local desktop input readiness without performing input by default.
+
+Endpoint:
+
+```text
+POST /api/desktop-helper/real-input/self-test
+```
+
+Diagnostics-only request:
+
+```json
+{
+  "perform": false
+}
+```
+
+Checks performed without input:
+
+```text
+AWT headless state
+system clipboard availability
+AWT Robot creation
+executor and bridge policy state
+enabled bridge adapters
+focused-window warning
+```
+
+Controlled perform request:
+
+```json
+{
+  "perform": true,
+  "testClipboardPaste": true,
+  "testTyping": true,
+  "testClick": true,
+  "testText": "SpringSuite real input self-test"
+}
+```
+
+When `perform=true`, SpringSuite opens a temporary Swing window titled `SpringSuite Real Input Self-Test` and targets paste/type/click actions at that window. This avoids sending test input into an arbitrary focused application. The self-test attempts to restore the previous string clipboard content after the test.
+
+`perform=true` requires real-input policy to be enabled:
+
+```yaml
+suite:
+  desktop-helper:
+    allow-autofill-execution: true
+    executor:
+      default-id: real-desktop-action-executor
+      allowed-real-input: true
+    executors:
+      real-desktop-action-executor:
+        enabled: true
+    bridge:
+      allowed-real-input: true
+    bridges:
+      clipboard-bridge-adapter:
+        enabled: true
+      keyboard-bridge-adapter:
+        enabled: true
+      mouse-bridge-adapter:
+        enabled: true
+```
+
+The self-test is intended for local operator-controlled environments only. In a headless environment it reports `desktop_headless` / failed AWT checks and does not attempt input.
