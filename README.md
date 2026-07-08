@@ -461,3 +461,53 @@ WindowsUiAutomationExecutor
 ```
 
 Real input remains intentionally unimplemented. A future backend must pass through the same approval token, fresh snapshot, dry-run pass, execution guard and audit path before it can perform any write action.
+
+## Desktop executor registry v1
+
+The executor registry exposes every desktop action backend as metadata before any real integration is enabled.
+
+Registry endpoints:
+
+```text
+GET /api/desktop-helper/executors
+GET /api/desktop-helper/executors/{id}
+```
+
+Current executor map:
+
+```text
+noop-desktop-action-executor
+- enabled=true
+- realInputEnabled=false
+- current default backend
+- simulates execution steps only
+
+clipboard-desktop-action-executor
+- enabled=false
+- realInputEnabled=false
+- future ClipboardExecutor skeleton
+
+keyboard-desktop-action-executor
+- enabled=false
+- realInputEnabled=false
+- future KeyboardExecutor skeleton
+
+mouse-desktop-action-executor
+- enabled=false
+- realInputEnabled=false
+- future MouseExecutor skeleton
+
+browser-dom-desktop-action-executor
+- enabled=false
+- realInputEnabled=false
+- future BrowserDomExecutor skeleton
+
+windows-ui-automation-desktop-action-executor
+- enabled=false
+- realInputEnabled=false
+- future WindowsUiAutomationExecutor skeleton
+```
+
+`DesktopActionExecutorRegistry` is now the injection point for execution. `DesktopApprovalService` asks the registry for the default executor instead of depending on a single executor bean, so adding future backends will not break Spring injection.
+
+Disabled skeleton backends implement `DesktopActionExecutor`, but they only expose descriptors and return `executor_disabled` if called. `ExecutionGuardService` also rejects disabled backends before invocation.

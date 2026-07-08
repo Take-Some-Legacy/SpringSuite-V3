@@ -33,7 +33,7 @@ public class DesktopApprovalService {
     private final DesktopHelperProperties properties;
     private final DesktopSnapshotCache snapshotCache;
     private final OperatorLogService logService;
-    private final DesktopActionExecutor actionExecutor;
+    private final DesktopActionExecutorRegistry executorRegistry;
     private final ExecutionGuardService executionGuardService;
     private final ExecutionAuditService executionAuditService;
     private final ConcurrentHashMap<String, DesktopApprovalToken> tokens = new ConcurrentHashMap<>();
@@ -43,14 +43,14 @@ public class DesktopApprovalService {
             DesktopHelperProperties properties,
             DesktopSnapshotCache snapshotCache,
             OperatorLogService logService,
-            DesktopActionExecutor actionExecutor,
+            DesktopActionExecutorRegistry executorRegistry,
             ExecutionGuardService executionGuardService,
             ExecutionAuditService executionAuditService
     ) {
         this.properties = properties;
         this.snapshotCache = snapshotCache;
         this.logService = logService;
-        this.actionExecutor = actionExecutor;
+        this.executorRegistry = executorRegistry;
         this.executionGuardService = executionGuardService;
         this.executionAuditService = executionAuditService;
     }
@@ -302,6 +302,7 @@ public class DesktopApprovalService {
         }
 
         List<DesktopDryRunStep> dryRunSteps = pass == null ? List.of() : pass.steps();
+        DesktopActionExecutor actionExecutor = executorRegistry.defaultExecutor();
         ExecutionGuardService.GuardResult guard = executionGuardService.validateExecutorReady(
                 actionExecutor,
                 token,

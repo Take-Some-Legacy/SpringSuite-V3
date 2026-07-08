@@ -15,12 +15,14 @@ public class NoopDesktopActionExecutor implements DesktopActionExecutor {
         return new Descriptor(
                 "noop-desktop-action-executor",
                 "No-op Desktop Action Executor",
+                true,
                 false,
                 List.of("execution-stub", "simulation", "audit-safe", "no-real-input"),
                 List.of("fill", "type", "paste", "select", "check", "uncheck", "click", "hotkey", "submit"),
                 Map.of(
                         "realDesktopInput", false,
-                        "contract", "All actions are converted into simulated DesktopExecutionStep records."
+                        "contract", "All actions are converted into simulated DesktopExecutionStep records.",
+                        "defaultExecutor", true
                 )
         );
     }

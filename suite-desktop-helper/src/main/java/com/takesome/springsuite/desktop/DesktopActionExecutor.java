@@ -18,6 +18,7 @@ public interface DesktopActionExecutor {
     record Descriptor(
             String id,
             String name,
+            boolean enabled,
             boolean realInputEnabled,
             List<String> capabilities,
             List<String> supportedActions,

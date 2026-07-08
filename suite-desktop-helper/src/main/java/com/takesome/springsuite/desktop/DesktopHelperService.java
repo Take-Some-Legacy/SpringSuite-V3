@@ -103,7 +103,8 @@ public class DesktopHelperService {
         sidecarContract.put("contextSnapshotOutput", List.of("DesktopFocusContext"));
         sidecarContract.put("snapshotBridgeEndpoints", List.of("POST /api/desktop-helper/context/capture", "POST /api/desktop-helper/context/ingest", "GET /api/desktop-helper/context/current", "GET /api/desktop-helper/context/latest"));
         sidecarContract.put("approvalEndpoints", List.of("POST /api/desktop-helper/approvals", "POST /api/desktop-helper/actions/dry-run", "POST /api/desktop-helper/actions/execute"));
-        sidecarContract.put("executorContract", List.of("DesktopActionExecutor", "NoopDesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"));
+        sidecarContract.put("executorRegistryEndpoints", List.of("GET /api/desktop-helper/executors", "GET /api/desktop-helper/executors/{id}"));
+        sidecarContract.put("executorContract", List.of("DesktopActionExecutor", "DesktopActionExecutorRegistry", "NoopDesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"));
         sidecarContract.put("futureExecutorBackends", List.of("ClipboardExecutor", "KeyboardExecutor", "MouseExecutor", "BrowserDomExecutor", "WindowsUiAutomationExecutor"));
         sidecarContract.put("writeActions", "disabled by default; execute only through an approval-bearing action channel and executor backend. v1 backend is no-op only.");
 
@@ -493,7 +494,8 @@ public class DesktopHelperService {
                 new DesktopActionContract("plan-form-fill", "Plan form fill", "read-plan", "none", List.of("DesktopFormFillRequest"), List.of("DesktopFormFillPlan")),
                 new DesktopActionContract("issue-approval", "Issue approval token", "approval", "required", List.of("DesktopApprovalRequest", "DesktopFormFillPlan", "DesktopApprovedAction[]"), List.of("DesktopApprovalToken")),
                 new DesktopActionContract("dry-run-approved-actions", "Dry-run approved actions", "dry-run", "required", List.of("DesktopActionDryRunRequest", "approvalToken"), List.of("DesktopActionDryRunResult")),
-                new DesktopActionContract("execute-approved-actions-stub", "Execute approved actions stub", "execution-stub", "required", List.of("DesktopActionExecutionRequest", "approvalToken", "dryRunPass", "DesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"), List.of("DesktopActionExecutionResult")),
+                new DesktopActionContract("list-executors", "List desktop action executors", "read", "none", List.of("DesktopActionExecutorRegistry"), List.of("DesktopActionExecutor.Descriptor[]")),
+                new DesktopActionContract("execute-approved-actions-stub", "Execute approved actions stub", "execution-stub", "required", List.of("DesktopActionExecutionRequest", "approvalToken", "dryRunPass", "DesktopActionExecutorRegistry", "DesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"), List.of("DesktopActionExecutionResult")),
                 new DesktopActionContract("execute-form-fill", "Execute form fill", "write", "required", List.of("DesktopFormFillPlan", "approvalToken", "dryRunPass", "executionStubPass"), List.of("executionResult"))
         );
     }
@@ -512,6 +514,8 @@ public class DesktopHelperService {
                 "POST /api/desktop-helper/approvals",
                 "POST /api/desktop-helper/actions/dry-run",
                 "POST /api/desktop-helper/actions/execute",
+                "GET /api/desktop-helper/executors",
+                "GET /api/desktop-helper/executors/{id}",
                 "POST /api/desktop-helper/context/analyze",
                 "POST /api/desktop-helper/hints",
                 "POST /api/desktop-helper/form-fill/plan"

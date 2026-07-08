@@ -27,6 +27,11 @@ public class ExecutionGuardService {
         }
         DesktopActionExecutor.Descriptor descriptor = executor.descriptor();
         guards.add("executor:present:" + descriptor.id());
+        if (!descriptor.enabled()) {
+            warnings.add("Executor backend is disabled and cannot run actions.");
+            return GuardResult.failed("executor_disabled", "Desktop action executor is disabled.", guards, warnings, Map.of("executor", descriptor));
+        }
+        guards.add("executor:enabled");
         if (descriptor.realInputEnabled()) {
             warnings.add("Real-input executor is not allowed in Full Desktop Integration v1; use NoopDesktopActionExecutor until explicit real-backend policy exists.");
             return GuardResult.failed("real_executor_blocked", "Real desktop input executor is blocked by policy.", guards, warnings, Map.of("executor", descriptor));
