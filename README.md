@@ -139,6 +139,11 @@ Runtime endpoints:
 
 - `GET /api/desktop-helper/status` — module status, enabled surfaces, policy flags and capture-tool availability.
 - `GET /api/desktop-helper/schema` — integration schema for sidecars, browser extensions and desktop drivers.
+- `POST /api/desktop-helper/context/capture` — run the configured desktop capture sidecar through toolbelt and store the latest snapshot.
+- `POST /api/desktop-helper/context/ingest` — ingest raw sidecar/browser/accessibility JSON and normalize it into `DesktopFocusContext`.
+- `GET /api/desktop-helper/context/latest` — return the last captured or ingested snapshot, even when stale.
+- `GET /api/desktop-helper/context/current` — return the latest snapshot only when its TTL is still valid.
+- `DELETE /api/desktop-helper/context/latest` — clear the in-memory desktop snapshot cache.
 - `POST /api/desktop-helper/context/analyze` — analyze `DesktopFocusContext` and report risk, field counts and next actions.
 - `POST /api/desktop-helper/hints` — generate validation, safety and focused-field hints.
 - `POST /api/desktop-helper/form-fill/plan` — map safe profile/constraint values to detected form fields and return an approval-aware plan.
@@ -196,3 +201,68 @@ Example form-fill planning request:
 ```
 
 The response returns field-level actions such as `fill`, `select`, `check`, `ask`, `review` or `leave`. Sensitive fields are review-only by default and raw sensitive values are not returned in generated plans.
+
+## Desktop bridge v1
+
+Desktop bridge v1 closes the loop between external desktop capture tools and the AI helper. It accepts both raw sidecar output and precise browser/accessibility payloads, then normalizes them into the canonical `DesktopFocusContext` used by analyze/hints/form-fill planning.
+
+Bridge flow:
+
+```text
+suite-desktop-capture / browser bridge / accessibility bridge
+        ↓
+raw desktop JSON
+        ↓
+DesktopContextNormalizer
+        ↓
+DesktopFocusContext
+        ↓
+DesktopSnapshotCache
+        ↓
+analyze / hints / form-fill-plan
+```
+
+Capture through the configured sidecar:
+
+```powershell
+Invoke-RestMethod -Method Post http://localhost:8090/api/desktop-helper/context/capture `
+  -ContentType "application/json" `
+  -Body '{ "args": ["capture"], "store": true }'
+```
+
+Ingest a browser/accessibility snapshot directly:
+
+```json
+{
+  "source": "browser-extension",
+  "store": true,
+  "snapshot": {
+    "platform": "windows",
+    "activeWindow": {
+      "process": "chrome.exe",
+      "title": "Contact form",
+      "url": "https://example.test/contact"
+    },
+    "focusedElement": {
+      "role": "textbox",
+      "name": "Email",
+      "automationId": "email"
+    },
+    "screenText": {
+      "selectedText": "",
+      "visibleText": "Full name Email Company Message Submit"
+    },
+    "form": {
+      "id": "contact",
+      "name": "Contact",
+      "fields": [
+        { "id": "name", "label": "Full name", "name": "name", "type": "text", "required": true },
+        { "id": "email", "label": "Email", "name": "email", "type": "email", "required": true, "focused": true },
+        { "id": "password", "label": "Password", "name": "password", "type": "password", "required": true, "valuePresent": true }
+      ]
+    }
+  }
+}
+```
+
+The normalizer redacts sensitive field values during ingestion. For sensitive fields, bridges should send `valuePresent`, `valueLength` or non-secret metadata instead of raw values.

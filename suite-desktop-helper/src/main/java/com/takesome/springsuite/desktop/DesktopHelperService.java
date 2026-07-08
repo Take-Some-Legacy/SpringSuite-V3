@@ -98,6 +98,7 @@ public class DesktopHelperService {
         sidecarContract.put("captureToolAvailable", toolbeltService.find(properties.getCaptureToolId()).map(ToolDescriptor::available).orElse(false));
         sidecarContract.put("contextSnapshotInput", List.of("activeWindow", "focusedElement", "selectedText", "screenText", "formFields"));
         sidecarContract.put("contextSnapshotOutput", List.of("DesktopFocusContext"));
+        sidecarContract.put("snapshotBridgeEndpoints", List.of("POST /api/desktop-helper/context/capture", "POST /api/desktop-helper/context/ingest", "GET /api/desktop-helper/context/current", "GET /api/desktop-helper/context/latest"));
         sidecarContract.put("writeActions", "disabled by default; execute only through an approval-bearing action channel");
 
         return new DesktopCapabilitySchema(
@@ -464,7 +465,7 @@ public class DesktopHelperService {
 
     private List<DesktopWorkflow> workflows() {
         return List.of(
-                new DesktopWorkflow("desktop.context.snapshot", "Capture desktop context", "A sidecar or browser extension produces DesktopFocusContext from the active window, visible text and focused form.", List.of("GET /api/desktop-helper/schema", "POST /api/desktop-helper/context/analyze"), List.of()),
+                new DesktopWorkflow("desktop.context.snapshot", "Capture desktop context", "A sidecar or browser extension produces DesktopFocusContext from the active window, visible text and focused form.", List.of("GET /api/desktop-helper/schema", "POST /api/desktop-helper/context/capture", "POST /api/desktop-helper/context/ingest", "GET /api/desktop-helper/context/current", "POST /api/desktop-helper/context/analyze"), List.of()),
                 new DesktopWorkflow("desktop.form.hints", "Generate form hints", "Analyze focused fields and produce validation, safety and formatting hints.", List.of("POST /api/desktop-helper/hints"), List.of()),
                 new DesktopWorkflow("desktop.form.fill-plan", "Plan form filling", "Map safe profile/constraint values to detected fields and return an operator-reviewed plan.", List.of("POST /api/desktop-helper/form-fill/plan"), List.of("write approval for execution")),
                 new DesktopWorkflow("desktop.action.execute-approved", "Execute approved action", "Reserved action surface for future keyboard/mouse/clipboard execution after explicit approval.", List.of("future /api/desktop-helper/actions/execute"), List.of("explicit approval", "surface enabled", "audit log"))
@@ -474,6 +475,8 @@ public class DesktopHelperService {
     private List<DesktopActionContract> actionContracts() {
         return List.of(
                 new DesktopActionContract("read-context", "Read desktop context", "read", "none", List.of("activeWindow", "focusedElement", "screenText"), List.of("DesktopFocusContext")),
+                new DesktopActionContract("capture-snapshot", "Capture desktop snapshot", "read", "none", List.of("DesktopCaptureRequest"), List.of("DesktopSnapshotResult")),
+                new DesktopActionContract("ingest-snapshot", "Ingest desktop snapshot", "read", "none", List.of("raw sidecar/browser JSON", "DesktopFocusContext"), List.of("DesktopSnapshotResult")),
                 new DesktopActionContract("analyze-context", "Analyze desktop context", "read", "none", List.of("DesktopFocusContext"), List.of("DesktopContextAnalysis")),
                 new DesktopActionContract("suggest-hints", "Suggest desktop hints", "read", "none", List.of("DesktopHintRequest"), List.of("DesktopHintResponse")),
                 new DesktopActionContract("plan-form-fill", "Plan form fill", "read-plan", "none", List.of("DesktopFormFillRequest"), List.of("DesktopFormFillPlan")),
@@ -485,6 +488,11 @@ public class DesktopHelperService {
         return List.of(
                 "GET /api/desktop-helper/status",
                 "GET /api/desktop-helper/schema",
+                "POST /api/desktop-helper/context/capture",
+                "POST /api/desktop-helper/context/ingest",
+                "GET /api/desktop-helper/context/latest",
+                "GET /api/desktop-helper/context/current",
+                "DELETE /api/desktop-helper/context/latest",
                 "POST /api/desktop-helper/context/analyze",
                 "POST /api/desktop-helper/hints",
                 "POST /api/desktop-helper/form-fill/plan"
