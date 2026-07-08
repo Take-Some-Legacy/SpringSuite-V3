@@ -76,7 +76,10 @@ public class DesktopHelperService {
         policy.put("allowClipboardWrite", properties.isAllowClipboardWrite());
         policy.put("allowFormFillPlanning", properties.isAllowFormFillPlanning());
         policy.put("allowAutofillExecution", properties.isAllowAutofillExecution());
+        policy.put("allowSubmitActions", properties.isAllowSubmitActions());
         policy.put("contextTtl", properties.getContextTtl().toString());
+        policy.put("approvalTokenTtlSeconds", properties.getApprovalTokenTtlSeconds());
+        policy.put("maxApprovalTokenTtlSeconds", properties.getMaxApprovalTokenTtlSeconds());
         policy.put("maxScreenTextChars", properties.getMaxScreenTextChars());
         policy.put("maxSuggestionCount", properties.getMaxSuggestionCount());
 
@@ -99,6 +102,7 @@ public class DesktopHelperService {
         sidecarContract.put("contextSnapshotInput", List.of("activeWindow", "focusedElement", "selectedText", "screenText", "formFields"));
         sidecarContract.put("contextSnapshotOutput", List.of("DesktopFocusContext"));
         sidecarContract.put("snapshotBridgeEndpoints", List.of("POST /api/desktop-helper/context/capture", "POST /api/desktop-helper/context/ingest", "GET /api/desktop-helper/context/current", "GET /api/desktop-helper/context/latest"));
+        sidecarContract.put("approvalEndpoints", List.of("POST /api/desktop-helper/approvals", "POST /api/desktop-helper/actions/dry-run"));
         sidecarContract.put("writeActions", "disabled by default; execute only through an approval-bearing action channel");
 
         return new DesktopCapabilitySchema(
@@ -459,7 +463,8 @@ public class DesktopHelperService {
                 new DesktopSafetyRule("sensitive-review", "Sensitive field review", "Passwords, tokens, payment data, banking details and government identifiers remain manual/review-only by default.", "field classifier"),
                 new DesktopSafetyRule("clipboard-gate", "Clipboard gate", "Clipboard read/write is disabled unless explicitly enabled in configuration.", "configuration"),
                 new DesktopSafetyRule("redacted-ai-context", "Redacted AI context", "AI enrichment receives field labels and metadata, not raw sensitive values.", "service prompt builder"),
-                new DesktopSafetyRule("operator-audit", "Operator audit", "Hints and fill plans are recorded without raw secret values.", "operator log")
+                new DesktopSafetyRule("operator-audit", "Operator audit", "Hints and fill plans are recorded without raw secret values.", "operator log"),
+                new DesktopSafetyRule("approval-token", "Approval token required", "Future write actions must pass through a short-lived approval token and dry-run guard before real execution.", "approval service")
         );
     }
 
@@ -468,7 +473,9 @@ public class DesktopHelperService {
                 new DesktopWorkflow("desktop.context.snapshot", "Capture desktop context", "A sidecar or browser extension produces DesktopFocusContext from the active window, visible text and focused form.", List.of("GET /api/desktop-helper/schema", "POST /api/desktop-helper/context/capture", "POST /api/desktop-helper/context/ingest", "GET /api/desktop-helper/context/current", "POST /api/desktop-helper/context/analyze"), List.of()),
                 new DesktopWorkflow("desktop.form.hints", "Generate form hints", "Analyze focused fields and produce validation, safety and formatting hints.", List.of("POST /api/desktop-helper/hints"), List.of()),
                 new DesktopWorkflow("desktop.form.fill-plan", "Plan form filling", "Map safe profile/constraint values to detected fields and return an operator-reviewed plan.", List.of("POST /api/desktop-helper/form-fill/plan"), List.of("write approval for execution")),
-                new DesktopWorkflow("desktop.action.execute-approved", "Execute approved action", "Reserved action surface for future keyboard/mouse/clipboard execution after explicit approval.", List.of("future /api/desktop-helper/actions/execute"), List.of("explicit approval", "surface enabled", "audit log"))
+                new DesktopWorkflow("desktop.action.approve", "Approve desktop actions", "Issue a short-lived approval token bound to a snapshot and explicit action list.", List.of("POST /api/desktop-helper/approvals", "GET /api/desktop-helper/approvals/{tokenId}"), List.of("operator approval", "fresh snapshot")),
+                new DesktopWorkflow("desktop.action.dry-run", "Dry-run approved action", "Validate an approval token and preview guarded desktop actions without typing, clicking, pasting or submitting.", List.of("POST /api/desktop-helper/actions/dry-run"), List.of("approval token", "fresh snapshot", "guard pass")),
+                new DesktopWorkflow("desktop.action.execute-approved", "Execute approved action", "Reserved action surface for future keyboard/mouse/clipboard execution after explicit approval and dry-run pass.", List.of("future /api/desktop-helper/actions/execute"), List.of("explicit approval", "surface enabled", "audit log", "dry-run pass"))
         );
     }
 
@@ -480,7 +487,9 @@ public class DesktopHelperService {
                 new DesktopActionContract("analyze-context", "Analyze desktop context", "read", "none", List.of("DesktopFocusContext"), List.of("DesktopContextAnalysis")),
                 new DesktopActionContract("suggest-hints", "Suggest desktop hints", "read", "none", List.of("DesktopHintRequest"), List.of("DesktopHintResponse")),
                 new DesktopActionContract("plan-form-fill", "Plan form fill", "read-plan", "none", List.of("DesktopFormFillRequest"), List.of("DesktopFormFillPlan")),
-                new DesktopActionContract("execute-form-fill", "Execute form fill", "write", "required", List.of("DesktopFormFillPlan", "approvalToken"), List.of("executionResult"))
+                new DesktopActionContract("issue-approval", "Issue approval token", "approval", "required", List.of("DesktopApprovalRequest", "DesktopFormFillPlan", "DesktopApprovedAction[]"), List.of("DesktopApprovalToken")),
+                new DesktopActionContract("dry-run-approved-actions", "Dry-run approved actions", "dry-run", "required", List.of("DesktopActionDryRunRequest", "approvalToken"), List.of("DesktopActionDryRunResult")),
+                new DesktopActionContract("execute-form-fill", "Execute form fill", "write", "required", List.of("DesktopFormFillPlan", "approvalToken", "dryRunPass"), List.of("executionResult"))
         );
     }
 
@@ -493,6 +502,10 @@ public class DesktopHelperService {
                 "GET /api/desktop-helper/context/latest",
                 "GET /api/desktop-helper/context/current",
                 "DELETE /api/desktop-helper/context/latest",
+                "GET /api/desktop-helper/approvals",
+                "GET /api/desktop-helper/approvals/{tokenId}",
+                "POST /api/desktop-helper/approvals",
+                "POST /api/desktop-helper/actions/dry-run",
                 "POST /api/desktop-helper/context/analyze",
                 "POST /api/desktop-helper/hints",
                 "POST /api/desktop-helper/form-fill/plan"

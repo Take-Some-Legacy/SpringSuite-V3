@@ -17,8 +17,11 @@ public class DesktopHelperProperties {
     private boolean allowClipboardWrite = false;
     private boolean allowFormFillPlanning = true;
     private boolean allowAutofillExecution = false;
+    private boolean allowSubmitActions = false;
     private String captureToolId = "suite-desktop-capture";
     private Duration contextTtl = Duration.ofSeconds(30);
+    private int approvalTokenTtlSeconds = 120;
+    private int maxApprovalTokenTtlSeconds = 900;
     private int maxScreenTextChars = 12_000;
     private int maxSuggestionCount = 6;
     private List<String> sensitiveFieldHints = List.of(
@@ -109,6 +112,14 @@ public class DesktopHelperProperties {
         this.allowAutofillExecution = allowAutofillExecution;
     }
 
+    public boolean isAllowSubmitActions() {
+        return allowSubmitActions;
+    }
+
+    public void setAllowSubmitActions(boolean allowSubmitActions) {
+        this.allowSubmitActions = allowSubmitActions;
+    }
+
     public String getCaptureToolId() {
         return captureToolId;
     }
@@ -123,6 +134,22 @@ public class DesktopHelperProperties {
 
     public void setContextTtl(Duration contextTtl) {
         this.contextTtl = contextTtl == null ? Duration.ofSeconds(30) : contextTtl;
+    }
+
+    public int getApprovalTokenTtlSeconds() {
+        return approvalTokenTtlSeconds;
+    }
+
+    public void setApprovalTokenTtlSeconds(int approvalTokenTtlSeconds) {
+        this.approvalTokenTtlSeconds = clamp(approvalTokenTtlSeconds, 15, 3600, 120);
+    }
+
+    public int getMaxApprovalTokenTtlSeconds() {
+        return maxApprovalTokenTtlSeconds;
+    }
+
+    public void setMaxApprovalTokenTtlSeconds(int maxApprovalTokenTtlSeconds) {
+        this.maxApprovalTokenTtlSeconds = clamp(maxApprovalTokenTtlSeconds, 15, 7200, 900);
     }
 
     public int getMaxScreenTextChars() {

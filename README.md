@@ -168,6 +168,9 @@ suite:
     allow-clipboard-write: false
     allow-form-fill-planning: true
     allow-autofill-execution: false
+    allow-submit-actions: false
+    approval-token-ttl-seconds: 120
+    max-approval-token-ttl-seconds: 900
 ```
 
 Example form-fill planning request:
@@ -266,3 +269,67 @@ Ingest a browser/accessibility snapshot directly:
 ```
 
 The normalizer redacts sensitive field values during ingestion. For sensitive fields, bridges should send `valuePresent`, `valueLength` or non-secret metadata instead of raw values.
+
+## Desktop approval layer v1
+
+The approval layer is the safety gateway between form-fill planning and any future real desktop executor. It does not type, click, paste or submit. It issues short-lived approval tokens and performs dry-run validation against the latest fresh snapshot.
+
+Approval flow:
+
+```text
+DesktopFormFillPlan / explicit DesktopApprovedAction[]
+        в†“
+POST /api/desktop-helper/approvals
+        в†“
+DesktopApprovalToken bound to snapshotId + action list + TTL
+        в†“
+POST /api/desktop-helper/actions/dry-run
+        в†“
+DesktopActionDryRunResult with guard status and execution preview
+```
+
+Issue an approval token from explicit actions:
+
+```json
+{
+  "snapshotId": "snapshot-id-from-context-current",
+  "purpose": "review contact-form fill",
+  "operator": "local-operator",
+  "scopes": ["desktop.actions.dry-run"],
+  "ttlSeconds": 120,
+  "actions": [
+    {
+      "actionId": "fill:email",
+      "action": "fill",
+      "targetFieldId": "email",
+      "label": "Email",
+      "value": "user@example.com",
+      "write": true,
+      "sensitive": false,
+      "submit": false,
+      "reason": "Candidate value came from reviewed profile data."
+    }
+  ]
+}
+```
+
+Dry-run the token:
+
+```json
+{
+  "approvalToken": "token-id-from-approval-response",
+  "snapshotId": "snapshot-id-from-context-current",
+  "markTokenUsed": false
+}
+```
+
+Dry-run guards check:
+
+- token exists, is not expired and is not used;
+- token includes `desktop.actions.dry-run` or `desktop.actions.execute` scope;
+- current snapshot is fresh and matches the requested/token snapshot id;
+- target form fields still exist in the current snapshot;
+- sensitive actions were explicitly allowed and contain no hidden automatic secret write;
+- submit actions are blocked by default.
+
+The next milestone after this layer is a dry-run-backed execution stub, then a real executor only after guards, audit trail and explicit operator approval are all stable.

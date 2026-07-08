@@ -13,8 +13,11 @@ suite:
     allow-clipboard-write: false
     allow-form-fill-planning: true
     allow-autofill-execution: false
+    allow-submit-actions: false
     capture-tool-id: suite-desktop-capture
     context-ttl: 30s
+    approval-token-ttl-seconds: 120
+    max-approval-token-ttl-seconds: 900
     max-screen-text-chars: 12000
     max-suggestion-count: 6
     sensitive-field-hints:
