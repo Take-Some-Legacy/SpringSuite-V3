@@ -33,17 +33,26 @@ public class DesktopApprovalService {
     private final DesktopHelperProperties properties;
     private final DesktopSnapshotCache snapshotCache;
     private final OperatorLogService logService;
+    private final DesktopActionExecutor actionExecutor;
+    private final ExecutionGuardService executionGuardService;
+    private final ExecutionAuditService executionAuditService;
     private final ConcurrentHashMap<String, DesktopApprovalToken> tokens = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, DryRunPass> dryRunPasses = new ConcurrentHashMap<>();
 
     public DesktopApprovalService(
             DesktopHelperProperties properties,
             DesktopSnapshotCache snapshotCache,
-            OperatorLogService logService
+            OperatorLogService logService,
+            DesktopActionExecutor actionExecutor,
+            ExecutionGuardService executionGuardService,
+            ExecutionAuditService executionAuditService
     ) {
         this.properties = properties;
         this.snapshotCache = snapshotCache;
         this.logService = logService;
+        this.actionExecutor = actionExecutor;
+        this.executionGuardService = executionGuardService;
+        this.executionAuditService = executionAuditService;
     }
 
     public DesktopApprovalResult createApproval(DesktopApprovalRequest request) {
@@ -241,13 +250,16 @@ public class DesktopApprovalService {
         if (token.expired()) {
             tokens.remove(token.tokenId());
             dryRunPasses.remove(token.tokenId());
+            executionAuditService.recordGuardFailure("approval_token_expired", "Approval token has expired.", token, token.snapshotId(), List.of(), Map.of("expiresAt", token.expiresAt()));
             return DesktopActionExecutionResult.failed("approval_token_expired", "Approval token has expired.", token.tokenId(), token.snapshotId(), List.of(), Map.of("expiresAt", token.expiresAt()));
         }
         if (token.used()) {
             dryRunPasses.remove(token.tokenId());
+            executionAuditService.recordGuardFailure("approval_token_used", "Approval token has already been consumed.", token, token.snapshotId(), List.of(), Map.of());
             return DesktopActionExecutionResult.failed("approval_token_used", "Approval token has already been consumed.", token.tokenId(), token.snapshotId(), List.of(), Map.of());
         }
         if (!token.scopes().contains("desktop.actions.execute")) {
+            executionAuditService.recordGuardFailure("approval_scope_denied", "Approval token does not include desktop action execute scope.", token, token.snapshotId(), List.of(), Map.of("scopes", token.scopes()));
             return DesktopActionExecutionResult.failed("approval_scope_denied", "Approval token does not include desktop action execute scope.", token.tokenId(), token.snapshotId(), List.of(), Map.of("scopes", token.scopes()));
         }
 
@@ -257,80 +269,98 @@ public class DesktopApprovalService {
         String requestedSnapshotId = firstText(safeRequest.snapshotId(), token.snapshotId());
         boolean snapshotOk = validateSnapshot(snapshot, requestedSnapshotId, token, warnings);
         if (!snapshotOk) {
-            return DesktopActionExecutionResult.failed("snapshot_guard_failed", "Fresh snapshot validation failed; execution stub refused to proceed.", token.tokenId(), requestedSnapshotId, warnings, Map.of("requiresFreshSnapshot", true));
+            executionAuditService.recordGuardFailure("snapshot_guard_failed", "Fresh snapshot validation failed; execution refused to proceed.", token, requestedSnapshotId, warnings, Map.of("requiresFreshSnapshot", true));
+            return DesktopActionExecutionResult.failed("snapshot_guard_failed", "Fresh snapshot validation failed; execution refused to proceed.", token.tokenId(), requestedSnapshotId, warnings, Map.of("requiresFreshSnapshot", true));
         }
 
         List<DesktopApprovedAction> actions = safeRequest.actions().isEmpty() ? token.actions() : safeRequest.actions();
         if (actions.isEmpty()) {
-            return DesktopActionExecutionResult.failed("execution_actions_missing", "No actions are available for execution stub.", token.tokenId(), requestedSnapshotId, warnings, Map.of());
+            executionAuditService.recordGuardFailure("execution_actions_missing", "No actions are available for execution.", token, requestedSnapshotId, warnings, Map.of());
+            return DesktopActionExecutionResult.failed("execution_actions_missing", "No actions are available for execution.", token.tokenId(), requestedSnapshotId, warnings, Map.of());
         }
 
         DryRunPass pass = dryRunPasses.get(token.tokenId());
         if (safeRequest.requireFreshDryRun()) {
             String signature = actionSignature(actions);
             if (pass == null) {
-                return DesktopActionExecutionResult.failed("dry_run_pass_required", "A successful dry-run pass is required before execution stub.", token.tokenId(), requestedSnapshotId, warnings, Map.of("required", true));
+                executionAuditService.recordGuardFailure("dry_run_pass_required", "A successful dry-run pass is required before execution.", token, requestedSnapshotId, warnings, Map.of("required", true));
+                return DesktopActionExecutionResult.failed("dry_run_pass_required", "A successful dry-run pass is required before execution.", token.tokenId(), requestedSnapshotId, warnings, Map.of("required", true));
             }
             if (pass.expired()) {
                 dryRunPasses.remove(token.tokenId());
+                executionAuditService.recordGuardFailure("dry_run_pass_expired", "The prior dry-run pass has expired; run dry-run again.", token, requestedSnapshotId, warnings, Map.of("expiresAt", pass.expiresAt()));
                 return DesktopActionExecutionResult.failed("dry_run_pass_expired", "The prior dry-run pass has expired; run dry-run again.", token.tokenId(), requestedSnapshotId, warnings, Map.of("expiresAt", pass.expiresAt()));
             }
             if (!pass.snapshotId().equals(requestedSnapshotId)) {
+                executionAuditService.recordGuardFailure("dry_run_snapshot_mismatch", "Dry-run pass snapshotId does not match execution request.", token, requestedSnapshotId, warnings, Map.of("dryRunSnapshotId", pass.snapshotId()));
                 return DesktopActionExecutionResult.failed("dry_run_snapshot_mismatch", "Dry-run pass snapshotId does not match execution request.", token.tokenId(), requestedSnapshotId, warnings, Map.of("dryRunSnapshotId", pass.snapshotId()));
             }
             if (!pass.actionSignature().equals(signature)) {
+                executionAuditService.recordGuardFailure("dry_run_action_mismatch", "Dry-run pass action set does not match execution request.", token, requestedSnapshotId, warnings, Map.of());
                 return DesktopActionExecutionResult.failed("dry_run_action_mismatch", "Dry-run pass action set does not match execution request.", token.tokenId(), requestedSnapshotId, warnings, Map.of());
             }
         }
 
-        ArrayList<DesktopExecutionStep> steps = new ArrayList<>();
-        for (int i = 0; i < actions.size(); i++) {
-            DesktopApprovedAction action = actions.get(i);
-            steps.add(new DesktopExecutionStep(
-                    i + 1,
-                    action.actionId(),
-                    action.action(),
-                    action.targetFieldId(),
-                    "simulated",
-                    preview(action),
-                    true,
-                    false,
-                    List.of("approval:token-valid", "snapshot:fresh", "dry-run:pass", "executor:stub-only"),
-                    List.of("No real desktop input was performed."),
-                    Map.of("label", action.label(), "reason", action.reason())
-            ));
+        List<DesktopDryRunStep> dryRunSteps = pass == null ? List.of() : pass.steps();
+        ExecutionGuardService.GuardResult guard = executionGuardService.validateExecutorReady(
+                actionExecutor,
+                token,
+                snapshot,
+                requestedSnapshotId,
+                actions,
+                dryRunSteps
+        );
+        if (!guard.ok()) {
+            executionAuditService.recordGuardFailure(guard.code(), guard.message(), token, requestedSnapshotId, guard.warnings(), guard.metadata());
+            return DesktopActionExecutionResult.failed(guard.code(), guard.message(), token.tokenId(), requestedSnapshotId, guard.warnings(), guard.metadata());
         }
+
+        executionAuditService.recordExecutionRequested(token, snapshot, actions, actionExecutor.descriptor());
+        DesktopActionExecutionResult executorResult = actionExecutor.execute(new DesktopActionExecutor.ExecutionContext(
+                token,
+                snapshot,
+                safeRequest,
+                actions,
+                dryRunSteps,
+                guard.guards(),
+                Instant.now(),
+                Map.of(
+                        "dryRunPassExpiresAt", pass == null ? "" : pass.expiresAt().toString(),
+                        "executor", actionExecutor.descriptor().id()
+                )
+        ));
 
         if (safeRequest.markTokenUsed()) {
             tokens.computeIfPresent(token.tokenId(), (ignored, existing) -> existing.markUsed());
             dryRunPasses.remove(token.tokenId());
         }
 
-        logService.append(OperatorLogLevel.INFO, SOURCE, "desktop action execution stub completed", Map.of(
-                "tokenId", token.tokenId(),
-                "snapshotId", requestedSnapshotId,
-                "steps", steps.size(),
-                "simulated", true,
-                "executed", false,
-                "tokenMarkedUsed", safeRequest.markTokenUsed()
-        ));
-        return new DesktopActionExecutionResult(
-                true,
-                "ok",
-                "Execution stub completed; no real desktop input was performed.",
-                token.tokenId(),
-                requestedSnapshotId,
-                true,
-                false,
-                steps,
-                warnings,
-                Map.of(
-                        "activeTokens", tokens.size(),
-                        "activeDryRunPasses", dryRunPasses.size(),
-                        "tokenMarkedUsed", safeRequest.markTokenUsed(),
-                        "executionMode", "stub-only"
-                )
+        ArrayList<String> resultWarnings = new ArrayList<>();
+        resultWarnings.addAll(warnings);
+        resultWarnings.addAll(guard.warnings());
+        resultWarnings.addAll(executorResult.warnings());
+        LinkedHashMap<String, Object> resultMetadata = new LinkedHashMap<>();
+        resultMetadata.putAll(executorResult.metadata());
+        resultMetadata.put("activeTokens", tokens.size());
+        resultMetadata.put("activeDryRunPasses", dryRunPasses.size());
+        resultMetadata.put("tokenMarkedUsed", safeRequest.markTokenUsed());
+        resultMetadata.put("executor", actionExecutor.descriptor());
+        resultMetadata.put("executionMode", "executor-abstraction");
+
+        DesktopActionExecutionResult result = new DesktopActionExecutionResult(
+                executorResult.ok(),
+                executorResult.code(),
+                executorResult.message(),
+                executorResult.tokenId(),
+                executorResult.snapshotId(),
+                executorResult.simulated(),
+                executorResult.executed(),
+                executorResult.steps(),
+                resultWarnings,
+                resultMetadata
         );
+        executionAuditService.recordExecutionResult(result, actionExecutor.descriptor(), safeRequest.markTokenUsed());
+        return result;
     }
 
     public Optional<DesktopApprovalToken> find(String tokenId) {

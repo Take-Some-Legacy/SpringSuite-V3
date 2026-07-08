@@ -390,3 +390,74 @@ Execute after successful dry-run:
 ```
 
 The response has `simulated=true` and `executed=false`. Real typing, clicking, pasting and submitting remain reserved for a future executor behind the same guard chain.
+
+## Full desktop integration v1
+
+Full desktop integration v1 introduces the real executor abstraction without enabling real desktop input. The public execution endpoint remains the same, but execution now routes through explicit backend contracts:
+
+```text
+POST /api/desktop-helper/actions/execute
+        в†“
+DesktopApprovalService
+        в†“
+ExecutionGuardService
+        в†“
+DesktopActionExecutor
+        в†“
+NoopDesktopActionExecutor
+        в†“
+ExecutionAuditService
+```
+
+Current backend:
+
+```text
+NoopDesktopActionExecutor
+- realInputEnabled=false
+- supports fill/type/paste/select/check/uncheck/click/hotkey/submit as simulated actions
+- returns DesktopExecutionStep records
+- performs no keyboard, mouse, clipboard, DOM or UI Automation operations
+```
+
+Executor interface:
+
+```text
+DesktopActionExecutor
+- descriptor()
+- execute(ExecutionContext)
+```
+
+Guard layer:
+
+```text
+ExecutionGuardService
+- validates executor availability
+- blocks real-input executors in v1
+- verifies desktop.actions.execute scope
+- verifies token state
+- verifies fresh snapshot
+- verifies prior dry-run pass
+- verifies all dry-run steps were allowed
+```
+
+Audit layer:
+
+```text
+ExecutionAuditService
+- records guard failures
+- records execution requests
+- records execution results
+- logs executor id, snapshot id, token id, simulated/executed state and step count
+```
+
+Future real backends should implement `DesktopActionExecutor` behind the same guard chain:
+
+```text
+ClipboardExecutor
+KeyboardExecutor
+MouseExecutor
+BrowserDomExecutor
+WindowsUiAutomationExecutor
+```
+
+Real input remains intentionally unimplemented. A future backend must pass through the same approval token, fresh snapshot, dry-run pass, execution guard and audit path before it can perform any write action.

@@ -103,7 +103,9 @@ public class DesktopHelperService {
         sidecarContract.put("contextSnapshotOutput", List.of("DesktopFocusContext"));
         sidecarContract.put("snapshotBridgeEndpoints", List.of("POST /api/desktop-helper/context/capture", "POST /api/desktop-helper/context/ingest", "GET /api/desktop-helper/context/current", "GET /api/desktop-helper/context/latest"));
         sidecarContract.put("approvalEndpoints", List.of("POST /api/desktop-helper/approvals", "POST /api/desktop-helper/actions/dry-run", "POST /api/desktop-helper/actions/execute"));
-        sidecarContract.put("writeActions", "disabled by default; execute only through an approval-bearing action channel");
+        sidecarContract.put("executorContract", List.of("DesktopActionExecutor", "NoopDesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"));
+        sidecarContract.put("futureExecutorBackends", List.of("ClipboardExecutor", "KeyboardExecutor", "MouseExecutor", "BrowserDomExecutor", "WindowsUiAutomationExecutor"));
+        sidecarContract.put("writeActions", "disabled by default; execute only through an approval-bearing action channel and executor backend. v1 backend is no-op only.");
 
         return new DesktopCapabilitySchema(
                 "suite-desktop-helper",
@@ -464,7 +466,8 @@ public class DesktopHelperService {
                 new DesktopSafetyRule("clipboard-gate", "Clipboard gate", "Clipboard read/write is disabled unless explicitly enabled in configuration.", "configuration"),
                 new DesktopSafetyRule("redacted-ai-context", "Redacted AI context", "AI enrichment receives field labels and metadata, not raw sensitive values.", "service prompt builder"),
                 new DesktopSafetyRule("operator-audit", "Operator audit", "Hints and fill plans are recorded without raw secret values.", "operator log"),
-                new DesktopSafetyRule("approval-token", "Approval token required", "Future write actions must pass through a short-lived approval token and dry-run guard before real execution.", "approval service")
+                new DesktopSafetyRule("approval-token", "Approval token required", "Future write actions must pass through a short-lived approval token and dry-run guard before real execution.", "approval service"),
+                new DesktopSafetyRule("executor-abstraction", "Executor abstraction", "Desktop execution is routed through DesktopActionExecutor; the default NoopDesktopActionExecutor performs no real input.", "execution guard + executor backend")
         );
     }
 
@@ -490,7 +493,7 @@ public class DesktopHelperService {
                 new DesktopActionContract("plan-form-fill", "Plan form fill", "read-plan", "none", List.of("DesktopFormFillRequest"), List.of("DesktopFormFillPlan")),
                 new DesktopActionContract("issue-approval", "Issue approval token", "approval", "required", List.of("DesktopApprovalRequest", "DesktopFormFillPlan", "DesktopApprovedAction[]"), List.of("DesktopApprovalToken")),
                 new DesktopActionContract("dry-run-approved-actions", "Dry-run approved actions", "dry-run", "required", List.of("DesktopActionDryRunRequest", "approvalToken"), List.of("DesktopActionDryRunResult")),
-                new DesktopActionContract("execute-approved-actions-stub", "Execute approved actions stub", "execution-stub", "required", List.of("DesktopActionExecutionRequest", "approvalToken", "dryRunPass"), List.of("DesktopActionExecutionResult")),
+                new DesktopActionContract("execute-approved-actions-stub", "Execute approved actions stub", "execution-stub", "required", List.of("DesktopActionExecutionRequest", "approvalToken", "dryRunPass", "DesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"), List.of("DesktopActionExecutionResult")),
                 new DesktopActionContract("execute-form-fill", "Execute form fill", "write", "required", List.of("DesktopFormFillPlan", "approvalToken", "dryRunPass", "executionStubPass"), List.of("executionResult"))
         );
     }
