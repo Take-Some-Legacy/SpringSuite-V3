@@ -7,7 +7,7 @@
   "source_type": "suite-local",
   "package_root": ".",
   "description": "Explicit one-shot desktop PNG helper for SpringSuite FN/MCP handoff.",
-  "executable": "suiteBinaries/suite-desktop-capture.exe",
+  "executable": "suiteBinaries/suite-desktop-capture",
   "default_args": [
     "doctor"
   ],

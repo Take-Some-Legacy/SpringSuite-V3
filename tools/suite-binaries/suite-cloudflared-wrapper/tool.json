@@ -5,7 +5,7 @@
   "title": "Suite Cloudflared Wrapper",
   "kind": "go-sidecar",
   "description": "Runs cloudflared with SpringSuite-local runtime/cache directories and JSON lifecycle events.",
-  "executable": "suiteBinaries/suite-cloudflared-wrapper.exe",
+  "executable": "suiteBinaries/suite-cloudflared-wrapper",
   "default_args": [
     "version"
   ],

@@ -274,6 +274,7 @@ public class ConsoleCommandListener {
                 case "publishers", "publisher", "pubs" -> subcommands.addAll(List.of("list", "fingerprint", "trust-cert", "trust-publisher", "block-cert", "revoke", "deploy", "build", "sign"));
                 case "logs", "log" -> subcommands.addAll(List.of("20", "50", "100"));
                 case "openai", "oai" -> subcommands.addAll(List.of("status", "setup", "refresh", "ask"));
+                case "ai", "llm" -> subcommands.addAll(List.of("providers", "default", "status", "setup", "ask"));
                 default -> {
                     // no command-specific completions
                 }

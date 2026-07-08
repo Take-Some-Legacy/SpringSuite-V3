@@ -67,6 +67,7 @@ dependencies {
     implementation(project(":suite-command"))
     implementation(project(":suite-toolbelt"))
     implementation(project(":suite-workspace"))
+    implementation(project(":suite-ai"))
     implementation(project(":suite-openai"))
     implementation(project(":suite-agent"))
 

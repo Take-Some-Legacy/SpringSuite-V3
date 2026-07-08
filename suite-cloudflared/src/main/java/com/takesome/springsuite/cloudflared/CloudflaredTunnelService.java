@@ -2,6 +2,7 @@ package com.takesome.springsuite.cloudflared;
 
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
+import com.takesome.springsuite.core.platform.PlatformExecutables;
 import jakarta.annotation.PreDestroy;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -94,6 +95,10 @@ public class CloudflaredTunnelService {
                 environment.put("USERPROFILE", runtimeDirectory.toString());
                 environment.put("XDG_CONFIG_HOME", runtimeDirectory.toString());
                 environment.put("XDG_CACHE_HOME", processCacheDirectory.toString());
+                String originCertPath = properties.getOriginCertPath();
+                if (originCertPath != null && !originCertPath.isBlank()) {
+                    environment.put("TUNNEL_ORIGIN_CERT", resolveConfiguredPath(originCertPath).toString());
+                }
                 builder.redirectErrorStream(true);
                 process = builder.start();
                 startedAt = Instant.now();
@@ -251,6 +256,17 @@ public class CloudflaredTunnelService {
     }
 
     private Path resolveExecutablePath(String raw) {
+        Path runtimeRoot = Path.of("").toAbsolutePath().normalize();
+        return PlatformExecutables.resolveExecutable(runtimeRoot, raw)
+                .orElseGet(() -> {
+                    Path path = Path.of(raw == null ? "" : raw.trim());
+                    return path.isAbsolute()
+                            ? path.toAbsolutePath().normalize()
+                            : runtimeRoot.resolve(path).normalize();
+                });
+    }
+
+    private Path resolveConfiguredPath(String raw) {
         Path path = Path.of(raw == null ? "" : raw.trim());
         return path.isAbsolute()
                 ? path.toAbsolutePath().normalize()

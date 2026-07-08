@@ -5,7 +5,7 @@
   "title": "Suite Repo Indexer",
   "kind": "go-sidecar",
   "description": "Scans remembered repositories, discovers .git roots, builds dataset/hash index JSON for SpringSuite.",
-  "executable": "suiteBinaries/suite-repo-indexer.exe",
+  "executable": "suiteBinaries/suite-repo-indexer",
   "default_args": [
     "doctor"
   ],

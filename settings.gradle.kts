@@ -24,6 +24,7 @@ include(
     "suite-command",
     "suite-toolbelt",
     "suite-workspace",
+    "suite-ai",
     "suite-openai",
     "suite-agent",
     "suite-app",

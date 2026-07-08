@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
+import com.takesome.springsuite.core.platform.PlatformExecutables;
 import com.takesome.springsuite.workspace.WorkspaceEntry;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -231,9 +232,12 @@ public final class GoWorkspaceFsBackend implements WorkspaceFsBackend {
     }
 
     private Path resolveWorkerPath() {
-        Path raw = Paths.get(properties.getWorkerPath());
-        Path resolved = raw.isAbsolute() ? raw : pathPolicy.runtimeRoot().resolve(raw);
-        return resolved.toAbsolutePath().normalize();
+        return PlatformExecutables.resolveExecutable(pathPolicy.runtimeRoot(), properties.getWorkerPath())
+                .orElseGet(() -> {
+                    Path raw = Paths.get(properties.getWorkerPath());
+                    Path resolved = raw.isAbsolute() ? raw : pathPolicy.runtimeRoot().resolve(raw);
+                    return resolved.toAbsolutePath().normalize();
+                });
     }
 
     private void markUnavailable(Exception ex) {

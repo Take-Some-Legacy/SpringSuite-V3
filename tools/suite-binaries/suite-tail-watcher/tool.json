@@ -7,7 +7,7 @@
   "source_type": "suite-local",
   "package_root": ".",
   "description": "Tails log files, watches directories and streams line-oriented events for SpringSuite.",
-  "executable": "suiteBinaries/suite-tail-watcher.exe",
+  "executable": "suiteBinaries/suite-tail-watcher",
   "default_args": [
     "doctor",
     "--path",

@@ -1,0 +1,52 @@
+# SpringSuite provider-agnostic AI facade.
+# Owned by suite-ai. Provider secrets stay in environment variables or external credential stores.
+
+suite:
+  ai:
+    enabled: true
+    default-provider: openai
+    providers:
+      # Z.ai GLM adapter. This is OpenAI Chat Completions compatible and can later point to a self-hosted GLM endpoint.
+      zai:
+        enabled: true
+        type: openai-chat-compatible
+        name: Z.ai GLM
+        vendor: Z.ai
+        base-url: https://api.z.ai/api/paas/v4
+        chat-endpoint: /chat/completions
+        api-key-env: ZAI_API_KEY
+        requires-auth: true
+        default-model: glm-5.2
+        default-max-tokens: 4096
+        default-temperature: 1.0
+        request-timeout: 120s
+        thinking:
+          enabled: true
+          type: enabled
+          reasoning-effort: max
+        capabilities:
+          - chat
+          - chat-completions-api
+          - reasoning-effort
+          - thinking-mode
+          - tools
+          - structured-output
+          - context-caching
+          - mcp
+      # Generic local OpenAI-compatible endpoint for vLLM/SGLang/LM Studio/Ollama compatible servers.
+      local-openai-compatible:
+        enabled: false
+        type: openai-chat-compatible
+        name: Local OpenAI-Compatible
+        vendor: local
+        base-url: http://localhost:8000/v1
+        chat-endpoint: /chat/completions
+        api-key-env: ""
+        requires-auth: false
+        default-model: local-model
+        default-max-tokens: 4096
+        default-temperature: 0.7
+        request-timeout: 120s
+        capabilities:
+          - chat
+          - chat-completions-api

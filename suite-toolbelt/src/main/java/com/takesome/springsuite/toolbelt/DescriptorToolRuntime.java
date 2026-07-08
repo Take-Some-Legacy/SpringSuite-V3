@@ -1,5 +1,6 @@
 package com.takesome.springsuite.toolbelt;
 
+import com.takesome.springsuite.core.platform.PlatformExecutables;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,17 +30,19 @@ public class DescriptorToolRuntime {
         ), normalizedDescriptorDir);
 
         ArrayList<String> candidates = new ArrayList<>();
+        for (String path : platformExecutablePaths()) {
+            addCandidate(candidates, stringAt(raw, path));
+        }
         addCandidate(candidates, stringAt(raw, "executable"));
         addCandidate(candidates, stringAt(raw, "binary"));
         addCandidate(candidates, stringAt(raw, "path"));
         addCandidate(candidates, stringAt(raw, "runtime.executable"));
-        addCandidate(candidates, stringAt(raw, "windows.executable"));
         addCandidate(candidates, stringAt(raw, "exec.executable"));
         addCandidate(candidates, stringAt(raw, "launcher.executable"));
         addCandidate(candidates, stringAt(raw, "install_path"));
         addCandidate(candidates, stringAt(raw, "installPath"));
 
-        List<String> command = firstListAt(raw, "command", "runtime.command", "windows.command", "exec.command", "launcher.command");
+        List<String> command = firstListAt(raw, commandPathOrder());
         if (!command.isEmpty() && !isDescriptorSentinel(command.get(0))) {
             addCandidate(candidates, command.get(0));
         }
@@ -54,7 +57,7 @@ public class DescriptorToolRuntime {
     }
 
     public List<String> commandTemplate(Map<String, Object> raw, String executable) {
-        List<String> command = firstListAt(raw, "command", "runtime.command", "windows.command", "exec.command", "launcher.command");
+        List<String> command = firstListAt(raw, commandPathOrder());
         if (!command.isEmpty() && !isDescriptorSentinel(command.get(0))) {
             ArrayList<String> template = new ArrayList<>(command);
             if (!executable.isBlank()) {
@@ -84,7 +87,7 @@ public class DescriptorToolRuntime {
         if (runtime.isEmpty()) {
             return List.of();
         }
-        runtime = new ArrayList<>(wrapPlatformCommand(runtime));
+        runtime = new ArrayList<>(PlatformExecutables.wrapCommand(runtime));
         runtime.addAll(args == null ? List.of() : args);
         return List.copyOf(runtime);
     }
@@ -104,19 +107,26 @@ public class DescriptorToolRuntime {
             return "";
         }
         Path candidate = Paths.get(rawPath);
-        if (candidate.isAbsolute() && Files.isRegularFile(candidate)) {
-            return candidate.toAbsolutePath().normalize().toString();
+        if (candidate.isAbsolute()) {
+            for (Path variant : PlatformExecutables.executablePathVariants(candidate)) {
+                if (Files.isRegularFile(variant)) {
+                    return variant.toAbsolutePath().normalize().toString();
+                }
+            }
+            return "";
         }
         for (Path base : List.of(packageRoot, descriptorDir, repoRoot)) {
             if (base == null) {
                 continue;
             }
-            Path resolved = base.resolve(candidate).toAbsolutePath().normalize();
-            if (Files.isRegularFile(resolved)) {
-                return resolved.toString();
+            for (Path variant : PlatformExecutables.executablePathVariants(candidate)) {
+                Path resolved = base.resolve(variant).toAbsolutePath().normalize();
+                if (Files.isRegularFile(resolved)) {
+                    return resolved.toString();
+                }
             }
         }
-        return findOnPath(rawPath).map(path -> path.toAbsolutePath().normalize().toString()).orElse("");
+        return PlatformExecutables.findOnPath(rawPath).map(path -> path.toAbsolutePath().normalize().toString()).orElse("");
     }
 
     private Path resolveConfiguredPath(Path repoRoot, Path descriptorDir, String rawPath, Path fallback) {
@@ -132,26 +142,6 @@ public class DescriptorToolRuntime {
             return repoRelative;
         }
         return descriptorDir.resolve(path).toAbsolutePath().normalize();
-    }
-
-    private List<String> wrapPlatformCommand(List<String> command) {
-        String first = command.get(0);
-        String lower = first.toLowerCase(Locale.ROOT);
-        ArrayList<String> wrapped = new ArrayList<>();
-        if (isWindows() && (lower.endsWith(".bat") || lower.endsWith(".cmd"))) {
-            wrapped.add("cmd");
-            wrapped.add("/c");
-            wrapped.addAll(command);
-            return wrapped;
-        }
-        if (lower.endsWith(".jar")) {
-            wrapped.add("java");
-            wrapped.add("-jar");
-            wrapped.addAll(command);
-            return wrapped;
-        }
-        wrapped.addAll(command);
-        return wrapped;
     }
 
     private Optional<String> resolvePackagedExecutable(Path descriptorDir, Map<String, Object> raw) {
@@ -208,51 +198,44 @@ public class DescriptorToolRuntime {
                 score += 100;
             }
         }
-        String lower = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        if (lower.endsWith(".exe") || lower.endsWith(".bat") || lower.endsWith(".cmd")) {
+        if (PlatformExecutables.isExecutableLike(path)) {
             score += 10;
         }
         return score;
     }
 
     private boolean isExecutableLike(Path path) {
-        String lower = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        return lower.endsWith(".exe") || lower.endsWith(".bat") || lower.endsWith(".cmd") || lower.endsWith(".jar");
+        return PlatformExecutables.isExecutableLike(path);
     }
 
-    private Optional<Path> findOnPath(String executableName) {
-        String pathEnv = System.getenv("PATH");
-        if (pathEnv == null || pathEnv.isBlank()) {
-            return Optional.empty();
+    private String[] commandPathOrder() {
+        ArrayList<String> paths = new ArrayList<>();
+        for (String prefix : platformPrefixes()) {
+            paths.add(prefix + ".command");
         }
-        for (String part : pathEnv.split(java.io.File.pathSeparator)) {
-            if (part.isBlank()) {
-                continue;
-            }
-            Path dir = Paths.get(part);
-            for (String name : executableNames(executableName)) {
-                Path candidate = dir.resolve(name);
-                if (Files.isRegularFile(candidate)) {
-                    return Optional.of(candidate);
-                }
-            }
-        }
-        return Optional.empty();
+        paths.addAll(List.of("command", "runtime.command", "exec.command", "launcher.command"));
+        return paths.toArray(String[]::new);
     }
 
-    private List<String> executableNames(String name) {
-        if (!isWindows()) {
-            return List.of(name);
+    private List<String> platformExecutablePaths() {
+        ArrayList<String> paths = new ArrayList<>();
+        for (String prefix : platformPrefixes()) {
+            paths.add(prefix + ".executable");
+            paths.add(prefix + ".binary");
+            paths.add(prefix + ".path");
         }
-        String lower = name.toLowerCase(Locale.ROOT);
-        if (lower.endsWith(".exe") || lower.endsWith(".bat") || lower.endsWith(".cmd")) {
-            return List.of(name);
-        }
-        return List.of(name + ".exe", name + ".bat", name + ".cmd", name);
+        return List.copyOf(paths);
     }
 
-    private boolean isWindows() {
-        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    private List<String> platformPrefixes() {
+        if (PlatformExecutables.isWindows()) {
+            return List.of("windows", "win32", "win");
+        }
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (os.contains("mac") || os.contains("darwin")) {
+            return List.of("macos", "darwin", "unix", "posix", "linux");
+        }
+        return List.of("linux", "unix", "posix");
     }
 
     private String descriptorId(Map<String, Object> raw) {

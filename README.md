@@ -96,3 +96,29 @@ Browser setup:
 - `POST /api/openai/link/unlink` — removes the local credential.
 
 The workload-identity token cache defaults to `authority/openai/app_access_token.json` under the Suite runtime root. The browser-linked local credential defaults to `authority/openai/local_credentials.json`.
+
+## Provider-agnostic AI service
+
+SpringSuite 0.2 introduces a provider-agnostic AI facade. Core contracts live in `suite-core` under `com.takesome.springsuite.core.ai`; runtime routing lives in `suite-ai`; provider implementations live in modules.
+
+Key endpoints:
+
+- `GET /api/ai/providers` — list registered AI providers.
+- `GET /api/ai/status?provider=<id>` — inspect provider credentials without revealing secrets.
+- `POST /api/ai/chat` — send a provider-agnostic chat request.
+
+Console commands:
+
+- `ai providers`
+- `ai default`
+- `ai status [provider]`
+- `ai ask [--provider id] [--model id] <prompt>`
+- `ai setup <provider>`
+
+Built-in providers:
+
+- `openai` — module-backed adapter over `suite-openai` and the OpenAI Responses API.
+- `zai` — configurable OpenAI Chat Completions compatible adapter for GLM, defaulting to `glm-5.2` and `ZAI_API_KEY`.
+- `local-openai-compatible` — disabled template for local/self-hosted OpenAI-compatible endpoints such as vLLM, SGLang, LM Studio or Ollama-compatible servers.
+
+The older `/api/openai/*` endpoints and `openai` console command remain available as compatibility surfaces.

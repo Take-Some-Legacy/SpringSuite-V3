@@ -1,5 +1,6 @@
 package com.takesome.springsuite.workspace.fs;
 
+import com.takesome.springsuite.core.platform.PlatformExecutables;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -7,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class SuiteFsProperties {
     private String backend = "auto";
     private String root = ".";
-    private String workerPath = "suiteBinaries/suite-fs-worker.exe";
+    private String workerPath = PlatformExecutables.suiteBinaryPath("suite-fs-worker");
     private int protocolVersion = 1;
     private Duration startTimeout = Duration.ofSeconds(3);
     private Duration requestTimeout = Duration.ofSeconds(30);
@@ -40,7 +41,7 @@ public class SuiteFsProperties {
     }
 
     public void setWorkerPath(String workerPath) {
-        this.workerPath = workerPath == null || workerPath.isBlank() ? "suiteBinaries/suite-fs-worker.exe" : workerPath.trim();
+        this.workerPath = workerPath == null || workerPath.isBlank() ? PlatformExecutables.suiteBinaryPath("suite-fs-worker") : workerPath.trim();
     }
 
     public int getProtocolVersion() {

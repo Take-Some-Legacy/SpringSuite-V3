@@ -1,5 +1,6 @@
 package com.takesome.springsuite.cloudflared;
 
+import com.takesome.springsuite.core.platform.PlatformExecutables;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,11 +12,12 @@ public class CloudflaredProperties {
     private boolean autoStart = false;
     private String executable = "";
     private boolean wrapperEnabled = true;
-    private String wrapperExecutable = "suiteBinaries/suite-cloudflared-wrapper.exe";
+    private String wrapperExecutable = PlatformExecutables.suiteBinaryPath("suite-cloudflared-wrapper");
     private String targetUrl = "";
     private String tunnelName = "";
     private String hostname = "";
     private String cacheDirectory = ".springsuite/cloudflared";
+    private String originCertPath = "";
     private List<String> extraArgs = new ArrayList<>();
     private Duration stopTimeout = Duration.ofSeconds(5);
     private int recentLogLimit = 300;
@@ -58,7 +60,7 @@ public class CloudflaredProperties {
 
     public void setWrapperExecutable(String wrapperExecutable) {
         this.wrapperExecutable = wrapperExecutable == null || wrapperExecutable.isBlank()
-                ? "suiteBinaries/suite-cloudflared-wrapper.exe"
+                ? PlatformExecutables.suiteBinaryPath("suite-cloudflared-wrapper")
                 : wrapperExecutable.trim();
     }
 
@@ -92,6 +94,14 @@ public class CloudflaredProperties {
 
     public void setCacheDirectory(String cacheDirectory) {
         this.cacheDirectory = cacheDirectory == null || cacheDirectory.isBlank() ? ".springsuite/cloudflared" : cacheDirectory.trim();
+    }
+
+    public String getOriginCertPath() {
+        return originCertPath;
+    }
+
+    public void setOriginCertPath(String originCertPath) {
+        this.originCertPath = originCertPath == null ? "" : originCertPath.trim();
     }
 
     public List<String> getExtraArgs() {
