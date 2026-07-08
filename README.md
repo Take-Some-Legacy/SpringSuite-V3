@@ -122,3 +122,77 @@ Built-in providers:
 - `local-openai-compatible` — disabled template for local/self-hosted OpenAI-compatible endpoints such as vLLM, SGLang, LM Studio or Ollama-compatible servers.
 
 The older `/api/openai/*` endpoints and `openai` console command remain available as compatibility surfaces.
+
+## Desktop helper AI suite
+
+SpringSuite now includes `suite-desktop-helper`, a local-first assistant layer for desktop context, form hints and operator-reviewed form filling. It is deliberately assistive by default: it can read structured context, generate hints and produce a fill plan, but desktop write actions remain disabled unless explicitly enabled and approved.
+
+Desktop helper surfaces:
+
+- `active-window` — active app, title, URL and focused-control context through `suite-desktop-capture` or compatible sidecar.
+- `screen-text` — visible text / OCR / selected text as read-only context.
+- `browser-form` — structured form fields from a browser extension, accessibility bridge or DOM adapter.
+- `clipboard` — disabled by default; can be enabled separately for read/write clipboard workflows.
+- `keyboard-mouse` — disabled by default; reserved for future approved typing, hotkeys and pointer execution.
+
+Runtime endpoints:
+
+- `GET /api/desktop-helper/status` — module status, enabled surfaces, policy flags and capture-tool availability.
+- `GET /api/desktop-helper/schema` — integration schema for sidecars, browser extensions and desktop drivers.
+- `POST /api/desktop-helper/context/analyze` — analyze `DesktopFocusContext` and report risk, field counts and next actions.
+- `POST /api/desktop-helper/hints` — generate validation, safety and focused-field hints.
+- `POST /api/desktop-helper/form-fill/plan` — map safe profile/constraint values to detected form fields and return an approval-aware plan.
+
+Console commands:
+
+- `desktop-helper status`
+- `desktop-helper schema`
+- `desktop-helper surfaces`
+- `desktop-helper endpoints`
+
+Default policy:
+
+```yaml
+suite:
+  desktop-helper:
+    enabled: true
+    mode: assistive
+    require-approval-for-write-actions: true
+    allow-desktop-capture: true
+    allow-clipboard-read: false
+    allow-clipboard-write: false
+    allow-form-fill-planning: true
+    allow-autofill-execution: false
+```
+
+Example form-fill planning request:
+
+```json
+{
+  "userGoal": "Help fill this contact form safely.",
+  "locale": "en-US",
+  "profile": {
+    "fullName": "Example User",
+    "email": "user@example.com",
+    "company": "Example Labs"
+  },
+  "context": {
+    "platform": "windows",
+    "activeApplication": "chrome.exe",
+    "activeWindowTitle": "Contact form",
+    "url": "https://example.test/contact",
+    "form": {
+      "id": "contact",
+      "name": "Contact",
+      "fields": [
+        { "id": "name", "label": "Full name", "type": "text", "required": true },
+        { "id": "email", "label": "Email", "type": "email", "required": true },
+        { "id": "company", "label": "Company", "type": "text" },
+        { "id": "password", "label": "Password", "type": "password", "required": true }
+      ]
+    }
+  }
+}
+```
+
+The response returns field-level actions such as `fill`, `select`, `check`, `ask`, `review` or `leave`. Sensitive fields are review-only by default and raw sensitive values are not returned in generated plans.

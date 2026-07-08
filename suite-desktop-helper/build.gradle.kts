@@ -1,0 +1,14 @@
+plugins {
+    `java-library`
+}
+
+dependencies {
+    api(project(":suite-core"))
+    implementation(project(":suite-config"))
+    implementation(project(":suite-command"))
+    implementation(project(":suite-logging"))
+    implementation(project(":suite-ai"))
+    implementation(project(":suite-toolbelt"))
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+}

@@ -69,6 +69,7 @@ dependencies {
     implementation(project(":suite-workspace"))
     implementation(project(":suite-ai"))
     implementation(project(":suite-openai"))
+    implementation(project(":suite-desktop-helper"))
     implementation(project(":suite-agent"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")

@@ -1,0 +1,73 @@
+# SpringSuite desktop helper AI suite.
+# The module is local-first and assistive by default: it reads context, generates hints,
+# and plans form filling. Actual desktop writes must be enabled and approved separately.
+
+suite:
+  desktop-helper:
+    enabled: true
+    mode: assistive
+    ai-enrichment-enabled: true
+    require-approval-for-write-actions: true
+    allow-desktop-capture: true
+    allow-clipboard-read: false
+    allow-clipboard-write: false
+    allow-form-fill-planning: true
+    allow-autofill-execution: false
+    capture-tool-id: suite-desktop-capture
+    context-ttl: 30s
+    max-screen-text-chars: 12000
+    max-suggestion-count: 6
+    sensitive-field-hints:
+      - password
+      - passcode
+      - token
+      - secret
+      - api key
+      - card
+      - cvv
+      - iban
+      - bank
+      - ssn
+      - social security
+      - passport
+    surfaces:
+      active-window:
+        enabled: true
+        access: read
+        adapter: suite-desktop-capture
+        capabilities:
+          - process
+          - title
+          - url
+          - focused-control
+      screen-text:
+        enabled: true
+        access: read
+        adapter: suite-desktop-capture
+        capabilities:
+          - ocr
+          - visible-text
+          - selected-text
+      clipboard:
+        enabled: false
+        access: read-write
+        adapter: platform
+        capabilities:
+          - clipboard-preview
+          - copy-suggestion
+      browser-form:
+        enabled: true
+        access: read-plan
+        adapter: extension-or-accessibility
+        capabilities:
+          - field-detection
+          - fill-plan
+          - validation-hints
+      keyboard-mouse:
+        enabled: false
+        access: write
+        adapter: accessibility-driver
+        capabilities:
+          - type
+          - hotkey
+          - click

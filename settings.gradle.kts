@@ -26,6 +26,7 @@ include(
     "suite-workspace",
     "suite-ai",
     "suite-openai",
+    "suite-desktop-helper",
     "suite-agent",
     "suite-app",
     "suite-diagnostics-module",
