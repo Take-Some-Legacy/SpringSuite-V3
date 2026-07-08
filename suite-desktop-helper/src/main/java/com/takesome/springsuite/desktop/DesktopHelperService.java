@@ -77,6 +77,8 @@ public class DesktopHelperService {
         policy.put("allowFormFillPlanning", properties.isAllowFormFillPlanning());
         policy.put("allowAutofillExecution", properties.isAllowAutofillExecution());
         policy.put("allowSubmitActions", properties.isAllowSubmitActions());
+        policy.put("executorAllowedRealInput", properties.getExecutor().isAllowedRealInput());
+        policy.put("bridgeAllowedRealInput", properties.getBridge().isAllowedRealInput());
         policy.put("contextTtl", properties.getContextTtl().toString());
         policy.put("approvalTokenTtlSeconds", properties.getApprovalTokenTtlSeconds());
         policy.put("maxApprovalTokenTtlSeconds", properties.getMaxApprovalTokenTtlSeconds());
@@ -103,10 +105,11 @@ public class DesktopHelperService {
         sidecarContract.put("contextSnapshotOutput", List.of("DesktopFocusContext"));
         sidecarContract.put("snapshotBridgeEndpoints", List.of("POST /api/desktop-helper/context/capture", "POST /api/desktop-helper/context/ingest", "GET /api/desktop-helper/context/current", "GET /api/desktop-helper/context/latest"));
         sidecarContract.put("approvalEndpoints", List.of("POST /api/desktop-helper/approvals", "POST /api/desktop-helper/actions/dry-run", "POST /api/desktop-helper/actions/execute"));
-        sidecarContract.put("executorRegistryEndpoints", List.of("GET /api/desktop-helper/executors", "GET /api/desktop-helper/executors/{id}"));
-        sidecarContract.put("executorContract", List.of("DesktopActionExecutor", "DesktopActionExecutorRegistry", "NoopDesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"));
-        sidecarContract.put("futureExecutorBackends", List.of("ClipboardExecutor", "KeyboardExecutor", "MouseExecutor", "BrowserDomExecutor", "WindowsUiAutomationExecutor"));
-        sidecarContract.put("writeActions", "disabled by default; execute only through an approval-bearing action channel and executor backend. v1 backend is no-op only.");
+        sidecarContract.put("executorRegistryEndpoints", List.of("GET /api/desktop-helper/executors", "GET /api/desktop-helper/executors/{id}", "GET /api/desktop-helper/executors/policy"));
+        sidecarContract.put("bridgeRegistryEndpoints", List.of("GET /api/desktop-helper/bridges", "GET /api/desktop-helper/bridges/{id}", "GET /api/desktop-helper/bridges/policy"));
+        sidecarContract.put("executorContract", List.of("DesktopActionExecutor", "DesktopActionExecutorRegistry", "NoopDesktopActionExecutor", "RealDesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"));
+        sidecarContract.put("bridgeContract", List.of("DesktopBridgeAdapter", "DesktopBridgeAdapterRegistry", "ClipboardBridgeAdapter", "KeyboardBridgeAdapter", "MouseBridgeAdapter", "BrowserDomBridgeAdapter", "WindowsUiAutomationBridgeAdapter"));
+        sidecarContract.put("writeActions", "disabled by default; real input requires executor.allowed-real-input=true, bridge.allowed-real-input=true, enabled real executor, enabled bridge, approval token, dry-run pass, fresh snapshot and audit logging.");
 
         return new DesktopCapabilitySchema(
                 "suite-desktop-helper",
@@ -516,6 +519,10 @@ public class DesktopHelperService {
                 "POST /api/desktop-helper/actions/execute",
                 "GET /api/desktop-helper/executors",
                 "GET /api/desktop-helper/executors/{id}",
+                "GET /api/desktop-helper/executors/policy",
+                "GET /api/desktop-helper/bridges",
+                "GET /api/desktop-helper/bridges/{id}",
+                "GET /api/desktop-helper/bridges/policy",
                 "POST /api/desktop-helper/context/analyze",
                 "POST /api/desktop-helper/hints",
                 "POST /api/desktop-helper/form-fill/plan"

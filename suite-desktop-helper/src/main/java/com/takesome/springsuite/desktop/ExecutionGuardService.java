@@ -11,6 +11,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ExecutionGuardService {
+    private final DesktopExecutionPolicy executionPolicy;
+
+    public ExecutionGuardService(DesktopExecutionPolicy executionPolicy) {
+        this.executionPolicy = executionPolicy;
+    }
+
     public GuardResult validateExecutorReady(
             DesktopActionExecutor executor,
             DesktopActionExecutor.Descriptor effectiveDescriptor,
@@ -33,11 +39,11 @@ public class ExecutionGuardService {
             return GuardResult.failed("executor_disabled", "Desktop action executor is disabled.", guards, warnings, Map.of("executor", descriptor));
         }
         guards.add("executor:enabled");
-        if (descriptor.realInputEnabled()) {
-            warnings.add("Real-input executor is not allowed in Full Desktop Integration v1; use NoopDesktopActionExecutor until explicit real-backend policy exists.");
+        if (descriptor.realInputEnabled() && !executionPolicy.allowedRealInput()) {
+            warnings.add("Real-input executor is blocked by suite.desktop-helper.executor.allowed-real-input=false.");
             return GuardResult.failed("real_executor_blocked", "Real desktop input executor is blocked by policy.", guards, warnings, Map.of("executor", descriptor));
         }
-        guards.add("executor:no-real-input");
+        guards.add(descriptor.realInputEnabled() ? "executor:real-input-policy-allowed" : "executor:no-real-input");
 
         if (token == null) {
             return GuardResult.failed("approval_token_missing", "Approval token is required.", guards, warnings, Map.of());

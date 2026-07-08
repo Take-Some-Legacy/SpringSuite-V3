@@ -26,6 +26,8 @@ suite:
     executors:
       noop-desktop-action-executor:
         enabled: true
+      real-desktop-action-executor:
+        enabled: false
       clipboard-desktop-action-executor:
         enabled: false
       keyboard-desktop-action-executor:
@@ -35,6 +37,19 @@ suite:
       browser-dom-desktop-action-executor:
         enabled: false
       windows-ui-automation-desktop-action-executor:
+        enabled: false
+    bridge:
+      allowed-real-input: false
+    bridges:
+      clipboard-bridge-adapter:
+        enabled: false
+      keyboard-bridge-adapter:
+        enabled: false
+      mouse-bridge-adapter:
+        enabled: false
+      browser-dom-bridge-adapter:
+        enabled: false
+      windows-ui-automation-bridge-adapter:
         enabled: false
     sensitive-field-hints:
       - password

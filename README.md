@@ -569,3 +569,109 @@ suite:
 ```
 
 When `allowed-real-input=false`, an executor with `realInputEnabled=true` is still reported as a real-input-capable backend and is blocked by `ExecutionGuardService`. Skeleton backends can be enabled for selection/testing metadata, but they do not perform real input and may still return `executor_disabled` until a real backend implementation replaces the skeleton.
+
+## Real desktop input v1
+
+SpringSuite now contains real-input bridge adapters for local desktop automation. Real input is not enabled by default; it requires explicit configuration plus the existing approval/dry-run/snapshot guard chain.
+
+Real-capable components:
+
+```text
+RealDesktopActionExecutor
+ClipboardBridgeAdapter
+KeyboardBridgeAdapter
+MouseBridgeAdapter
+```
+
+Metadata/skeleton bridge components:
+
+```text
+BrowserDomBridgeAdapter
+WindowsUiAutomationBridgeAdapter
+```
+
+Bridge endpoints:
+
+```text
+GET /api/desktop-helper/bridges
+GET /api/desktop-helper/bridges/{id}
+GET /api/desktop-helper/bridges/policy
+```
+
+Minimal real-input config for local testing:
+
+```yaml
+suite:
+  desktop-helper:
+    allow-autofill-execution: true
+    executor:
+      default-id: real-desktop-action-executor
+      allowed-real-input: true
+    executors:
+      real-desktop-action-executor:
+        enabled: true
+    bridge:
+      allowed-real-input: true
+    bridges:
+      clipboard-bridge-adapter:
+        enabled: true
+      keyboard-bridge-adapter:
+        enabled: true
+      mouse-bridge-adapter:
+        enabled: true
+```
+
+Real input remains guarded by:
+
+```text
+fresh DesktopSnapshot
+approval token
+prior dry-run pass
+desktop.actions.execute scope
+executor.allowed-real-input=true
+selected executor enabled=true
+bridge.allowed-real-input=true
+selected bridge enabled=true
+ExecutionAuditService operator log
+```
+
+Action routing:
+
+```text
+fill / paste  -> ClipboardBridgeAdapter     -> writes clipboard and sends Ctrl+V
+type          -> KeyboardBridgeAdapter      -> sends key events
+hotkey        -> KeyboardBridgeAdapter      -> sends key chord such as CTRL+S
+submit        -> KeyboardBridgeAdapter      -> sends Enter after submit guards pass
+click         -> MouseBridgeAdapter         -> moves pointer and clicks metadata x/y
+```
+
+Mouse click action metadata must include coordinates:
+
+```json
+{
+  "actionId": "click:submit",
+  "action": "click",
+  "targetFieldId": "submit",
+  "label": "Submit",
+  "write": true,
+  "metadata": {
+    "x": 960,
+    "y": 720,
+    "button": "left"
+  }
+}
+```
+
+Hotkey action example:
+
+```json
+{
+  "actionId": "hotkey:save",
+  "action": "hotkey",
+  "label": "Save",
+  "value": "CTRL+S",
+  "write": true
+}
+```
+
+The browser DOM and Windows UI Automation bridges are intentionally metadata-only until their external extension/sidecar implementations are wired. They expose the contract but do not perform input.
