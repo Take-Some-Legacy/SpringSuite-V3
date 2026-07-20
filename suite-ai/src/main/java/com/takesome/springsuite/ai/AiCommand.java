@@ -34,8 +34,8 @@ public class AiCommand implements SuiteCommand {
                 List.of("llm"),
                 "ai",
                 "Use the provider-agnostic SpringSuite AI service.",
-                "Commands: ai providers, ai status [provider], ai ask [--provider id] [--model id] <prompt>.",
-                "ai providers|status [provider]|ask [--provider id] [--model id] <prompt>",
+                "Commands: ai providers, ai status [provider], ai models [provider], ai ask [--provider id] [--model id] <prompt>.",
+                "ai providers|status [provider]|models [provider]|ask [--provider id] [--model id] <prompt>",
                 CommandRiskLevel.READ_ONLY
         );
     }
@@ -48,6 +48,7 @@ public class AiCommand implements SuiteCommand {
             case "providers", "list" -> providers();
             case "default" -> defaultProvider();
             case "status" -> status(args.size() > 1 ? args.get(1) : "");
+            case "models" -> models(args.size() > 1 ? args.get(1) : "");
             case "ask", "chat" -> ask(args.size() <= 1 ? List.of() : args.subList(1, args.size()));
             case "setup" -> setup(args.size() > 1 ? args.get(1) : "");
             default -> CommandExecutionResult.failed("ai_unknown_subcommand", "Unknown ai subcommand: " + subcommand);
@@ -87,6 +88,28 @@ public class AiCommand implements SuiteCommand {
         }
     }
 
+    private CommandExecutionResult models(String providerId) {
+        try {
+            AiCredentialStatus status = aiService.status(providerId);
+            Object value = status.metadata().get("availableModels");
+            List<?> models = value instanceof List<?> list ? list : List.of();
+            StringBuilder out = new StringBuilder("AI models for ")
+                    .append(status.providerId())
+                    .append(':')
+                    .append(System.lineSeparator());
+            if (models.isEmpty()) {
+                out.append("- none discovered; ").append(status.message()).append(System.lineSeparator());
+            } else {
+                for (Object model : models) {
+                    out.append("- ").append(model).append(System.lineSeparator());
+                }
+            }
+            return result(status.available(), status.available() ? "ok" : "ai_unavailable", status.message(), Map.of("status", status, "models", models), out.toString());
+        } catch (RuntimeException ex) {
+            return CommandExecutionResult.failed("ai_models_failed", safeMessage(ex));
+        }
+    }
+
     private CommandExecutionResult ask(List<String> args) {
         ParsedAsk parsed = parseAsk(args);
         if (parsed.prompt().isBlank()) {
@@ -113,6 +136,7 @@ public class AiCommand implements SuiteCommand {
         String message = switch (resolved) {
             case "openai" -> "OpenAI browser setup: http://localhost:8090/openai/setup";
             case "zai", "glm", "glm-5.2" -> "Z.ai/GLM provider uses ZAI_API_KEY for now. Configure suite.ai.providers.zai or set env ZAI_API_KEY.";
+            case "ollama" -> "Start Ollama, pull a model with 'ollama pull llama3.2', then run 'ai status ollama' and 'ai ask --provider ollama <prompt>'. Override the default model with OLLAMA_MODEL.";
             default -> "No browser setup registered for provider: " + resolved;
         };
         return result(true, "ok", message, Map.of("provider", resolved), message + System.lineSeparator());

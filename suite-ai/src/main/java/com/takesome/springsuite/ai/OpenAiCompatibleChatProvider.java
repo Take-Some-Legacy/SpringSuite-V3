@@ -40,6 +40,7 @@ public class OpenAiCompatibleChatProvider implements AiProvider {
     private final ObjectMapper objectMapper;
     private final AiAuditService audit;
     private final HttpClient httpClient;
+    private volatile ProbeSnapshot probeSnapshot;
 
     public OpenAiCompatibleChatProvider(String id, AiProperties.Provider config, ObjectMapper objectMapper, AiAuditService audit) {
         this.id = id == null ? "" : id.trim();
@@ -75,6 +76,26 @@ public class OpenAiCompatibleChatProvider implements AiProvider {
             return AiCredentialStatus.unavailable(id, true, "API key is not configured; set " + config.getApiKeyEnv());
         }
         String source = keySource(key);
+        LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("baseUrl", config.getBaseUrl());
+        metadata.put("chatEndpoint", config.getChatEndpoint());
+        metadata.put("defaultModel", config.getDefaultModel());
+
+        if (config.getProbe().isEnabled()) {
+            ProbeSnapshot probe = probe(key);
+            metadata.putAll(probe.metadata());
+            return new AiCredentialStatus(
+                    id,
+                    true,
+                    probe.available(),
+                    config.isRequiresAuth() ? "api_key" : "none",
+                    source,
+                    key.isBlank() ? "" : fingerprint(key),
+                    "",
+                    probe.message(),
+                    metadata
+            );
+        }
         return new AiCredentialStatus(
                 id,
                 true,
@@ -84,11 +105,7 @@ public class OpenAiCompatibleChatProvider implements AiProvider {
                 key.isBlank() ? "" : fingerprint(key),
                 "",
                 config.isRequiresAuth() ? "API key available" : "provider does not require authorization",
-                Map.of(
-                        "baseUrl", config.getBaseUrl(),
-                        "chatEndpoint", config.getChatEndpoint(),
-                        "defaultModel", config.getDefaultModel()
-                )
+                metadata
         );
     }
 
@@ -304,7 +321,105 @@ public class OpenAiCompatibleChatProvider implements AiProvider {
     }
 
     private URI uri() {
-        return URI.create(config.getBaseUrl().replaceAll("/+$", "") + config.getChatEndpoint());
+        return uri(config.getChatEndpoint());
+    }
+
+    private URI uri(String endpoint) {
+        String path = endpoint == null || endpoint.isBlank() ? "/" : endpoint.trim();
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        return URI.create(config.getBaseUrl().replaceAll("/+$", "") + path);
+    }
+
+    private ProbeSnapshot probe(String key) {
+        long now = System.nanoTime();
+        ProbeSnapshot cached = probeSnapshot;
+        if (cached != null && now < cached.expiresAtNanos()) {
+            return cached;
+        }
+        synchronized (this) {
+            cached = probeSnapshot;
+            now = System.nanoTime();
+            if (cached != null && now < cached.expiresAtNanos()) {
+                return cached;
+            }
+            ProbeSnapshot refreshed = executeProbe(key, now);
+            probeSnapshot = refreshed;
+            return refreshed;
+        }
+    }
+
+    private ProbeSnapshot executeProbe(String key, long now) {
+        AiProperties.Probe probe = config.getProbe();
+        URI endpoint = uri(probe.getEndpoint());
+        long expiresAt = now + probe.getCacheTtl().toNanos();
+        LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("probeEndpoint", endpoint.toString());
+        metadata.put("probeCheckedAt", Instant.now().toString());
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
+                    .timeout(probe.getTimeout())
+                    .header("Accept", "application/json")
+                    .GET();
+            if (key != null && !key.isBlank()) {
+                builder.header("Authorization", "Bearer " + key);
+            }
+            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            metadata.put("probeHttpStatus", response.statusCode());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return new ProbeSnapshot(false, "Provider probe returned HTTP " + response.statusCode(), metadata, expiresAt);
+            }
+
+            List<String> models = modelIds(parse(response.body()));
+            metadata.put("availableModels", models);
+            metadata.put("availableModelCount", models.size());
+            if (probe.isRequireDefaultModel() && !config.getDefaultModel().isBlank() && !containsModel(models, config.getDefaultModel())) {
+                return new ProbeSnapshot(
+                        false,
+                        "Provider is reachable, but default model '" + config.getDefaultModel() + "' is not installed",
+                        metadata,
+                        expiresAt
+                );
+            }
+            return new ProbeSnapshot(true, "Provider reachable; " + models.size() + " model(s) available", metadata, expiresAt);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return new ProbeSnapshot(false, "Provider probe interrupted", metadata, expiresAt);
+        } catch (IOException | RuntimeException ex) {
+            metadata.put("probeError", safeMessage(ex));
+            return new ProbeSnapshot(false, "Provider probe failed: " + safeMessage(ex), metadata, expiresAt);
+        }
+    }
+
+    private List<String> modelIds(JsonNode root) {
+        JsonNode data = root == null ? null : root.get("data");
+        if (data == null || !data.isArray()) {
+            return List.of();
+        }
+        ArrayList<String> models = new ArrayList<>();
+        for (JsonNode item : data) {
+            String model = text(item, "id");
+            if (!model.isBlank()) {
+                models.add(model);
+            }
+        }
+        return List.copyOf(models);
+    }
+
+    private boolean containsModel(List<String> models, String configuredModel) {
+        String expected = normalizeModel(configuredModel);
+        for (String model : models) {
+            if (normalizeModel(model).equals(expected)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeModel(String model) {
+        String normalized = model == null ? "" : model.trim().toLowerCase(Locale.ROOT);
+        return normalized.endsWith(":latest") ? normalized.substring(0, normalized.length() - ":latest".length()) : normalized;
     }
 
     private JsonNode parse(String body) {
@@ -390,6 +505,13 @@ public class OpenAiCompatibleChatProvider implements AiProvider {
             return "sha256:" + HexFormat.of().formatHex(hash).substring(0, 16);
         } catch (Exception ex) {
             return "sha256:unavailable";
+        }
+    }
+
+    private record ProbeSnapshot(boolean available, String message, Map<String, Object> metadata, long expiresAtNanos) {
+        private ProbeSnapshot {
+            message = message == null ? "" : message;
+            metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
         }
     }
 }

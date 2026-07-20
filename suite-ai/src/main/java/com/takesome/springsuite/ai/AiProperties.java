@@ -58,6 +58,7 @@ public class AiProperties {
         private List<String> capabilities = List.of();
         private Thinking thinking = new Thinking();
         private Map<String, Object> vendorOptions = new LinkedHashMap<>();
+        private Probe probe = new Probe();
 
         public boolean isEnabled() {
             return enabled;
@@ -195,6 +196,14 @@ public class AiProperties {
         public void setVendorOptions(Map<String, Object> vendorOptions) {
             this.vendorOptions = vendorOptions == null ? new LinkedHashMap<>() : new LinkedHashMap<>(vendorOptions);
         }
+
+        public Probe getProbe() {
+            return probe;
+        }
+
+        public void setProbe(Probe probe) {
+            this.probe = probe == null ? new Probe() : probe;
+        }
     }
 
     public static final class Thinking {
@@ -224,6 +233,59 @@ public class AiProperties {
 
         public void setReasoningEffort(String reasoningEffort) {
             this.reasoningEffort = reasoningEffort == null ? "" : reasoningEffort.trim();
+        }
+    }
+
+    public static final class Probe {
+        private boolean enabled;
+        private String endpoint = "/models";
+        private Duration timeout = Duration.ofSeconds(3);
+        private Duration cacheTtl = Duration.ofSeconds(5);
+        private boolean requireDefaultModel;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getEndpoint() {
+            return endpoint;
+        }
+
+        public void setEndpoint(String endpoint) {
+            String value = valueOr(endpoint, "/models");
+            this.endpoint = value.startsWith("/") ? value : "/" + value;
+        }
+
+        public Duration getTimeout() {
+            return timeout;
+        }
+
+        public void setTimeout(Duration timeout) {
+            this.timeout = positiveDuration(timeout, Duration.ofSeconds(3));
+        }
+
+        public Duration getCacheTtl() {
+            return cacheTtl;
+        }
+
+        public void setCacheTtl(Duration cacheTtl) {
+            this.cacheTtl = positiveDuration(cacheTtl, Duration.ofSeconds(5));
+        }
+
+        public boolean isRequireDefaultModel() {
+            return requireDefaultModel;
+        }
+
+        public void setRequireDefaultModel(boolean requireDefaultModel) {
+            this.requireDefaultModel = requireDefaultModel;
+        }
+
+        private static Duration positiveDuration(Duration value, Duration fallback) {
+            return value == null || value.isZero() || value.isNegative() ? fallback : value;
         }
     }
 }

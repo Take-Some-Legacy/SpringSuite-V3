@@ -112,14 +112,18 @@ Console commands:
 - `ai providers`
 - `ai default`
 - `ai status [provider]`
+- `ai models [provider]`
 - `ai ask [--provider id] [--model id] <prompt>`
 - `ai setup <provider>`
 
 Built-in providers:
 
 - `openai` — module-backed adapter over `suite-openai` and the OpenAI Responses API.
+- `ollama` — local OpenAI-compatible provider at `http://127.0.0.1:11434/v1`, with active model discovery and default-model validation.
 - `zai` — configurable OpenAI Chat Completions compatible adapter for GLM, defaulting to `glm-5.2` and `ZAI_API_KEY`.
-- `local-openai-compatible` — disabled template for local/self-hosted OpenAI-compatible endpoints such as vLLM, SGLang, LM Studio or Ollama-compatible servers.
+- `local-openai-compatible` — disabled template for other local/self-hosted OpenAI-compatible endpoints such as vLLM, SGLang or LM Studio.
+
+Complete Ollama installation, configuration, API, security, performance and troubleshooting documentation is available in [`docs/OLLAMA.md`](docs/OLLAMA.md).
 
 The older `/api/openai/*` endpoints and `openai` console command remain available as compatibility surfaces.
 

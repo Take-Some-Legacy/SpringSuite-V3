@@ -6,6 +6,33 @@ suite:
     enabled: true
     default-provider: openai
     providers:
+      # Local Ollama through its official OpenAI-compatible API.
+      # Start Ollama and pull the configured model before selecting this provider.
+      ollama:
+        enabled: true
+        type: openai-chat-compatible
+        name: Ollama Local
+        vendor: Ollama
+        base-url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434/v1}
+        chat-endpoint: /chat/completions
+        api-key-env: ""
+        requires-auth: false
+        default-model: ${OLLAMA_MODEL:llama3.2}
+        default-max-tokens: 4096
+        default-temperature: 0.7
+        request-timeout: 120s
+        probe:
+          enabled: true
+          endpoint: /models
+          timeout: 3s
+          cache-ttl: 5s
+          require-default-model: true
+        capabilities:
+          - chat
+          - chat-completions-api
+          - tools
+          - json-mode
+          - reasoning-effort
       # Z.ai GLM adapter. This is OpenAI Chat Completions compatible and can later point to a self-hosted GLM endpoint.
       zai:
         enabled: true
