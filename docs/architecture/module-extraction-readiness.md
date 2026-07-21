@@ -145,7 +145,7 @@ workspace repo [path] [--overwrite]
 Repository descriptors and repository memory are separate:
 
 ```text
-<repo>/.springsuite-repository.json       # descriptor committed with/near the repository
+<repo>/.springsuite-repository.json        # generated local descriptor, ignored by git
 <workspace>/.springsuite/repositories.json # local suite memory/cache, ignored by git
 ```
 

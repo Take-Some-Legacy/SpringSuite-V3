@@ -5,6 +5,7 @@ import jakarta.annotation.PreDestroy;
 import java.awt.AWTException;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -14,12 +15,15 @@ import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.MenuItem;
+import java.awt.Point;
 import java.awt.PopupMenu;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
 import java.awt.Window;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.net.URI;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -110,6 +114,7 @@ public class DesktopAgentUi {
             JLabel title = new JLabel(suggestion.title().isBlank() ? "SpringSuite" : suggestion.title());
             title.setFont(title.getFont().deriveFont(Font.BOLD, 13f));
             title.setAlignmentX(0f);
+            installDragSupport(window, title);
             panel.add(title);
             panel.add(Box.createVerticalStrut(4));
 
@@ -118,17 +123,43 @@ public class DesktopAgentUi {
             summary.setAlignmentX(0f);
             overlaySummary = summary;
             panel.add(summary);
+
+            if (!suggestion.actions().isEmpty()) {
+                panel.add(Box.createVerticalStrut(8));
+                JLabel proposalTitle = new JLabel("Предложенный текст");
+                proposalTitle.setFont(proposalTitle.getFont().deriveFont(Font.BOLD, 12f));
+                proposalTitle.setAlignmentX(0f);
+                panel.add(proposalTitle);
+                panel.add(Box.createVerticalStrut(3));
+
+                JLabel proposal = new JLabel(proposalHtml(suggestion, 420));
+                proposal.setVerticalAlignment(SwingConstants.TOP);
+                proposal.setAlignmentX(0f);
+                panel.add(proposal);
+            }
             panel.add(Box.createVerticalStrut(8));
 
             JPanel buttons = new JPanel();
             buttons.setOpaque(false);
             buttons.setAlignmentX(0f);
 
-            if (!suggestion.actions().isEmpty()) {
-                JButton fill = new JButton("Заполнить " + suggestion.actions().size());
-                fill.setToolTipText("Заполнить безопасные поля из локального профиля SpringSuite");
+            boolean browserDom = isBrowserDom(suggestion);
+            if (browserDom || !suggestion.actions().isEmpty()) {
+                boolean hasInsertableValues = !suggestion.actions().isEmpty();
+                JButton fill = new JButton(browserDom ? "Вставить" : "Заполнить " + suggestion.actions().size());
+                fill.setEnabled(hasInsertableValues);
+                fill.setToolTipText(browserDom
+                        ? hasInsertableValues
+                                ? "Вставить показанный текст в безопасные поля веб-формы; форма не будет отправлена"
+                                : "Нет безопасных предложенных значений для вставки"
+                        : "Заполнить безопасные поля из локального профиля SpringSuite");
                 fill.addActionListener(event -> {
-                    setOverlayMessage("Проверяю форму и выполняю разрешённые действия…");
+                    if (!fill.isEnabled()) {
+                        return;
+                    }
+                    setOverlayMessage(browserDom
+                            ? "Передаю подтверждённый текст браузерному расширению…"
+                            : "Проверяю форму и выполняю разрешённые действия…");
                     if (fillAction != null) {
                         fillAction.run();
                     }
@@ -281,6 +312,40 @@ public class DesktopAgentUi {
         return image;
     }
 
+    private void installDragSupport(JWindow window, JLabel dragHandle) {
+        Point[] previousPointer = new Point[1];
+        dragHandle.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+        dragHandle.setToolTipText("Перетащите, чтобы переместить окно");
+
+        MouseAdapter dragListener = new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent event) {
+                previousPointer[0] = event.getLocationOnScreen();
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent event) {
+                Point previous = previousPointer[0];
+                if (previous == null || !window.isDisplayable()) {
+                    return;
+                }
+                Point current = event.getLocationOnScreen();
+                int requestedX = window.getX() + current.x - previous.x;
+                int requestedY = window.getY() + current.y - previous.y;
+                Rectangle location = clampToScreen(requestedX, requestedY, window.getSize());
+                window.setLocation(location.x, location.y);
+                previousPointer[0] = current;
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent event) {
+                previousPointer[0] = null;
+            }
+        };
+        dragHandle.addMouseListener(dragListener);
+        dragHandle.addMouseMotionListener(dragListener);
+    }
+
     private Rectangle clampToScreen(int requestedX, int requestedY, Dimension size) {
         Rectangle target = screenBoundsAt(requestedX, requestedY);
         int x = Math.max(target.x + 8, Math.min(requestedX, target.x + target.width - size.width - 8));
@@ -297,6 +362,40 @@ public class DesktopAgentUi {
             }
         }
         return GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration().getBounds();
+    }
+
+    private String proposalHtml(DesktopFormSuggestion suggestion, int width) {
+        StringBuilder value = new StringBuilder("<html><div style='width:").append(width).append("px'>");
+        int count = 0;
+        for (DesktopApprovalModels.DesktopApprovedAction action : suggestion.actions()) {
+            if (count >= 8) {
+                value.append("<div style='margin-top:4px'>… и ещё ")
+                        .append(suggestion.actions().size() - count)
+                        .append("</div>");
+                break;
+            }
+            value.append("<div style='margin-top:2px'><b>")
+                    .append(escapeHtml(action.label().isBlank() ? action.targetFieldId() : action.label()))
+                    .append(":</b> ")
+                    .append(escapeHtml(action.value()))
+                    .append("</div>");
+            count++;
+        }
+        return value.append("</div></html>").toString();
+    }
+
+    private boolean isBrowserDom(DesktopFormSuggestion suggestion) {
+        Object value = suggestion.metadata().get("browserDom");
+        return value instanceof Boolean bool ? bool : Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    private String escapeHtml(String value) {
+        return value == null ? "" : value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     private String html(String value, int width) {

@@ -42,6 +42,7 @@ public class DesktopAgentService {
     private final DesktopHelperProperties helperProperties;
     private final DesktopAgentProperties properties;
     private final BrowserDomProperties browserDomProperties;
+    private final BrowserDomCommandService browserDomCommandService;
     private final DesktopAgentSidecarProperties sidecarProperties;
     private final DesktopAgentSidecarRuntime sidecarRuntime;
     private final DesktopBridgeService bridgeService;
@@ -77,6 +78,7 @@ public class DesktopAgentService {
             DesktopHelperProperties helperProperties,
             DesktopAgentProperties properties,
             BrowserDomProperties browserDomProperties,
+            BrowserDomCommandService browserDomCommandService,
             DesktopAgentSidecarProperties sidecarProperties,
             DesktopAgentSidecarRuntime sidecarRuntime,
             DesktopBridgeService bridgeService,
@@ -87,6 +89,7 @@ public class DesktopAgentService {
         this.helperProperties = helperProperties;
         this.properties = properties;
         this.browserDomProperties = browserDomProperties;
+        this.browserDomCommandService = browserDomCommandService;
         this.sidecarProperties = sidecarProperties;
         this.sidecarRuntime = sidecarRuntime;
         this.bridgeService = bridgeService;
@@ -332,10 +335,12 @@ public class DesktopAgentService {
         int[] point = overlayPoint(context);
         String application = firstText(context.activeApplication(), "активное приложение");
         boolean browserDom = isBrowserDomSnapshot(snapshot);
-        String summary = browserDom
-                ? "Распознана веб-форма: " + context.form().fields().size() + " полей. Доступны анализ и план заполнения; DOM-запись отключена."
-                : actions.isEmpty()
-                        ? "Обнаружена форма: " + context.form().fields().size() + " полей. Профиль не содержит безопасных значений для автоматического заполнения."
+        String summary = actions.isEmpty()
+                ? browserDom
+                        ? "Распознана веб-форма: " + context.form().fields().size() + " полей. В локальном профиле нет безопасных значений для вставки."
+                        : "Обнаружена форма: " + context.form().fields().size() + " полей. Профиль не содержит безопасных значений для автоматического заполнения."
+                : browserDom
+                        ? "Распознана веб-форма: " + context.form().fields().size() + " полей. Проверьте предложенный текст и нажмите «Вставить»."
                         : "Обнаружена форма: " + context.form().fields().size() + " полей. Можно безопасно заполнить " + actions.size() + ".";
         return new DesktopFormSuggestion(
                 signature,
@@ -357,9 +362,18 @@ public class DesktopAgentService {
     }
 
     private List<DesktopApprovedAction> approvedActions(DesktopFormFillPlan plan, DesktopSnapshot snapshot) {
-        if (plan == null || !plan.ok() || isBrowserDomSnapshot(snapshot)) {
+        if (plan == null || !plan.ok() || snapshot == null || snapshot.context() == null) {
             return List.of();
         }
+        boolean browserDom = isBrowserDomSnapshot(snapshot);
+        Map<String, DesktopFormField> fieldsById = new LinkedHashMap<>();
+        for (DesktopFormField formField : snapshot.context().form().fields()) {
+            fieldsById.put(formField.id(), formField);
+            if (!formField.name().isBlank()) {
+                fieldsById.putIfAbsent(formField.name(), formField);
+            }
+        }
+
         ArrayList<DesktopApprovedAction> actions = new ArrayList<>();
         for (DesktopFieldPlan field : plan.fields()) {
             if (actions.size() >= properties.getMaximumActionCount()) {
@@ -375,9 +389,22 @@ public class DesktopAgentService {
                     && field.value().isBlank()) {
                 continue;
             }
+
+            DesktopFormField formField = fieldsById.get(field.fieldId());
+            LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("bridgeId", browserDom ? "browser-dom-bridge-adapter" : NATIVE_BRIDGE_ID);
+            metadata.put("source", "desktop-agent-overlay");
+            metadata.put("confidence", field.confidence());
+            metadata.put("browserDom", browserDom);
+            metadata.put("pageId", textValue(snapshot.context().metadata().get("pageId")));
+            if (formField != null) {
+                metadata.put("cssSelector", textValue(formField.metadata().get("cssSelector")));
+                metadata.put("fieldType", formField.type());
+                metadata.put("valuePresent", fieldHasValue(formField));
+            }
             actions.add(new DesktopApprovedAction(
                     "desktop-agent:" + field.fieldId(),
-                    field.action(),
+                    browserDom && ("type".equals(field.action()) || "paste".equals(field.action())) ? "fill" : field.action(),
                     field.fieldId(),
                     field.label(),
                     field.value(),
@@ -385,11 +412,7 @@ public class DesktopAgentService {
                     false,
                     false,
                     field.reason(),
-                    Map.of(
-                            "bridgeId", NATIVE_BRIDGE_ID,
-                            "source", "desktop-agent-overlay",
-                            "confidence", field.confidence()
-                    )
+                    metadata
             ));
         }
         return List.copyOf(actions);
@@ -398,6 +421,21 @@ public class DesktopAgentService {
     private void executeSuggestion(DesktopFormSuggestion suggestion) {
         if (suggestion.actions().isEmpty()) {
             ui.showTransientMessage("Нет безопасных значений для автоматического заполнения. Добавьте autofill-profile в конфигурацию.");
+            return;
+        }
+        if (isBrowserDomSnapshot(suggestion.snapshot())) {
+            try {
+                BrowserDomModels.BrowserDomFillCommand command = browserDomCommandService.enqueue(
+                        suggestion.snapshot(),
+                        suggestion.actions()
+                );
+                actionExecutionCount.incrementAndGet();
+                suppress(suggestion.signature());
+                updateState("browser_dom_command_queued", "Команда вставки передана расширению для " + command.fields().size() + " полей.");
+                ui.showTransientMessage("Команда передана расширению. Текст будет вставлен в форму без автоматической отправки.");
+            } catch (Exception ex) {
+                failAction("browser_dom_command_failed", safeMessage(ex));
+            }
             return;
         }
         try {
@@ -611,6 +649,10 @@ public class DesktopAgentService {
         } catch (NumberFormatException ignored) {
             return 0;
         }
+    }
+
+    private String textValue(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private String firstText(String... values) {

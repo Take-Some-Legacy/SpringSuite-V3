@@ -24,6 +24,9 @@ suite:
       enabled: true
       require-token: true
       token: ${SPRINGSUITE_BROWSER_DOM_TOKEN:}
+      write-enabled: true
+      preserve-existing-values: true
+      command-ttl: 20s
       max-snapshot-age: 20s
       max-future-skew: 30s
       max-forms: 64

@@ -8,17 +8,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "suite.cloudflared")
 public class CloudflaredProperties {
-    private boolean enabled = false;
-    private boolean autoStart = false;
-    private String executable = "";
+    private boolean enabled = true;
+    private boolean autoStart = true;
+    private String executable = "cloudflared";
     private boolean wrapperEnabled = true;
     private String wrapperExecutable = PlatformExecutables.suiteBinaryPath("suite-cloudflared-wrapper");
-    private String targetUrl = "";
-    private String tunnelName = "";
-    private String hostname = "";
+    private String targetUrl = "http://localhost:8090";
+    private String tunnelName = "spring-suite-test";
+    private String hostname = "testspring.kaylas-systems.ru";
     private String cacheDirectory = ".springsuite/cloudflared";
     private String originCertPath = "";
-    private List<String> extraArgs = new ArrayList<>();
+    private List<String> extraArgs = new ArrayList<>(List.of("--no-autoupdate"));
     private Duration stopTimeout = Duration.ofSeconds(5);
     private int recentLogLimit = 300;
 
@@ -43,7 +43,7 @@ public class CloudflaredProperties {
     }
 
     public void setExecutable(String executable) {
-        this.executable = executable;
+        this.executable = executable == null || executable.isBlank() ? "cloudflared" : executable.trim();
     }
 
     public boolean isWrapperEnabled() {
@@ -69,7 +69,7 @@ public class CloudflaredProperties {
     }
 
     public void setTargetUrl(String targetUrl) {
-        this.targetUrl = targetUrl;
+        this.targetUrl = targetUrl == null || targetUrl.isBlank() ? "http://localhost:8090" : targetUrl.trim();
     }
 
     public String getTunnelName() {

@@ -3,55 +3,70 @@
   <img src=".github/SpringSuiteBanner.png" alt="NorthStar Engine banner" width="100%">
 </p>
 
-SpringSuite is the first Java Gradle Spring control-plane skeleton for the NOESIS / NorthStar operator workflow.
+SpringSuite is a Java 17 control plane for the NOESIS / NorthStar operator workflow. It combines a Spring Boot runtime, MCP/OAuth bridge, bounded workspace access, tool execution, persistent diagnostics, desktop/browser assistance, signed feature modules and a managed Cloudflare Tunnel lifecycle.
 
-Current scope:
+## Capabilities
 
-- Spring Boot application shell.
-- Operator logging API and in-memory log stream.
-- Cloudflared quick tunnel lifecycle API.
-- Rolling application logs under `logs/`.
+- Provider-neutral AI routing with OpenAI, Ollama and compatible backends.
+- MCP agent bridge with scoped authorization and audited tool execution.
+- Bounded repository workspace operations and external toolbelt discovery.
+- SQL-backed request journal, diagnostics and crash reporting.
+- Desktop/browser context ingestion with guarded action planning.
+- Signed runtime modules and native Go sidecars.
+- Self-managed named Cloudflare Tunnel started after the local HTTP server is ready.
 
-Future scope:
+## Repository
 
-- Tool registry.
-- Task runtime.
-- Database-backed run history and project memory.
-- Safe filesystem workspace policies.
+The repository is a multi-project Gradle build. Java modules remain at the root so Gradle project paths, module descriptors and deployment tasks stay explicit. Operational scripts live in `scripts/`; documentation is grouped under `docs/architecture`, `docs/integrations` and `docs/operations`.
 
-## Run
+- [Documentation index](docs/README.md)
+- [Repository layout](docs/architecture/repository-layout.md)
+- [Deployment guide](docs/operations/deployment.md)
+
+## Build and run
+
+Use the checked-in Gradle wrapper; a system Gradle installation is not required.
 
 ```powershell
-gradle :suite-app:bootRun
+.\gradlew.bat test
+.\gradlew.bat :suite-app:bootRun
 ```
 
-Application starts on:
+The runtime listens on:
 
 ```text
 http://localhost:8090
 ```
 
-## Enable cloudflared manually
-
-Cloudflared is disabled by default. Start the app, then call:
+Build and deploy a production runtime with:
 
 ```powershell
-Invoke-RestMethod -Method Post http://localhost:8090/api/tunnel/cloudflared/start
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\deploy.ps1 `
+  -Target "C:\Users\Aiden\Documents\Take Some\NorthStar-Suite-V3"
 ```
 
-Or enable autostart:
+## MCP runtime availability guard
 
-```powershell
-$env:SUITE_CLOUDFLARED_ENABLED="true"
-$env:SUITE_CLOUDFLARED_AUTO_START="true"
-gradle :suite-app:bootRun
-```
+SpringSuite keeps remote MCP/API control available by refusing `exit`, `quit`, and `shutdown` commands from non-console callers by default. This prevents an agent-side update script from terminating the origin while an MCP response is still traversing cloudflared, which otherwise surfaces as `EOF` and may cause the client platform to temporarily disable the connector. Local interactive-console shutdown remains available. To deliberately permit remote shutdown, set `suite.console.command.allow-shutdown-over-api=true` and use an external supervisor to bring the runtime back.
 
-Cloudflared command used by default:
+## Managed Cloudflare Tunnel
+
+Cloudflared is enabled and started automatically by `CloudflaredTunnelService` on `ApplicationReadyEvent`. SpringSuite owns the wrapper process, runtime directory, PID, logs and shutdown lifecycle. The default named-tunnel invocation is equivalent to:
 
 ```text
-cloudflared tunnel --url http://localhost:8090 --no-autoupdate
+cloudflared tunnel --no-autoupdate --url http://localhost:8090 run spring-suite-test
 ```
+
+Inspect or control it through the console:
+
+```text
+tunnel status
+tunnel logs 100
+tunnel restart
+```
+
+Set `suite.cloudflared.enabled=false` only for an intentionally local-only runtime.
 
 ## APIs
 
@@ -152,7 +167,7 @@ Built-in providers:
 - `zai` — configurable OpenAI Chat Completions compatible adapter for GLM, defaulting to `glm-5.2` and `ZAI_API_KEY`.
 - `local-openai-compatible` — disabled template for other local/self-hosted OpenAI-compatible endpoints such as vLLM, SGLang or LM Studio.
 
-Complete Ollama installation, configuration, API, security, performance and troubleshooting documentation is available in [`docs/OLLAMA.md`](docs/OLLAMA.md).
+Complete Ollama installation, configuration, API, security, performance and troubleshooting documentation is available in [`docs/integrations/ollama.md`](docs/integrations/ollama.md).
 
 The older `/api/openai/*` endpoints and `openai` console command remain available as compatibility surfaces.
 
@@ -187,7 +202,7 @@ Runtime endpoints:
 
 The Chromium Manifest V3 extension at `browser-extension/springsuite-form-bridge` recognizes native forms, labels, input types, required/disabled/read-only state, select options, submit controls and approximate bounds. It sends only structure plus `valuePresent`; entered values, passwords, selected-option indexes, cookies and page source are not transported. Query strings and URL fragments are removed server-side.
 
-The ingest surface is direct-loopback-only and requires `X-SpringSuite-Browser-Token` by default, so it cannot be reached through the public cloudflared route. DOM write and submit operations remain disabled; the resulting snapshot is used for analysis, hints and fill planning. Setup and verification are documented in [`docs/browser-form-bridge.md`](docs/browser-form-bridge.md).
+The ingest surface is direct-loopback-only and requires `X-SpringSuite-Browser-Token` by default, so it cannot be reached through the public cloudflared route. DOM write and submit operations remain disabled; the resulting snapshot is used for analysis, hints and fill planning. Setup and verification are documented in [`docs/integrations/browser-form-bridge.md`](docs/integrations/browser-form-bridge.md).
 
 Console commands:
 

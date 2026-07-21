@@ -28,15 +28,22 @@ public class BrowserDomBridgeAdapter implements DesktopBridgeAdapter {
                         "label-resolution",
                         "form-action-method",
                         "extension-ingest",
-                        "read-only"
+                        "operator-confirmed-fill",
+                        "preserve-existing-values",
+                        "no-auto-submit"
                 ),
-                List.of(),
+                properties.isWriteEnabled()
+                        ? List.of("fill", "select", "check", "uncheck")
+                        : List.of(),
                 Map.of(
                         "recognitionEnabled", properties.isEnabled(),
                         "snapshotEndpoint", properties.getEndpointPath(),
-                        "writeActionsEnabled", false,
+                        "commandEndpoint", BrowserDomProperties.COMMAND_NEXT_ENDPOINT,
+                        "writeActionsEnabled", properties.isWriteEnabled(),
+                        "preserveExistingValues", properties.isPreserveExistingValues(),
+                        "submitEnabled", false,
                         "backend", "SpringSuite Form Bridge browser extension",
-                        "contract", "DOM recognition is active through the snapshot endpoint. DOM mutation and submit actions remain disabled."
+                        "contract", "The bridge recognizes forms and accepts a short-lived fill command only after the operator clicks «Вставить». It never submits the form automatically."
                 )
         );
     }
@@ -45,14 +52,17 @@ public class BrowserDomBridgeAdapter implements DesktopBridgeAdapter {
     public BridgeActionResult perform(BridgeActionContext context) {
         String actionId = context == null || context.action() == null ? "" : context.action().actionId();
         return BridgeActionResult.failed(
-                "browser_dom_write_disabled",
-                "Browser DOM recognition is available, but DOM write actions are not enabled.",
+                "browser_dom_batch_command_required",
+                "Browser DOM actions must be queued as one operator-confirmed form command by DesktopAgentService.",
                 ID,
                 actionId,
-                List.of("Use the recognized form for analysis and fill planning only."),
+                List.of("Use the SpringSuite form suggestion window and click «Вставить»."),
                 Map.of(
                         "snapshotEndpoint", properties.getEndpointPath(),
-                        "recognitionEnabled", properties.isEnabled()
+                        "commandEndpoint", BrowserDomProperties.COMMAND_NEXT_ENDPOINT,
+                        "recognitionEnabled", properties.isEnabled(),
+                        "writeEnabled", properties.isWriteEnabled(),
+                        "submitEnabled", false
                 )
         );
     }

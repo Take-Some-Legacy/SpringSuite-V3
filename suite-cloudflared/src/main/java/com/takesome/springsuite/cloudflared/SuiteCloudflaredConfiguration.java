@@ -14,6 +14,10 @@ public class SuiteCloudflaredConfiguration {
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(6);
         executor.setQueueCapacity(64);
+        executor.setWaitForTasksToCompleteOnShutdown(false);
+        executor.setAwaitTerminationSeconds(1);
+        executor.setAcceptTasksAfterContextClose(false);
+        executor.setStrictEarlyShutdown(true);
         executor.initialize();
         return executor;
     }

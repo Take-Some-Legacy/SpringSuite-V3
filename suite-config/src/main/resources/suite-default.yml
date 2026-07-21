@@ -4,8 +4,11 @@
 
 server:
   port: 8090
+  shutdown: graceful
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
   servlet:
     encoding:
       charset: UTF-8
@@ -45,17 +48,19 @@ suite:
       prompt: "> "
       print-welcome: true
       allow-shutdown: true
+      # Keep MCP/API availability stable: remote callers cannot terminate the runtime by default.
+      allow-shutdown-over-api: false
   operator:
     logging:
       ring-buffer-size: 2000
   cloudflared:
     enabled: true
-    auto-start: false
+    auto-start: true
     executable: cloudflared
     wrapper-enabled: true
     wrapper-executable: suiteBinaries/suite-cloudflared-wrapper
     origin-cert-path: ${TUNNEL_ORIGIN_CERT:}
-    target-url: http://localhost:${server.port}
+    target-url: http://localhost:${server.port:8090}
     tunnel-name: spring-suite-test
     hostname: testspring.kaylas-systems.ru
     extra-args:

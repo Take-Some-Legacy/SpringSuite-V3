@@ -8,6 +8,7 @@ public class ConsoleCommandProperties {
     private String prompt = "> ";
     private boolean printWelcome = true;
     private boolean allowShutdown = true;
+    private boolean allowShutdownOverApi = false;
 
     public boolean isEnabled() {
         return enabled;
@@ -39,5 +40,13 @@ public class ConsoleCommandProperties {
 
     public void setAllowShutdown(boolean allowShutdown) {
         this.allowShutdown = allowShutdown;
+    }
+
+    public boolean isAllowShutdownOverApi() {
+        return allowShutdownOverApi;
+    }
+
+    public void setAllowShutdownOverApi(boolean allowShutdownOverApi) {
+        this.allowShutdownOverApi = allowShutdownOverApi;
     }
 }

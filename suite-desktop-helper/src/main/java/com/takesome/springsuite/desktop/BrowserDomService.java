@@ -240,6 +240,12 @@ public class BrowserDomService {
     public BrowserDomStatus status() {
         LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("endpoint", properties.getEndpointPath());
+        metadata.put("commandNextEndpoint", BrowserDomProperties.COMMAND_NEXT_ENDPOINT);
+        metadata.put("commandAckEndpoint", BrowserDomProperties.COMMAND_ACK_ENDPOINT);
+        metadata.put("writeEnabled", properties.isWriteEnabled());
+        metadata.put("preserveExistingValues", properties.isPreserveExistingValues());
+        metadata.put("commandTtl", properties.getCommandTtl().toString());
+        metadata.put("submitEnabled", false);
         metadata.put("maxSnapshotAge", properties.getMaxSnapshotAge().toString());
         metadata.put("maxForms", properties.getMaxForms());
         metadata.put("maxFieldsPerForm", properties.getMaxFieldsPerForm());

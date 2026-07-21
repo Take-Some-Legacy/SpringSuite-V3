@@ -3,6 +3,7 @@ package com.takesome.springsuite.agent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.takesome.springsuite.command.CommandDescriptor;
+import com.takesome.springsuite.command.CommandExecutionContext;
 import com.takesome.springsuite.command.CommandRegistry;
 import com.takesome.springsuite.agent.audit.AgentAuditService;
 import com.takesome.springsuite.toolbelt.ToolDescriptor;
@@ -150,7 +151,7 @@ public class McpService {
         out.add(tool("basicKnowledge.list", "List all global BasicKnowledge facts.", schema(Map.of(), List.of()), true));
         out.add(tool("basicKnowledge.dump", "Dump the BasicKnowledge database metadata and items.", schema(Map.of(), List.of()), true));
         out.add(tool("toolbelt.run", "Run a discovered toolbelt tool by id/name when execution is enabled.", schema(orderedMap("toolId", str("Tool id/name/public name."), "args", array("Arguments."), "cwd", str("Working directory."), "stdin", str("Optional stdin."), "timeoutSec", integer("Timeout seconds."), "dryRun", bool("Dry-run command construction.")), List.of("toolId")), false));
-        out.add(tool("command.execute", "Execute a SpringSuite console command line.", schema(orderedMap("line", str("Command line.")), List.of("line")), false));
+        out.add(tool("command.execute", "Execute a SpringSuite console command line. Runtime shutdown commands are rejected for MCP/API callers unless explicitly enabled.", schema(orderedMap("line", str("Command line.")), List.of("line")), false));
         out.add(tool("fn.list", "List FN operator buttons.", schema(Map.of(), List.of()), true));
         out.add(tool("fn.trigger", "Trigger one FN operator button.", schema(orderedMap("fn", str("FN button code."), "target", str("Target."), "maxWidth", integer("Max width.")), List.of("fn")), false));
         out.add(tool("desktop.screenshot.send", "Explicit operator image handoff.", schema(orderedMap("target", str("Target."), "maxWidth", integer("Max width.")), List.of()), false));
@@ -184,7 +185,7 @@ public class McpService {
             case "basicKnowledge.list" -> basicKnowledgeStore.list();
             case "basicKnowledge.dump" -> basicKnowledgeStore.dump();
             case "toolbelt.run" -> toolbeltService.run(toolRunRequest(strAt(args, "toolId", ""), args));
-            case "command.execute" -> commandRegistry.executeRaw(strAt(args, "line", ""));
+            case "command.execute" -> executeCommandFromMcp(args);
             case "fn.list" -> fnList();
             case "fn.trigger" -> triggerFn(args);
             case "desktop.screenshot.send" -> desktopScreenshot(args, "direct");
@@ -193,6 +194,20 @@ public class McpService {
         return toolResult(payload);
     }
 
+
+    private Object executeCommandFromMcp(Map<String, Object> args) {
+        try {
+            return CommandExecutionContext.runAs(
+                    CommandExecutionContext.Source.API,
+                    () -> commandRegistry.executeRaw(strAt(args, "line", ""))
+            );
+        } catch (Exception ex) {
+            throw new McpException(
+                    -32000,
+                    ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()
+            );
+        }
+    }
 
     private Map<String, Object> fnList() {
         ArrayList<Map<String, Object>> buttons = new ArrayList<>();

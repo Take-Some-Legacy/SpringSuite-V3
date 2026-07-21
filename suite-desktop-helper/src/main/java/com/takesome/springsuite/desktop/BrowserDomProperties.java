@@ -9,12 +9,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class BrowserDomProperties {
     public static final String SNAPSHOT_ENDPOINT = "/api/desktop-helper/browser-dom/snapshot";
     public static final String STATUS_ENDPOINT = "/api/desktop-helper/browser-dom/status";
+    public static final String COMMAND_NEXT_ENDPOINT = "/api/desktop-helper/browser-dom/commands/next";
+    public static final String COMMAND_ACK_ENDPOINT = "/api/desktop-helper/browser-dom/commands/{commandId}/ack";
 
     private boolean enabled = true;
     private boolean requireToken = true;
+    private boolean writeEnabled = true;
+    private boolean preserveExistingValues = true;
     private String token = "";
     private Duration maxSnapshotAge = Duration.ofSeconds(20);
     private Duration maxFutureSkew = Duration.ofSeconds(30);
+    private Duration commandTtl = Duration.ofSeconds(20);
     private int maxForms = 64;
     private int maxFieldsPerForm = 256;
     private int maxOptionsPerField = 100;
@@ -34,6 +39,22 @@ public class BrowserDomProperties {
 
     public void setRequireToken(boolean requireToken) {
         this.requireToken = requireToken;
+    }
+
+    public boolean isWriteEnabled() {
+        return writeEnabled;
+    }
+
+    public void setWriteEnabled(boolean writeEnabled) {
+        this.writeEnabled = writeEnabled;
+    }
+
+    public boolean isPreserveExistingValues() {
+        return preserveExistingValues;
+    }
+
+    public void setPreserveExistingValues(boolean preserveExistingValues) {
+        this.preserveExistingValues = preserveExistingValues;
     }
 
     public String getToken() {
@@ -62,6 +83,14 @@ public class BrowserDomProperties {
 
     public void setMaxFutureSkew(Duration maxFutureSkew) {
         this.maxFutureSkew = safeDuration(maxFutureSkew, Duration.ofSeconds(30));
+    }
+
+    public Duration getCommandTtl() {
+        return commandTtl;
+    }
+
+    public void setCommandTtl(Duration commandTtl) {
+        this.commandTtl = safeDuration(commandTtl, Duration.ofSeconds(20));
     }
 
     public int getMaxForms() {

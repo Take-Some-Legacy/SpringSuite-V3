@@ -4,12 +4,12 @@
 suite:
   cloudflared:
     enabled: true
-    auto-start: false
+    auto-start: true
     executable: cloudflared
     wrapper-enabled: true
     wrapper-executable: suiteBinaries/suite-cloudflared-wrapper
     origin-cert-path: ${TUNNEL_ORIGIN_CERT:}
-    target-url: http://localhost:${server.port}
+    target-url: http://localhost:${server.port:8090}
     tunnel-name: spring-suite-test
     hostname: testspring.kaylas-systems.ru
     cache-directory: .springsuite/cloudflared

@@ -79,6 +79,14 @@ tasks.register<Sync>("assembleDeploy") {
     from(layout.projectDirectory.file("suite-app/build/libs/spring-suite.jar"))
     from(layout.projectDirectory.file("README.md"))
     from(layout.projectDirectory.files("run.bat", "run-console.bat", "run-elevated.bat", "run.sh", "run-elevated.sh"))
+    from(layout.projectDirectory.dir("scripts")) {
+        into("scripts")
+        exclude("*.local.*", "*.tmp", "*.bak-*")
+    }
+    from(layout.projectDirectory.file("docs/operations/deployment.md")) {
+        into("docs")
+        rename { "DEPLOYMENT.md" }
+    }
 
     from(layout.projectDirectory.dir("static")) {
         into("static")
@@ -206,6 +214,49 @@ tasks.register<Sync>("assembleDeploy") {
             JsonOutput.prettyPrint(JsonOutput.toJson(manifest)) + System.lineSeparator(),
             StandardCharsets.UTF_8
         )
+    }
+}
+
+tasks.register("verifyDeployLayout") {
+    group = "verification"
+    description = "Verify that build/deploy contains a complete runnable SpringSuite image."
+    dependsOn("assembleDeploy")
+
+    doLast {
+        val root = deployDirectory.get().asFile
+        val requiredFiles = listOf(
+            "spring-suite.jar",
+            "run.bat",
+            "run-console.bat",
+            "run-elevated.bat",
+            "run.sh",
+            "run-elevated.sh",
+            "scripts/deploy.ps1",
+            "scripts/apply-deploy.ps1",
+            "scripts/clean.ps1",
+            "scripts/verify-repository.ps1",
+            "scripts/spring-suite-single-instance-check.ps1",
+            "config/suite-cloudflared.yml",
+            "suiteBinaries/suite-cloudflared-wrapper.exe",
+            "deploy-manifest.json"
+        )
+        val missing = requiredFiles.filterNot { File(root, it).isFile }
+        check(missing.isEmpty()) {
+            "Incomplete SpringSuite deploy image; missing: ${missing.joinToString()}"
+        }
+
+        val jar = File(root, "spring-suite.jar")
+        check(jar.length() > 1_000_000L) {
+            "spring-suite.jar is unexpectedly small: ${jar.length()} bytes"
+        }
+
+        val cloudflaredConfig = File(root, "config/suite-cloudflared.yml").readText(StandardCharsets.UTF_8)
+        check(Regex("""(?m)^\s*enabled:\s*true\s*$""").containsMatchIn(cloudflaredConfig)) {
+            "deploy cloudflared configuration must enable the service"
+        }
+        check(Regex("""(?m)^\s*auto-start:\s*true\s*$""").containsMatchIn(cloudflaredConfig)) {
+            "deploy cloudflared configuration must enable autostart"
+        }
     }
 }
 

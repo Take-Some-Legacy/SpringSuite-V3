@@ -8,3 +8,5 @@ suite:
       prompt: "> "
       print-welcome: true
       allow-shutdown: true
+      # Keep MCP/API availability stable: remote callers cannot terminate the runtime by default.
+      allow-shutdown-over-api: false

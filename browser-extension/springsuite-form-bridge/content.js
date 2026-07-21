@@ -13,6 +13,8 @@
   const SENSITIVE_PATTERN = /(password|passcode|secret|token|api[-_ ]?key|credit|card|cvv|cvc|iban|bank|ssn|social[-_ ]?security|passport|one[-_ ]?time[-_ ]?code)/i;
   let timer = 0;
   let lastFingerprint = "";
+  let commandPollInFlight = false;
+  let lastCommandId = "";
 
   function schedule(force = false) {
     window.clearTimeout(timer);
@@ -300,6 +302,178 @@
     return { left, top, right: left + width, bottom: top + height, width, height };
   }
 
+  async function pollForCommand() {
+    if (commandPollInFlight || document.visibilityState !== "visible") {
+      return;
+    }
+    if (!document.querySelector(FIELD_SELECTOR)) {
+      return;
+    }
+    commandPollInFlight = true;
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "SPRINGSUITE_COMMAND_POLL",
+        pageId: PAGE_ID,
+        pageUrl: location.href
+      });
+      const command = response?.command;
+      if (!response?.ok || !command || !command.commandId || command.commandId === lastCommandId) {
+        return;
+      }
+      lastCommandId = command.commandId;
+      const result = executeFillCommand(command);
+      await chrome.runtime.sendMessage({
+        type: "SPRINGSUITE_COMMAND_ACK",
+        commandId: command.commandId,
+        payload: {
+          pageId: PAGE_ID,
+          pageUrl: location.href,
+          ok: result.failedCount === 0 && result.filledCount > 0,
+          filledCount: result.filledCount,
+          skippedCount: result.skippedCount,
+          failedCount: result.failedCount,
+          warnings: result.warnings,
+          metadata: {
+            extensionVersion: chrome.runtime.getManifest().version,
+            submitPerformed: false,
+            explicitUserGesture: true
+          }
+        }
+      });
+      schedule(true);
+    } catch (_) {
+      // The service worker or local SpringSuite runtime may be temporarily unavailable.
+    } finally {
+      commandPollInFlight = false;
+    }
+  }
+
+  function executeFillCommand(command) {
+    const result = { filledCount: 0, skippedCount: 0, failedCount: 0, warnings: [] };
+    if (command.pageId !== PAGE_ID) {
+      result.failedCount++;
+      result.warnings.push("Command pageId does not match the active page.");
+      return result;
+    }
+    if (sanitizePageUrl(command.pageUrl) !== sanitizePageUrl(location.href)) {
+      result.failedCount++;
+      result.warnings.push("Command URL does not match the active page.");
+      return result;
+    }
+    if (command.allowSubmit) {
+      result.failedCount++;
+      result.warnings.push("Submit commands are not supported by SpringSuite Form Bridge.");
+      return result;
+    }
+
+    const fields = Array.isArray(command.fields) ? command.fields : [];
+    for (const field of fields.slice(0, MAX_FIELDS_PER_FORM)) {
+      const outcome = fillCommandField(field, command.preserveExistingValues !== false);
+      if (outcome.status === "filled") result.filledCount++;
+      else if (outcome.status === "skipped") result.skippedCount++;
+      else result.failedCount++;
+      if (outcome.warning) result.warnings.push(outcome.warning);
+    }
+    return result;
+  }
+
+  function fillCommandField(commandField, preserveExistingValues) {
+    const selector = cleanText(commandField?.selector);
+    if (!selector) return { status: "failed", warning: "Field selector is missing." };
+
+    let field;
+    try {
+      field = document.querySelector(selector);
+    } catch (_) {
+      return { status: "failed", warning: `Invalid selector for ${cleanText(commandField?.label) || "field"}.` };
+    }
+    if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) {
+      return { status: "failed", warning: `Field ${cleanText(commandField?.label) || selector} was not found.` };
+    }
+    if (!isVisible(field) || field.disabled || field.readOnly || field.getAttribute("aria-disabled") === "true") {
+      return { status: "skipped", warning: `Field ${cleanText(commandField?.label) || selector} is unavailable.` };
+    }
+
+    const type = fieldType(field);
+    const sensitive = type === "password" || type === "file" || SENSITIVE_PATTERN.test([
+      field.id,
+      field.name,
+      labelFor(field),
+      field.autocomplete,
+      commandField?.label
+    ].filter(Boolean).join(" "));
+    if (sensitive) {
+      return { status: "skipped", warning: `Sensitive field ${cleanText(commandField?.label) || selector} was not filled.` };
+    }
+    if (preserveExistingValues && valuePresent(field)) {
+      return { status: "skipped", warning: `Existing value in ${cleanText(commandField?.label) || selector} was preserved.` };
+    }
+
+    const action = String(commandField?.action || "fill").toLowerCase();
+    const value = String(commandField?.value ?? "");
+    try {
+      if (field instanceof HTMLSelectElement || action === "select") {
+        if (!(field instanceof HTMLSelectElement)) {
+          return { status: "failed", warning: `Target ${cleanText(commandField?.label) || selector} is not a select field.` };
+        }
+        const option = Array.from(field.options).find((candidate) =>
+          candidate.value === value || cleanText(candidate.label || candidate.textContent) === cleanText(value)
+        );
+        if (!option) {
+          return { status: "skipped", warning: `Option for ${cleanText(commandField?.label) || selector} was not found.` };
+        }
+        setNativeValue(field, option.value);
+      } else if (field instanceof HTMLInputElement && (field.type === "checkbox" || field.type === "radio")) {
+        const checked = action === "check" || (action !== "uncheck" && /^(true|1|yes|on)$/i.test(value));
+        setNativeChecked(field, checked);
+      } else {
+        setNativeValue(field, value);
+      }
+      dispatchFieldEvents(field);
+      return { status: "filled", warning: "" };
+    } catch (error) {
+      return {
+        status: "failed",
+        warning: `Could not fill ${cleanText(commandField?.label) || selector}: ${cleanText(error?.message || error)}`
+      };
+    }
+  }
+
+  function setNativeValue(field, value) {
+    const prototype = field instanceof HTMLInputElement
+      ? HTMLInputElement.prototype
+      : field instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLSelectElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+    if (descriptor?.set) descriptor.set.call(field, value);
+    else field.value = value;
+  }
+
+  function setNativeChecked(field, checked) {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked");
+    if (descriptor?.set) descriptor.set.call(field, Boolean(checked));
+    else field.checked = Boolean(checked);
+  }
+
+  function dispatchFieldEvents(field) {
+    field.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+  }
+
+  function sanitizePageUrl(rawUrl) {
+    try {
+      const url = new URL(String(rawUrl || ""), location.href);
+      url.username = "";
+      url.password = "";
+      url.search = "";
+      url.hash = "";
+      return url.toString();
+    } catch (_) {
+      return "";
+    }
+  }
+
   function stableFingerprint(payload) {
     const stable = {
       url: payload.url,
@@ -370,4 +544,5 @@
 
   schedule(true);
   window.setInterval(() => sendSnapshot(true), 5000);
+  window.setInterval(pollForCommand, 800);
 })();

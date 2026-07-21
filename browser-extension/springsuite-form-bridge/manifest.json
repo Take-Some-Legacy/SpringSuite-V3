@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SpringSuite Form Bridge",
-  "version": "0.2.0",
-  "description": "Recognizes HTML forms and sends privacy-preserving DOM snapshots to the local SpringSuite runtime.",
+  "version": "0.3.0",
+  "description": "Recognizes HTML forms and inserts operator-approved local SpringSuite suggestions without submitting the form.",
   "permissions": [
     "storage"
   ],

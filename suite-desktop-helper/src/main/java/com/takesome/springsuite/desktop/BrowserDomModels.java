@@ -148,6 +148,101 @@ public final class BrowserDomModels {
         }
     }
 
+
+    public record BrowserDomFillField(
+            String fieldId,
+            String label,
+            String selector,
+            String action,
+            String value,
+            String type,
+            Map<String, Object> metadata
+    ) {
+        public BrowserDomFillField {
+            fieldId = text(fieldId);
+            label = text(label);
+            selector = text(selector);
+            action = textOr(action, "fill").toLowerCase();
+            value = text(value);
+            type = textOr(type, "text").toLowerCase();
+            metadata = DesktopHelperModels.safeMap(metadata);
+        }
+    }
+
+    public record BrowserDomFillCommand(
+            String commandId,
+            String pageId,
+            String pageUrl,
+            String snapshotId,
+            Instant createdAt,
+            Instant expiresAt,
+            boolean preserveExistingValues,
+            boolean allowSubmit,
+            List<BrowserDomFillField> fields,
+            Map<String, Object> metadata
+    ) {
+        public BrowserDomFillCommand {
+            commandId = text(commandId);
+            pageId = text(pageId);
+            pageUrl = text(pageUrl);
+            snapshotId = text(snapshotId);
+            createdAt = createdAt == null ? Instant.now() : createdAt;
+            expiresAt = expiresAt == null ? createdAt : expiresAt;
+            fields = fields == null ? List.of() : fields.stream().filter(value -> value != null).toList();
+            metadata = DesktopHelperModels.safeMap(metadata);
+        }
+
+        public boolean expired() {
+            return Instant.now().isAfter(expiresAt);
+        }
+    }
+
+    public record BrowserDomCommandAckRequest(
+            String pageId,
+            String pageUrl,
+            boolean ok,
+            int filledCount,
+            int skippedCount,
+            int failedCount,
+            List<String> warnings,
+            Map<String, Object> metadata
+    ) {
+        public BrowserDomCommandAckRequest {
+            pageId = text(pageId);
+            pageUrl = text(pageUrl);
+            filledCount = Math.max(0, filledCount);
+            skippedCount = Math.max(0, skippedCount);
+            failedCount = Math.max(0, failedCount);
+            warnings = warnings == null ? List.of() : warnings.stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .limit(32)
+                    .toList();
+            metadata = DesktopHelperModels.safeMap(metadata);
+        }
+    }
+
+    public record BrowserDomCommandAckResult(
+            boolean ok,
+            String code,
+            String message,
+            String commandId,
+            int filledCount,
+            int skippedCount,
+            int failedCount,
+            Map<String, Object> metadata
+    ) {
+        public BrowserDomCommandAckResult {
+            code = textOr(code, ok ? "ok" : "failed");
+            message = text(message);
+            commandId = text(commandId);
+            filledCount = Math.max(0, filledCount);
+            skippedCount = Math.max(0, skippedCount);
+            failedCount = Math.max(0, failedCount);
+            metadata = DesktopHelperModels.safeMap(metadata);
+        }
+    }
+
     private static String text(String value) {
         if (value == null) {
             return "";

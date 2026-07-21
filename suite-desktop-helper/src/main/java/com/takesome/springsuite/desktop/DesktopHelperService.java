@@ -109,7 +109,9 @@ public class DesktopHelperService {
                 "GET /api/desktop-helper/context/current",
                 "GET /api/desktop-helper/context/latest",
                 "POST /api/desktop-helper/browser-dom/snapshot",
-                "GET /api/desktop-helper/browser-dom/status"
+                "GET /api/desktop-helper/browser-dom/status",
+                "GET /api/desktop-helper/browser-dom/commands/next",
+                "POST /api/desktop-helper/browser-dom/commands/{commandId}/ack"
         ));
         sidecarContract.put("approvalEndpoints", List.of("POST /api/desktop-helper/approvals", "POST /api/desktop-helper/actions/dry-run", "POST /api/desktop-helper/actions/execute"));
         sidecarContract.put("executorRegistryEndpoints", List.of("GET /api/desktop-helper/executors", "GET /api/desktop-helper/executors/{id}", "GET /api/desktop-helper/executors/policy"));
@@ -118,10 +120,12 @@ public class DesktopHelperService {
         sidecarContract.put("executorContract", List.of("DesktopActionExecutor", "DesktopActionExecutorRegistry", "NoopDesktopActionExecutor", "RealDesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"));
         sidecarContract.put("bridgeContract", List.of("DesktopBridgeAdapter", "DesktopBridgeAdapterRegistry", "ClipboardBridgeAdapter", "KeyboardBridgeAdapter", "MouseBridgeAdapter", "BrowserDomBridgeAdapter", "WindowsUiAutomationBridgeAdapter"));
         sidecarContract.put("browserDomContract", Map.of(
-                "mode", "read-only recognition",
-                "transport", "Manifest V3 extension to loopback HTTP endpoint",
-                "values", "field values are never transmitted; only valuePresent is accepted",
-                "writeActions", "disabled"
+                "mode", "recognition plus operator-confirmed insertion",
+                "transport", "Manifest V3 extension to token-protected loopback HTTP endpoints",
+                "pageValues", "existing page values are never transmitted; only valuePresent is accepted",
+                "proposedValues", "only non-sensitive values shown in the desktop overlay are sent back after the operator clicks «Вставить»",
+                "writeActions", "fill/select/check/uncheck through a short-lived page-bound command",
+                "submitActions", "disabled"
         ));
         sidecarContract.put("writeActions", "disabled by default; real input requires executor.allowed-real-input=true, bridge.allowed-real-input=true, enabled real executor, enabled bridge, approval token, dry-run pass, fresh snapshot and audit logging.");
 
@@ -553,6 +557,8 @@ public class DesktopHelperService {
                 "POST /api/desktop-helper/real-input/self-test",
                 "GET /api/desktop-helper/browser-dom/status",
                 "POST /api/desktop-helper/browser-dom/snapshot",
+                "GET /api/desktop-helper/browser-dom/commands/next",
+                "POST /api/desktop-helper/browser-dom/commands/{commandId}/ack",
                 "POST /api/desktop-helper/context/analyze",
                 "POST /api/desktop-helper/hints",
                 "POST /api/desktop-helper/form-fill/plan"
