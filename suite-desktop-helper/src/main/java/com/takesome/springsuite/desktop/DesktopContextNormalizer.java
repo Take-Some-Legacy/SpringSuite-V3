@@ -133,6 +133,7 @@ public class DesktopContextNormalizer {
         );
 
         LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+        metadata.putAll(valueAsMap(raw.get("metadata")));
         putIfPresent(metadata, "snapshotId", raw.get("snapshotId"));
         putIfPresent(metadata, "captureId", raw.get("captureId"));
         putIfPresent(metadata, "source", raw.get("source"));
@@ -188,13 +189,15 @@ public class DesktopContextNormalizer {
         }
 
         List<DesktopFormField> fields = normalizeFields(firstFieldList(form), warnings);
+        LinkedHashMap<String, Object> formMetadata = new LinkedHashMap<>(metadataWithout(form, "fields", "metadata"));
+        formMetadata.putAll(valueAsMap(form.get("metadata")));
         return new DesktopFormContext(
                 text(form.get("id")),
                 firstText(text(form.get("name")), text(form.get("title")), ""),
                 firstText(text(form.get("action")), text(form.get("url")), ""),
                 text(form.get("method")),
                 fields,
-                metadataWithout(form, "fields")
+                formMetadata
         );
     }
 
@@ -217,6 +220,11 @@ public class DesktopContextNormalizer {
                 warnings.add("Raw value for sensitive field `" + label + "` was redacted during normalization.");
             }
 
+            LinkedHashMap<String, Object> fieldMetadata = new LinkedHashMap<>(metadataWithout(
+                    rawField,
+                    "value", "text", "options", "choices", "items", "metadata"
+            ));
+            fieldMetadata.putAll(valueAsMap(rawField.get("metadata")));
             fields.add(new DesktopFormField(
                     id,
                     label,
@@ -228,7 +236,7 @@ public class DesktopContextNormalizer {
                     bool(rawField.get("focused"), false),
                     sensitive,
                     valueAsStringList(firstNonNull(rawField.get("options"), rawField.get("choices"), rawField.get("items"))),
-                    metadataWithout(rawField, "value", "text", "options", "choices", "items")
+                    fieldMetadata
             ));
         }
         return fields;

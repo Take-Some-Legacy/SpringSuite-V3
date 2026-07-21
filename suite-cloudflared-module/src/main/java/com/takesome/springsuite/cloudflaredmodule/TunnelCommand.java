@@ -25,8 +25,8 @@ public class TunnelCommand implements SuiteCommand {
                 List.of("cf", "cloudflared"),
                 "process",
                 "Control cloudflared tunnel.",
-                "Supports tunnel status/start/stop/restart/logs.",
-                "tunnel <status|start|stop|restart|logs> [limit]",
+                "Supports tunnel status/start/stop/restart/logs/help.",
+                "tunnel <status|start|stop|restart|logs|help> [limit]",
                 CommandRiskLevel.PROCESS_CONTROL
         );
     }
@@ -40,6 +40,11 @@ public class TunnelCommand implements SuiteCommand {
             case "stop" -> CommandExecutionResult.ok("cloudflared stop requested", Map.of("status", tunnelService.stop()));
             case "restart" -> CommandExecutionResult.ok("cloudflared restart requested", Map.of("status", tunnelService.restart()));
             case "logs" -> CommandExecutionResult.ok("cloudflared recent logs", Map.of("logs", tunnelService.recentLogs(parseLimit(invocation.arg(1), 40))));
+            case "help", "--help", "-h" -> CommandExecutionResult.ok("cloudflared tunnel help", Map.of(
+                    "usage", "tunnel <status|start|stop|restart|logs|help> [limit]",
+                    "tunnel", "spring-suite-test",
+                    "hostname", "testspring.kaylas-systems.ru"
+            ));
             default -> CommandExecutionResult.failed("bad_tunnel_action", "Unknown tunnel action: " + action);
         };
     }

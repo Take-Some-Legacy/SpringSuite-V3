@@ -1,0 +1,51 @@
+{
+  "schema": "com.takesome.springsuite.tool.v1",
+  "id": "suite-desktop-agent",
+  "name": "suite-desktop-agent",
+  "title": "SpringSuite Desktop Agent",
+  "kind": "go-sidecar",
+  "source_type": "suite-local",
+  "package_root": ".",
+  "description": "Native Windows sidecar for active-form detection, UI Automation, guarded form actions and desktop capture.",
+  "executable": "suiteBinaries/suite-desktop-agent",
+  "default_args": [
+    "doctor"
+  ],
+  "validation_args": [
+    "doctor"
+  ],
+  "capabilities": [
+    "active-window-inspection",
+    "native-form-detection",
+    "windows-ui-automation",
+    "guarded-native-form-fill",
+    "desktop-screenshot",
+    "loopback-http-sidecar",
+    "json-output"
+  ],
+  "tags": [
+    "go",
+    "sidecar",
+    "desktop",
+    "windows",
+    "uia",
+    "forms",
+    "autofill",
+    "tray"
+  ],
+  "safe_commands": [
+    "version",
+    "doctor",
+    "help",
+    "inspect",
+    "fill",
+    "serve",
+    "run",
+    "agent",
+    "screenshot",
+    "capture"
+  ],
+  "runtime": {
+    "working_directory": "."
+  }
+}

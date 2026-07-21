@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class CloudflaredTunnelService {
     private static final Pattern TRY_CLOUDFLARE_URL = Pattern.compile("https://[-a-zA-Z0-9.]+\\.trycloudflare\\.com");
+    private static final long STARTUP_GRACE_MILLIS = 900L;
 
     private final CloudflaredProperties properties;
     private final OperatorLogService operatorLogService;
@@ -90,17 +91,16 @@ public class CloudflaredTunnelService {
                 ProcessBuilder builder = new ProcessBuilder(command);
                 builder.directory(runtimeDirectory.toFile());
                 Map<String, String> environment = builder.environment();
-                environment.put("CLOUDFLARED_HOME", runtimeDirectory.toString());
-                environment.put("HOME", runtimeDirectory.toString());
-                environment.put("USERPROFILE", runtimeDirectory.toString());
-                environment.put("XDG_CONFIG_HOME", runtimeDirectory.toString());
                 environment.put("XDG_CACHE_HOME", processCacheDirectory.toString());
+                // Keep HOME and USERPROFILE inherited so locally-managed tunnel credentials
+                // remain visible in %USERPROFILE%\.cloudflared (or ~/.cloudflared).
                 String originCertPath = properties.getOriginCertPath();
                 if (originCertPath != null && !originCertPath.isBlank()) {
                     environment.put("TUNNEL_ORIGIN_CERT", resolveConfiguredPath(originCertPath).toString());
                 }
                 builder.redirectErrorStream(true);
                 process = builder.start();
+                Process startedProcess = process;
                 startedAt = Instant.now();
                 publicUrl = null;
                 lastError = null;
@@ -108,11 +108,26 @@ public class CloudflaredTunnelService {
                 lastCommand = List.copyOf(command);
                 clearRecentLinesLocked();
                 operatorLogService.append(OperatorLogLevel.INFO, "cloudflared", "cloudflared process started", Map.of(
-                        "pid", process.pid(),
+                        "pid", startedProcess.pid(),
                         "command", command,
                         "runtimeDirectory", runtimeDirectory.toString()
                 ));
-                processTaskExecutor.execute(this::readProcessOutput);
+                processTaskExecutor.execute(() -> readProcessOutput(startedProcess));
+                try {
+                    if (startedProcess.waitFor(STARTUP_GRACE_MILLIS, TimeUnit.MILLISECONDS)) {
+                        exitCode = startedProcess.exitValue();
+                        process = null;
+                        startedAt = null;
+                        if (lastError == null || lastError.isBlank()) {
+                            lastError = "cloudflared exited during startup with code " + exitCode;
+                        }
+                    } else if (!properties.getHostname().isBlank()) {
+                        publicUrl = "https://" + properties.getHostname();
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    lastError = "interrupted while verifying cloudflared startup";
+                }
             } catch (IOException ex) {
                 process = null;
                 startedAt = null;
@@ -129,35 +144,80 @@ public class CloudflaredTunnelService {
 
     public CloudflaredTunnelStatus stop() {
         Process toStop;
+        List<ProcessHandle> descendants;
         synchronized (lock) {
             if (!isRunningLocked()) {
                 return statusLocked();
             }
             toStop = process;
-            operatorLogService.append(OperatorLogLevel.INFO, "cloudflared", "stopping cloudflared process", Map.of("pid", toStop.pid()));
+            descendants = toStop.descendants().toList();
+            operatorLogService.append(
+                    OperatorLogLevel.INFO,
+                    "cloudflared",
+                    "stopping cloudflared process tree",
+                    Map.of(
+                            "pid", toStop.pid(),
+                            "descendants", descendants.stream().map(ProcessHandle::pid).toList()
+                    )
+            );
+            descendants.forEach(handle -> {
+                if (handle.isAlive()) {
+                    handle.destroy();
+                }
+            });
             toStop.destroy();
         }
 
         try {
-            boolean exited = toStop.waitFor(properties.getStopTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            boolean exited = toStop.waitFor(
+                    properties.getStopTimeout().toMillis(),
+                    TimeUnit.MILLISECONDS
+            );
             if (!exited) {
+                descendants.forEach(handle -> {
+                    if (handle.isAlive()) {
+                        handle.destroyForcibly();
+                    }
+                });
                 toStop.destroyForcibly();
                 toStop.waitFor(2, TimeUnit.SECONDS);
             }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            operatorLogService.append(OperatorLogLevel.WARN, "cloudflared", "interrupted while stopping cloudflared", Map.of("error", ex.getMessage()));
+            operatorLogService.append(
+                    OperatorLogLevel.WARN,
+                    "cloudflared",
+                    "interrupted while stopping cloudflared",
+                    Map.of(
+                            "error",
+                            ex.getMessage() == null
+                                    ? ex.getClass().getSimpleName()
+                                    : ex.getMessage()
+                    )
+            );
+        } finally {
+            descendants.forEach(handle -> {
+                if (handle.isAlive()) {
+                    handle.destroyForcibly();
+                }
+            });
         }
 
         synchronized (lock) {
             exitCode = safeExitCode(toStop).orElse(null);
             process = null;
             startedAt = null;
-            operatorLogService.append(OperatorLogLevel.INFO, "cloudflared", "cloudflared process stopped", Map.of("exitCode", exitCode));
+            publicUrl = null;
+            lastError = null;
+            operatorLogService.append(
+                    OperatorLogLevel.INFO,
+                    "cloudflared",
+                    "cloudflared process tree stopped",
+                    Map.of("exitCode", exitCode == null ? -1 : exitCode)
+            );
             return statusLocked();
         }
     }
-
     public CloudflaredTunnelStatus restart() {
         stop();
         return start();
@@ -213,6 +273,8 @@ public class CloudflaredTunnelService {
         ArrayList<String> command = new ArrayList<>();
         command.add(resolveExecutablePath(properties.getWrapperExecutable()).toString());
         command.add("run");
+        command.add("--cloudflared");
+        command.add(properties.getExecutable());
         if (!properties.getTunnelName().isBlank()) {
             command.add("--mode");
             command.add("run");
@@ -235,9 +297,9 @@ public class CloudflaredTunnelService {
         command.add(properties.getExecutable());
         command.add("tunnel");
         command.addAll(properties.getExtraArgs());
-        command.add("run");
         command.add("--url");
         command.add(properties.getTargetUrl());
+        command.add("run");
         if (!properties.getTunnelName().isBlank()) {
             command.add(properties.getTunnelName());
         }
@@ -281,11 +343,7 @@ public class CloudflaredTunnelService {
                 : Path.of("").toAbsolutePath().normalize().resolve(configured).normalize();
     }
 
-    private void readProcessOutput() {
-        Process current;
-        synchronized (lock) {
-            current = process;
-        }
+    private void readProcessOutput(Process current) {
         if (current == null) {
             return;
         }
@@ -308,6 +366,11 @@ public class CloudflaredTunnelService {
                     process = null;
                     startedAt = null;
                 }
+                if (code != 0 && code != Integer.MIN_VALUE && (lastError == null || lastError.isBlank())) {
+                    lastError = recentLines.isEmpty()
+                            ? "cloudflared exited with code " + code
+                            : recentLines.getLast();
+                }
             }
             operatorLogService.append(OperatorLogLevel.INFO, "cloudflared", "cloudflared process exited", Map.of("exitCode", code));
         }
@@ -324,8 +387,23 @@ public class CloudflaredTunnelService {
             if (matcher.find()) {
                 publicUrl = matcher.group();
             }
+            if (looksLikeError(cleaned)) {
+                lastError = cleaned;
+            }
         }
-        operatorLogService.append(OperatorLogLevel.INFO, "cloudflared", cleaned);
+        operatorLogService.append(looksLikeError(cleaned) ? OperatorLogLevel.WARN : OperatorLogLevel.INFO, "cloudflared", cleaned);
+    }
+
+    private boolean looksLikeError(String line) {
+        String value = line == null ? "" : line.toLowerCase(java.util.Locale.ROOT);
+        return value.contains("\"level\":\"error\"")
+                || value.contains(" error ")
+                || value.startsWith("error")
+                || value.contains("failed")
+                || value.contains("unable to")
+                || value.contains("credentials file")
+                || value.contains("origin certificate")
+                || value.contains("cannot determine default origin certificate");
     }
 
     private CloudflaredTunnelStatus statusLocked() {

@@ -20,6 +20,18 @@ suite:
     max-approval-token-ttl-seconds: 900
     max-screen-text-chars: 12000
     max-suggestion-count: 6
+    browser-dom:
+      enabled: true
+      require-token: true
+      token: ${SPRINGSUITE_BROWSER_DOM_TOKEN:}
+      max-snapshot-age: 20s
+      max-future-skew: 30s
+      max-forms: 64
+      max-fields-per-form: 256
+      max-options-per-field: 100
+      allowed-schemes:
+        - http
+        - https
     executor:
       default-id: noop-desktop-action-executor
       allowed-real-input: false
@@ -48,9 +60,35 @@ suite:
       mouse-bridge-adapter:
         enabled: false
       browser-dom-bridge-adapter:
-        enabled: false
+        enabled: true
       windows-ui-automation-bridge-adapter:
-        enabled: false
+        enabled: true
+    agent:
+      enabled: true
+      tray-enabled: true
+      overlay-enabled: true
+      poll-interval: 900ms
+      stable-for: 700ms
+      repeat-after: 30s
+      minimum-field-count: 1
+      maximum-action-count: 8
+      locale: ru-RU
+      sidecar:
+        enabled: true
+        auto-start: true
+        auto-build: false
+        executable: suiteBinaries/suite-desktop-agent.exe
+        project-root: ../suite-desktop-agent-go
+        host: 127.0.0.1
+        # 0 asks SpringSuite to reserve an available loopback port.
+        port: 0
+        startup-timeout: 12s
+        request-timeout: 10s
+        shutdown-timeout: 3s
+      # Local-only values used to propose deterministic form actions.
+      # Example keys: firstName, lastName, email, phone, company, address, city, postalCode, country.
+      autofill-profile: {}
+      constraints: {}
     sensitive-field-hints:
       - password
       - passcode
@@ -92,9 +130,12 @@ suite:
       browser-form:
         enabled: true
         access: read-plan
-        adapter: extension-or-accessibility
+        adapter: springsuite-form-bridge-extension
         capabilities:
+          - html-form-detection
+          - label-resolution
           - field-detection
+          - action-method-recognition
           - fill-plan
           - validation-hints
       keyboard-mouse:

@@ -56,7 +56,9 @@ public class DesktopBridgeAdapterRegistry {
             default -> "";
         };
         if (!preferred.isBlank()) {
-            Optional<DesktopBridgeAdapter> bridge = find(preferred).filter(this::isSelectable);
+            Optional<DesktopBridgeAdapter> bridge = find(preferred)
+                    .filter(this::isSelectable)
+                    .filter(adapter -> effectiveDescriptor(adapter).supportedActions().contains(action.action()));
             if (bridge.isPresent()) {
                 return bridge;
             }

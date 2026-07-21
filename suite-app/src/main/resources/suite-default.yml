@@ -3,6 +3,8 @@
 # Edit the generated file; do not put local machine/domain values into Java code.
 
 server:
+  # Listen on all interfaces so the agent/API remain reachable from the trusted LAN.
+  address: 0.0.0.0
   port: 8090
 
 spring:
@@ -11,7 +13,7 @@ spring:
   web:
     resources:
       static-locations:
-        - file:./static/
+        - "file:${suite.working.directory:./}/static/"
   output:
     ansi:
       enabled: ALWAYS

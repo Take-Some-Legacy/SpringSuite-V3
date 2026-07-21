@@ -6,7 +6,7 @@
   "kind": "go-sidecar",
   "source_type": "suite-local",
   "package_root": ".",
-  "description": "Explicit one-shot desktop PNG helper for SpringSuite FN/MCP handoff.",
+  "description": "Local Windows desktop sidecar for screenshots, active-form inspection and guarded native form actions.",
   "executable": "suiteBinaries/suite-desktop-capture",
   "default_args": [
     "doctor"
@@ -16,7 +16,10 @@
   ],
   "capabilities": [
     "desktop-screenshot",
-    "image-png",
+    "active-window-inspection",
+    "native-form-detection",
+    "guarded-native-form-fill",
+    "local-http-sidecar",
     "json-output",
     "base64-output",
     "fn-handoff"
@@ -34,7 +37,10 @@
     "doctor",
     "help",
     "screenshot",
-    "capture"
+    "capture",
+    "inspect",
+    "fill",
+    "serve"
   ],
   "runtime": {
     "working_directory": "."

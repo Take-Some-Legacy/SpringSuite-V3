@@ -17,7 +17,7 @@ import (
 )
 
 const appName = "suite-cloudflared-wrapper"
-const appVersion = "0.1.0"
+const appVersion = "0.2.0"
 
 var tryCloudflareURL = regexp.MustCompile(`https://[-a-zA-Z0-9.]+\.trycloudflare\.com`)
 
@@ -185,7 +185,7 @@ func cloudflaredArgs(cfg Config) []string {
 	if cfg.Mode == "run" {
 		args := []string{"tunnel"}
 		args = append(args, cfg.ExtraArgs...)
-		args = append(args, "run", "--url", cfg.URL, cfg.Tunnel)
+		args = append(args, "--url", cfg.URL, "run", cfg.Tunnel)
 		return args
 	}
 	args := []string{"tunnel", "--url", cfg.URL}
@@ -210,14 +210,21 @@ func prepareRuntime(raw string) (string, string, error) {
 
 func localEnv(base []string, runtimeDir string, cacheDir string) []string {
 	env := append([]string{}, base...)
-	env = append(env,
-		"CLOUDFLARED_HOME="+runtimeDir,
-		"HOME="+runtimeDir,
-		"USERPROFILE="+runtimeDir,
-		"XDG_CONFIG_HOME="+runtimeDir,
-		"XDG_CACHE_HOME="+cacheDir,
-	)
-	return env
+	// Preserve HOME/USERPROFILE/CLOUDFLARED_HOME so cloudflared can discover
+	// cert.pem and the named-tunnel credentials in the user's profile.
+	return setEnv(env, "XDG_CACHE_HOME", cacheDir)
+}
+
+func setEnv(base []string, key string, value string) []string {
+	prefix := strings.ToUpper(key) + "="
+	result := make([]string, 0, len(base)+1)
+	for _, entry := range base {
+		if strings.HasPrefix(strings.ToUpper(entry), prefix) {
+			continue
+		}
+		result = append(result, entry)
+	}
+	return append(result, key+"="+value)
 }
 
 func stream(reader io.Reader, writer io.Writer, events io.Writer, done chan<- struct{}) {
@@ -309,7 +316,7 @@ Usage:
 Flags:
   --cloudflared PATH       cloudflared executable, default: cloudflared
   --mode quick|run         quick uses: cloudflared tunnel --url URL
-                           run uses:   cloudflared tunnel run --url URL TUNNEL
+                           run uses:   cloudflared tunnel --url URL run TUNNEL
   --url URL                local target URL, default: http://localhost:8090
   --tunnel NAME            named tunnel for --mode run
   --runtime-dir DIR        local runtime/cache dir, default: .springsuite/cloudflared

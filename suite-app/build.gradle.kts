@@ -61,6 +61,7 @@ springBoot {
 dependencies {
     implementation(project(":suite-core"))
     implementation(project(":suite-logging"))
+    implementation(project(":suite-database"))
     implementation(project(":suite-config"))
     implementation(project(":suite-module"))
     implementation(project(":suite-cloudflared-module"))

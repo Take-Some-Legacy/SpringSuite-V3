@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SpringSuite Form Bridge</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; max-width: 760px; margin: 32px auto; padding: 0 20px; }
+    label { display: block; margin: 16px 0 6px; font-weight: 600; }
+    input[type="url"], input[type="password"] { box-sizing: border-box; width: 100%; padding: 9px 10px; }
+    button { margin-top: 18px; padding: 9px 16px; }
+    code { word-break: break-all; }
+    #status { margin-top: 16px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>SpringSuite Form Bridge</h1>
+  <p>The extension sends form structure only. It never sends entered field values.</p>
+  <label><input id="enabled" type="checkbox"> Enable form recognition</label>
+  <label for="endpoint">Local SpringSuite endpoint</label>
+  <input id="endpoint" type="url" spellcheck="false">
+  <label for="token">Bridge token</label>
+  <input id="token" type="password" autocomplete="off">
+  <button id="save" type="button">Save</button>
+  <div id="status" role="status"></div>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -103,13 +103,26 @@ public class DesktopHelperService {
         sidecarContract.put("captureToolAvailable", toolbeltService.find(properties.getCaptureToolId()).map(ToolDescriptor::available).orElse(false));
         sidecarContract.put("contextSnapshotInput", List.of("activeWindow", "focusedElement", "selectedText", "screenText", "formFields"));
         sidecarContract.put("contextSnapshotOutput", List.of("DesktopFocusContext"));
-        sidecarContract.put("snapshotBridgeEndpoints", List.of("POST /api/desktop-helper/context/capture", "POST /api/desktop-helper/context/ingest", "GET /api/desktop-helper/context/current", "GET /api/desktop-helper/context/latest"));
+        sidecarContract.put("snapshotBridgeEndpoints", List.of(
+                "POST /api/desktop-helper/context/capture",
+                "POST /api/desktop-helper/context/ingest",
+                "GET /api/desktop-helper/context/current",
+                "GET /api/desktop-helper/context/latest",
+                "POST /api/desktop-helper/browser-dom/snapshot",
+                "GET /api/desktop-helper/browser-dom/status"
+        ));
         sidecarContract.put("approvalEndpoints", List.of("POST /api/desktop-helper/approvals", "POST /api/desktop-helper/actions/dry-run", "POST /api/desktop-helper/actions/execute"));
         sidecarContract.put("executorRegistryEndpoints", List.of("GET /api/desktop-helper/executors", "GET /api/desktop-helper/executors/{id}", "GET /api/desktop-helper/executors/policy"));
         sidecarContract.put("bridgeRegistryEndpoints", List.of("GET /api/desktop-helper/bridges", "GET /api/desktop-helper/bridges/{id}", "GET /api/desktop-helper/bridges/policy"));
         sidecarContract.put("realInputSelfTestEndpoint", "POST /api/desktop-helper/real-input/self-test");
         sidecarContract.put("executorContract", List.of("DesktopActionExecutor", "DesktopActionExecutorRegistry", "NoopDesktopActionExecutor", "RealDesktopActionExecutor", "ExecutionGuardService", "ExecutionAuditService"));
         sidecarContract.put("bridgeContract", List.of("DesktopBridgeAdapter", "DesktopBridgeAdapterRegistry", "ClipboardBridgeAdapter", "KeyboardBridgeAdapter", "MouseBridgeAdapter", "BrowserDomBridgeAdapter", "WindowsUiAutomationBridgeAdapter"));
+        sidecarContract.put("browserDomContract", Map.of(
+                "mode", "read-only recognition",
+                "transport", "Manifest V3 extension to loopback HTTP endpoint",
+                "values", "field values are never transmitted; only valuePresent is accepted",
+                "writeActions", "disabled"
+        ));
         sidecarContract.put("writeActions", "disabled by default; real input requires executor.allowed-real-input=true, bridge.allowed-real-input=true, enabled real executor, enabled bridge, approval token, dry-run pass, fresh snapshot and audit logging.");
 
         return new DesktopCapabilitySchema(
@@ -228,7 +241,7 @@ public class DesktopHelperService {
                 ));
                 continue;
             }
-            if (field.required() && field.value().isBlank()) {
+            if (field.required() && !fieldHasValue(field) && fieldAvailabilityIssue(field).isBlank()) {
                 hints.add(new DesktopHint(
                         "validation",
                         "Required field is empty",
@@ -324,7 +337,20 @@ public class DesktopHelperService {
             FieldMatch match = matchFieldValue(field, safeRequest.profile(), safeRequest.constraints());
             DesktopFieldPlan plan;
 
-            if (!field.value().isBlank()) {
+            String availabilityIssue = fieldAvailabilityIssue(field);
+            if (!availabilityIssue.isBlank()) {
+                plan = new DesktopFieldPlan(
+                        id,
+                        field.displayName(),
+                        "leave",
+                        "",
+                        0.98,
+                        availabilityIssue,
+                        sensitive,
+                        false,
+                        Map.of("source", "field-state")
+                );
+            } else if (fieldHasValue(field)) {
                 plan = new DesktopFieldPlan(
                         id,
                         field.displayName(),
@@ -525,6 +551,8 @@ public class DesktopHelperService {
                 "GET /api/desktop-helper/bridges/{id}",
                 "GET /api/desktop-helper/bridges/policy",
                 "POST /api/desktop-helper/real-input/self-test",
+                "GET /api/desktop-helper/browser-dom/status",
+                "POST /api/desktop-helper/browser-dom/snapshot",
                 "POST /api/desktop-helper/context/analyze",
                 "POST /api/desktop-helper/hints",
                 "POST /api/desktop-helper/form-fill/plan"
@@ -601,7 +629,7 @@ public class DesktopHelperService {
             safe.put("required", field.required());
             safe.put("focused", field.focused());
             safe.put("sensitive", isSensitive(field));
-            safe.put("valuePresent", !field.value().isBlank());
+            safe.put("valuePresent", fieldHasValue(field));
             safe.put("placeholder", field.placeholder());
             safe.put("options", field.options());
             fields.add(safe);
@@ -635,6 +663,49 @@ public class DesktopHelperService {
     private String toJson(Object value) throws JsonProcessingException {
         String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(value);
         return truncate(json, properties.getMaxScreenTextChars() + 4_000);
+    }
+
+    private boolean fieldHasValue(DesktopFormField field) {
+        if (field == null) {
+            return false;
+        }
+        if (!field.value().isBlank()) {
+            return true;
+        }
+        return metadataBoolean(field.metadata().get("valuePresent"), false);
+    }
+
+    private String fieldAvailabilityIssue(DesktopFormField field) {
+        if (field == null) {
+            return "Field is unavailable.";
+        }
+        if (metadataBoolean(field.metadata().get("disabled"), false)) {
+            return "Field is disabled and cannot be filled.";
+        }
+        if (metadataBoolean(field.metadata().get("readOnly"), false)) {
+            return "Field is read-only and must not be overwritten.";
+        }
+        if (!metadataBoolean(field.metadata().get("visible"), true)) {
+            return "Field is not visible and is excluded from automatic filling.";
+        }
+        return "";
+    }
+
+    private boolean metadataBoolean(Object value, boolean fallback) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        if (value instanceof String text) {
+            return switch (text.trim().toLowerCase(Locale.ROOT)) {
+                case "true", "1", "yes", "on" -> true;
+                case "false", "0", "no", "off" -> false;
+                default -> fallback;
+            };
+        }
+        return fallback;
     }
 
     private boolean isSensitive(DesktopFormField field) {

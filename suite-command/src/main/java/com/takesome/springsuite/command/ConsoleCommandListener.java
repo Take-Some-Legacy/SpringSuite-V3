@@ -1,10 +1,12 @@
 package com.takesome.springsuite.command;
 
+import com.takesome.springsuite.logging.ConsoleAnsiBootstrap;
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,7 @@ public class ConsoleCommandListener {
     private final OperatorLogService logService;
     private final ConsoleShellState shellState;
     private volatile boolean running;
+    private volatile boolean ansiOutputDisabled;
     private Thread listenerThread;
 
     public ConsoleCommandListener(
@@ -66,12 +69,12 @@ public class ConsoleCommandListener {
 
     private void runLoop() {
         if (properties.isPrintWelcome()) {
-            System.out.println();
-            System.out.println("SpringSuite shell ready. " + shellState.modeBanner());
+            consolePrintln("");
+            consolePrintln("SpringSuite shell ready. " + shellState.modeBanner());
             if (shellState.modeBanner().startsWith("mode=ELEVATED")) {
-                System.err.println("[SpringSuite][WARN] console running in elevated operator mode: " + shellState.modeBanner());
+                consoleError("[SpringSuite][WARN] console running in elevated operator mode: " + shellState.modeBanner());
             }
-            System.out.println("UNIX-like commands: pwd, cd, ls, cat, grep, mkdir, rm, touch. Use ';', '&&' and '||'.");
+            consolePrintln("UNIX-like commands: pwd, cd, ls, cat, grep, mkdir, rm, touch. Use ';', '&&' and '||'.");
         }
 
         try {
@@ -113,8 +116,7 @@ public class ConsoleCommandListener {
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
             while (running) {
-                System.out.print(prompt());
-                System.out.flush();
+                consolePrint(prompt());
                 String line = reader.readLine();
                 if (line == null) {
                     running = false;
@@ -172,16 +174,16 @@ public class ConsoleCommandListener {
         Object stdout = result.data().get("_stdout");
         if (stdout != null) {
             String text = Objects.toString(stdout, "");
-            System.out.print(text);
+            consolePrint(text);
             if (!text.endsWith("\n") && !text.endsWith("\r")) {
-                System.out.println();
+                consolePrintln("");
             }
             if (Boolean.TRUE.equals(result.data().get("_consoleRaw"))) {
                 return;
             }
         }
         String marker = result.ok() ? "OK" : "ERR";
-        System.out.println(marker + " " + result.code() + " :: " + result.message());
+        consolePrintln(marker + " " + result.code() + " :: " + result.message());
         if (!result.data().isEmpty()) {
             result.data().forEach((key, value) -> {
                 if (!key.startsWith("_")) {
@@ -193,9 +195,9 @@ public class ConsoleCommandListener {
 
     private void printValue(String indent, String key, Object value) {
         if (value instanceof List<?> list) {
-            System.out.println(indent + key + ":");
+            consolePrintln(indent + key + ":");
             if (list.isEmpty()) {
-                System.out.println(indent + "  <empty>");
+                consolePrintln(indent + "  <empty>");
                 return;
             }
             for (Object item : list) {
@@ -204,26 +206,76 @@ public class ConsoleCommandListener {
             return;
         }
         if (value instanceof Map<?, ?> map) {
-            System.out.println(indent + key + ":");
+            consolePrintln(indent + key + ":");
             if (map.isEmpty()) {
-                System.out.println(indent + "  <empty>");
+                consolePrintln(indent + "  <empty>");
                 return;
             }
             map.forEach((childKey, childValue) -> printValue(indent + "  ", String.valueOf(childKey), childValue));
             return;
         }
-        System.out.println(indent + key + " = " + value);
+        consolePrintln(indent + key + " = " + value);
     }
 
     private void printListItem(String indent, Object item) {
         if (item instanceof Map<?, ?> map) {
-            System.out.println(indent + "-");
+            consolePrintln(indent + "-");
             map.forEach((key, value) -> printValue(indent + "  ", String.valueOf(key), value));
             return;
         }
-        System.out.println(indent + "- " + Objects.toString(item, ""));
+        consolePrintln(indent + "- " + Objects.toString(item, ""));
     }
 
+
+    private void consolePrint(String text) {
+        writeConsole(text, false, false);
+    }
+
+    private void consolePrintln(String text) {
+        writeConsole(text, true, false);
+    }
+
+    private void consoleError(String text) {
+        writeConsole(text, true, true);
+    }
+
+    private void writeConsole(String text, boolean newline, boolean errorStream) {
+        String value = Objects.toString(text, "");
+        try {
+            PrintStream stream = errorStream ? System.err : System.out;
+            if (newline) {
+                stream.println(value);
+            } else {
+                stream.print(value);
+            }
+            stream.flush();
+        } catch (RuntimeException | LinkageError failure) {
+            disableAnsiAfterConsoleFailure(failure);
+            PrintStream plain = errorStream ? ConsoleAnsiBootstrap.plainErr() : ConsoleAnsiBootstrap.plainOut();
+            if (newline) {
+                plain.println(value);
+            } else {
+                plain.print(value);
+            }
+            plain.flush();
+        }
+    }
+
+    private void disableAnsiAfterConsoleFailure(Throwable failure) {
+        if (ansiOutputDisabled) {
+            return;
+        }
+        ansiOutputDisabled = true;
+        ConsoleAnsiBootstrap.disableAfterFailure(failure);
+        try {
+            logService.append(OperatorLogLevel.WARN, "console", "ANSI console output disabled after Jansi failure", Map.of(
+                    "error", failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage(),
+                    "type", failure.getClass().getName()
+            ));
+        } catch (RuntimeException ignored) {
+            ConsoleAnsiBootstrap.plainErr().println("[SpringSuite][WARN] ANSI console output disabled: " + failure);
+        }
+    }
 
     private String sanitizeConsoleLine(String line) {
         String value = line == null ? "" : line.trim();

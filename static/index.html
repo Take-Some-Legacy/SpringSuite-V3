@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#050711">
-    <title>SpringSuite Control Panel</title>
+    <title>Панель управления SpringSuite</title>
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <style>
@@ -183,6 +183,33 @@
         .footer { margin-top:18px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; color:var(--dim); font-size:13px; }
 
 
+
+        .request-toolbar { display:grid; grid-template-columns:minmax(260px,1.4fr) minmax(170px,.8fr) 130px 130px minmax(190px,.7fr) minmax(190px,.7fr) auto auto; gap:10px; align-items:center; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.08); }
+        .control-input { min-height:40px; width:100%; padding:9px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.045); color:var(--text); outline:none; }
+        .control-input:focus { border-color:rgba(143,208,255,.44); box-shadow:0 0 0 3px rgba(143,208,255,.08); }
+        select.control-input { cursor:pointer; color-scheme:dark; }
+        .request-metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; padding:16px 18px; border-bottom:1px solid rgba(255,255,255,.08); }
+        .request-grid { display:grid; grid-template-columns:minmax(440px,1.05fr) minmax(420px,.95fr); min-height:560px; }
+        .request-list-pane { padding:14px; border-right:1px solid rgba(255,255,255,.08); min-width:0; }
+        .request-list { display:grid; gap:9px; max-height:650px; overflow:auto; padding-right:4px; }
+        .request-entry { width:100%; display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:start; padding:13px; text-align:left; border:1px solid rgba(255,255,255,.075); border-radius:var(--radius-md); background:rgba(255,255,255,.035); color:var(--text); cursor:pointer; }
+        .request-entry:hover, .request-entry.is-selected { border-color:rgba(143,208,255,.34); background:rgba(143,208,255,.075); }
+        .request-entry .method { min-width:58px; font:800 12px/1 var(--mono); color:#d8efff; padding-top:3px; }
+        .request-entry .route { min-width:0; }
+        .request-entry .route strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .request-entry .route small { display:block; margin-top:6px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .request-entry .result { display:grid; justify-items:end; gap:7px; }
+        .request-detail { min-width:0; max-height:720px; overflow:auto; background:rgba(0,0,0,.12); }
+        .request-detail-head { padding:16px 18px; border-bottom:1px solid rgba(255,255,255,.08); }
+        .request-detail-head h4 { margin:0; font-size:16px; }
+        .request-detail-head p { margin:6px 0 0; color:var(--muted); }
+        .request-detail-block { border-bottom:1px solid rgba(255,255,255,.07); }
+        .request-detail-block h5 { margin:0; padding:12px 18px; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.12em; background:rgba(255,255,255,.025); }
+        .request-detail-block pre { max-height:300px; }
+        .request-pager { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px 0; }
+        .request-pager .button { min-height:34px; padding:7px 12px; }
+        .request-empty { display:grid; place-items:center; min-height:260px; padding:28px; color:var(--muted); text-align:center; }
+
         .terminal-panel { border-color: rgba(98,230,166,.18); }
         .terminal-wrap { display: grid; grid-template-rows: minmax(320px, 50vh) auto auto; background: linear-gradient(180deg, rgba(2,6,12,.72), rgba(3,8,16,.92)); }
         .terminal-output { padding: 18px; overflow: auto; font: 13px/1.55 var(--mono); color: #dbefff; scroll-behavior: smooth; }
@@ -207,6 +234,9 @@
         .terminal-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.025); }
         .terminal-actions .button { min-height: 34px; padding: 7px 11px; font-size: 13px; }
 
+        @media (max-width:1450px) { .request-toolbar { grid-template-columns:repeat(4,minmax(0,1fr)); } .request-grid { grid-template-columns:1fr; } .request-list-pane { border-right:0; border-bottom:1px solid rgba(255,255,255,.08); } }
+        @media (max-width:900px) { .request-toolbar, .request-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        @media (max-width:560px) { .request-toolbar, .request-metrics { grid-template-columns:1fr; } .request-entry { grid-template-columns:auto minmax(0,1fr); } .request-entry .result { grid-column:1 / -1; display:flex; justify-content:flex-start; } }
         @media (max-width:1180px) { .topbar { grid-template-columns: 1fr; } .nav { justify-content:flex-start; border-radius:var(--radius-md); } .top-actions { justify-content:flex-start; } .hero, .section.two { grid-template-columns: 1fr; } .metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
         @media (max-width:760px) { .shell { width:min(100vw - 20px, 1760px); padding-top:10px; } .topbar { top:8px; border-radius:20px; } .hero-main { grid-template-columns:1fr; } .hero-glyph { width:110px; border-radius:30px; } .metric-grid, .section.three { grid-template-columns:1fr; } .kv-row { grid-template-columns:1fr; gap:4px; } .panel-header { align-items:flex-start; flex-direction:column; } .endpoint-card { grid-template-columns:1fr; } }
     </style>
@@ -214,17 +244,18 @@
 <body>
 <div class="shell">
     <header class="topbar">
-        <a class="brand" href="#top" aria-label="SpringSuite Control Panel">
+        <a class="brand" href="#top" aria-label="Панель управления SpringSuite">
             <span class="brand-mark" aria-hidden="true">SS</span>
-            <span><h1>SpringSuite Control Panel</h1><p>Compact local JVM snapshot for the network-facing panel.</p></span>
+            <span><h1>Панель управления SpringSuite</h1><p>Локальный снимок состояния JVM для панели управления.</p></span>
         </a>
-        <nav class="nav" aria-label="Panel sections">
-            <a href="#console">Console</a><a href="#system">System</a><a href="#workspace">Workspace</a><a href="#toolbelt">Toolbelt</a><a href="#commands">Commands</a><a href="#raw">Raw</a>
+        <nav class="nav" aria-label="Разделы панели">
+            <a href="#console">Консоль</a><a href="#system">Система</a><a href="#workspace">Рабочая область</a><a href="#toolbelt">Инструменты</a><a href="#commands">Команды</a><a href="#requests">Запросы</a><a href="#raw">JSON</a>
         </nav>
         <div class="top-actions">
-            <span class="pill"><span class="dot" id="global-dot"></span><span id="global-status">Booting</span></span>
-            <button class="button secondary" type="button" id="toggle-auto">Auto: on</button>
-            <button class="button" type="button" id="refresh">Refresh</button>
+            <span class="pill"><span class="dot" id="global-dot"></span><span id="global-status">Запуск</span></span>
+            <button class="button secondary" type="button" id="request-notifications">Включить уведомления</button>
+            <button class="button secondary" type="button" id="toggle-auto">Авто: вкл</button>
+            <button class="button" type="button" id="refresh">Обновить</button>
         </div>
     </header>
 
@@ -232,14 +263,14 @@
         <section class="hero">
             <div class="panel hero-main">
                 <div>
-                    <p class="eyebrow">Control path</p>
-                    <h2 id="hero-title">Waiting for compact snapshot.</h2>
-                    <p class="lead" id="hero-message">The panel uses a single network call to <code>/api/control-panel</code>. SpringSuite reads workspace, toolbelt and command state locally inside the JVM.</p>
+                    <p class="eyebrow">Контур управления</p>
+                    <h2 id="hero-title">Ожидание компактного снимка состояния.</h2>
+                    <p class="lead" id="hero-message">Панель выполняет один сетевой запрос к <code>/api/control-panel</code>. Состояние рабочей области, инструментов и команд SpringSuite собирает локально внутри JVM.</p>
                     <div class="metric-grid" aria-label="Runtime metrics">
-                        <div class="metric"><span>Runtime</span><strong id="metric-status">—</strong><small id="metric-status-sub">waiting</small></div>
-                        <div class="metric"><span>Snapshot</span><strong id="metric-snapshot">—</strong><small id="metric-snapshot-sub">network + JVM</small></div>
-                        <div class="metric"><span>Tools</span><strong id="metric-tools">—</strong><small id="metric-tools-sub">toolbelt</small></div>
-                        <div class="metric"><span>Commands</span><strong id="metric-commands">—</strong><small id="metric-commands-sub">registry</small></div>
+                        <div class="metric"><span>Состояние</span><strong id="metric-status">—</strong><small id="metric-status-sub">ожидание</small></div>
+                        <div class="metric"><span>Снимок</span><strong id="metric-snapshot">—</strong><small id="metric-snapshot-sub">сеть + JVM</small></div>
+                        <div class="metric"><span>Инструменты</span><strong id="metric-tools">—</strong><small id="metric-tools-sub">реестр</small></div>
+                        <div class="metric"><span>Команды</span><strong id="metric-commands">—</strong><small id="metric-commands-sub">реестр</small></div>
                     </div>
                 </div>
                 <div class="hero-glyph" aria-hidden="true">API</div>
@@ -252,21 +283,21 @@
             <article class="panel terminal-panel">
                 <div class="panel-header">
                     <div>
-                        <h3>Web Console</h3>
-                        <p>UNIX-like shell over the SpringSuite command API. Tab completion, history and live execution state run in the browser.</p>
+                        <h3>Веб-консоль</h3>
+                        <p>UNIX-подобная оболочка поверх API команд SpringSuite. Автодополнение, история и состояние выполнения работают в браузере.</p>
                     </div>
                     <div class="badge-row">
-                        <span class="pill"><span class="dot" id="web-console-dot"></span><span id="web-console-pill">loading</span></span>
-                        <span class="badge info" id="web-console-history">0 history</span>
+                        <span class="pill"><span class="dot" id="web-console-dot"></span><span id="web-console-pill">загрузка</span></span>
+                        <span class="badge info" id="web-console-history">История: 0</span>
                     </div>
                 </div>
-                <div class="terminal-wrap" aria-label="SpringSuite web console">
-                    <div class="terminal-output" id="web-console-output" role="log" aria-live="polite" aria-label="Console output"></div>
-                    <div class="terminal-suggestions" id="web-console-suggestions" aria-label="Autocomplete suggestions"></div>
+                <div class="terminal-wrap" aria-label="Веб-консоль SpringSuite">
+                    <div class="terminal-output" id="web-console-output" role="log" aria-live="polite" aria-label="Вывод консоли"></div>
+                    <div class="terminal-suggestions" id="web-console-suggestions" aria-label="Варианты автодополнения"></div>
                     <form class="terminal-input-row" id="web-console-form" autocomplete="off">
                         <span class="terminal-prompt">suite@northstar:~$</span>
-                        <input class="terminal-input" id="web-console-input" name="line" spellcheck="false" autocomplete="off" placeholder="type a command, press Tab for completion" aria-label="Console command input">
-                        <span class="terminal-state" id="web-console-state">ready</span>
+                        <input class="terminal-input" id="web-console-input" name="line" spellcheck="false" autocomplete="off" placeholder="Введите команду; Tab — автодополнение" aria-label="Ввод команды консоли">
+                        <span class="terminal-state" id="web-console-state">готово</span>
                     </form>
                     <div class="terminal-actions">
                         <button class="button secondary" type="button" data-web-console-run="web-help">web-help</button>
@@ -274,7 +305,7 @@
                         <button class="button secondary" type="button" data-web-console-run="ls">ls</button>
                         <button class="button secondary" type="button" data-web-console-run="date">date</button>
                         <button class="button secondary" type="button" data-web-console-run="dashboard">dashboard</button>
-                        <button class="button secondary" type="button" id="web-console-clear">clear</button>
+                        <button class="button secondary" type="button" id="web-console-clear">очистить</button>
                     </div>
                 </div>
             </article>
@@ -284,81 +315,143 @@
 
         <section class="section two" id="system">
             <article class="panel">
-                <div class="panel-header"><div><h3>System</h3><p>Process identity and build channel.</p></div><span class="pill"><span class="dot" id="system-dot"></span><span id="system-pill">unknown</span></span></div>
+                <div class="panel-header"><div><h3>Система</h3><p>Идентичность процесса и сведения о сборке.</p></div><span class="pill"><span class="dot" id="system-dot"></span><span id="system-pill">неизвестно</span></span></div>
                 <div class="panel-body"><div class="kv" id="system-kv"></div></div>
             </article>
             <article class="panel">
-                <div class="panel-header"><div><h3>Network strategy</h3><p>The face looks outward, the API reads locally.</p></div></div>
+                <div class="panel-header"><div><h3>Сетевая архитектура</h3><p>Панель доступна по сети, а API читает состояние локально.</p></div></div>
                 <div class="panel-body"><div class="kv" id="network-kv"></div></div>
             </article>
         </section>
 
         <section class="section two" id="workspace">
             <article class="panel">
-                <div class="panel-header"><div><h3>Workspace policy</h3><p>Roots, gates and filesystem limits.</p></div><span class="pill"><span class="dot" id="workspace-dot"></span><span id="workspace-pill">unknown</span></span></div>
+                <div class="panel-header"><div><h3>Политика рабочей области</h3><p>Корневые каталоги, разрешения и ограничения файловой системы.</p></div><span class="pill"><span class="dot" id="workspace-dot"></span><span id="workspace-pill">неизвестно</span></span></div>
                 <div class="panel-body">
                     <div class="metric-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:0">
-                        <div class="metric"><span>Read</span><strong id="gate-read">—</strong><small>allowRead</small></div>
-                        <div class="metric"><span>Write</span><strong id="gate-write">—</strong><small>allowWrite</small></div>
-                        <div class="metric"><span>Delete</span><strong id="gate-delete">—</strong><small>allowDelete</small></div>
-                        <div class="metric"><span>Backups</span><strong id="gate-backups">—</strong><small>createBackups</small></div>
+                        <div class="metric"><span>Чтение</span><strong id="gate-read">—</strong><small>allowRead</small></div>
+                        <div class="metric"><span>Запись</span><strong id="gate-write">—</strong><small>allowWrite</small></div>
+                        <div class="metric"><span>Удаление</span><strong id="gate-delete">—</strong><small>allowDelete</small></div>
+                        <div class="metric"><span>Резервные копии</span><strong id="gate-backups">—</strong><small>createBackups</small></div>
                     </div>
                     <div class="kv" id="workspace-kv" style="margin-top:16px"></div>
                 </div>
             </article>
-            <article class="panel"><div class="panel-header"><div><h3>Workspace operations</h3><p>Contract advertised by the local service.</p></div></div><div class="panel-body"><div class="list" id="workspace-ops"></div></div></article>
+            <article class="panel"><div class="panel-header"><div><h3>Операции рабочей области</h3><p>Контракт операций, предоставляемый локальным сервисом.</p></div></div><div class="panel-body"><div class="list" id="workspace-ops"></div></div></article>
         </section>
 
         <section class="section two" id="toolbelt">
             <article class="panel">
-                <div class="panel-header"><div><h3>Toolbelt</h3><p>Summary plus compact tool sample.</p></div><span class="pill"><span class="dot" id="toolbelt-dot"></span><span id="toolbelt-pill">unknown</span></span></div>
+                <div class="panel-header"><div><h3>Реестр инструментов</h3><p>Сводка и компактная выборка зарегистрированных инструментов.</p></div><span class="pill"><span class="dot" id="toolbelt-dot"></span><span id="toolbelt-pill">неизвестно</span></span></div>
                 <div class="panel-body">
                     <div class="metric-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:0">
-                        <div class="metric"><span>Total</span><strong id="tools-total">—</strong><small>registered</small></div>
-                        <div class="metric"><span>Available</span><strong id="tools-available">—</strong><small>ready</small></div>
-                        <div class="metric"><span>Unavailable</span><strong id="tools-unavailable">—</strong><small>attention</small></div>
-                        <div class="metric"><span>Shown</span><strong id="tools-shown">—</strong><small>compact sample</small></div>
+                        <div class="metric"><span>Всего</span><strong id="tools-total">—</strong><small>зарегистрировано</small></div>
+                        <div class="metric"><span>Доступно</span><strong id="tools-available">—</strong><small>готово</small></div>
+                        <div class="metric"><span>Недоступно</span><strong id="tools-unavailable">—</strong><small>требует внимания</small></div>
+                        <div class="metric"><span>Показано</span><strong id="tools-shown">—</strong><small>компактная выборка</small></div>
                     </div>
                     <div class="kv" id="toolbelt-kv" style="margin-top:16px"></div>
                 </div>
             </article>
             <article class="panel">
-                <div class="panel-header"><div><h3>Tools</h3><p>Compact list from <code>/api/control-panel</code>.</p></div></div>
-                <div class="toolbar"><label class="search"><span>⌕</span><input id="tool-filter" type="search" placeholder="Filter compact tool list"></label><span class="badge info" id="tool-count">0 tools</span></div>
+                <div class="panel-header"><div><h3>Инструменты</h3><p>Компактный список из <code>/api/control-panel</code>.</p></div></div>
+                <div class="toolbar"><label class="search"><span>⌕</span><input id="tool-filter" type="search" placeholder="Filter compact tool list"></label><span class="badge info" id="tool-count">0 инструментов</span></div>
                 <div class="panel-body"><div class="list" id="tool-list"></div></div>
             </article>
         </section>
 
         <section class="section two" id="commands">
             <article class="panel">
-                <div class="panel-header"><div><h3>Commands</h3><p>Console registry, compact DTO.</p></div></div>
-                <div class="toolbar"><label class="search"><span>⌕</span><input id="command-filter" type="search" placeholder="Filter commands"></label><span class="badge info" id="command-count">0 commands</span></div>
+                <div class="panel-header"><div><h3>Команды</h3><p>Реестр команд консоли в компактном DTO.</p></div></div>
+                <div class="toolbar"><label class="search"><span>⌕</span><input id="command-filter" type="search" placeholder="Фильтр команд"></label><span class="badge info" id="command-count">0 команд</span></div>
                 <div class="panel-body"><div class="list" id="command-list"></div></div>
             </article>
             <article class="panel">
-                <div class="panel-header"><div><h3>Snapshot contract</h3><p>Schema and endpoint map.</p></div></div>
+                <div class="panel-header"><div><h3>Контракт снимка</h3><p>Схема данных и карта endpoint-ов.</p></div></div>
                 <div class="panel-body"><div class="kv" id="snapshot-kv"></div></div>
-                <details class="raw"><summary>Endpoint metadata</summary><pre id="endpoint-raw">loading...</pre></details>
+                <details class="raw"><summary>Метаданные endpoint-ов</summary><pre id="endpoint-raw">загрузка...</pre></details>
+            </article>
+        </section>
+
+
+        <section class="section" id="requests">
+            <article class="panel">
+                <div class="panel-header">
+                    <div><h3>SQL-журнал запросов</h3><p>Постоянная история запросов и ответов с редактированием чувствительных данных, фильтрами, пагинацией и просмотром полной записи.</p></div>
+                    <span class="pill"><span class="dot" id="request-journal-dot"></span><span id="request-journal-pill">загрузка</span></span>
+                </div>
+                <div class="request-metrics">
+                    <div class="metric"><span>Всего</span><strong id="requests-total">—</strong><small>сохранённых записей</small></div>
+                    <div class="metric"><span>За 24 часа</span><strong id="requests-24h">—</strong><small>недавний трафик</small></div>
+                    <div class="metric"><span>2xx</span><strong id="requests-success">—</strong><small>успешные</small></div>
+                    <div class="metric"><span>4xx / 5xx</span><strong id="requests-errors">—</strong><small>ошибки</small></div>
+                    <div class="metric"><span>Среднее</span><strong id="requests-average">—</strong><small>длительность</small></div>
+                </div>
+                <form class="request-toolbar" id="request-search-form">
+                    <input class="control-input" id="request-query" type="search" placeholder="Поиск по URI, заголовкам и телам запросов/ответов">
+                    <input class="control-input" id="request-path" type="search" placeholder="Путь содержит…">
+                    <select class="control-input" id="request-method" aria-label="HTTP-метод">
+                        <option value="">Все методы</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>OPTIONS</option>
+                    </select>
+                    <select class="control-input" id="request-status" aria-label="HTTP-статус">
+                        <option value="">Все статусы</option><option value="2xx">2xx</option><option value="3xx">3xx</option><option value="4xx">4xx</option><option value="5xx">5xx</option>
+                    </select>
+                    <input class="control-input" id="request-from" type="datetime-local" aria-label="Начальное время">
+                    <input class="control-input" id="request-to" type="datetime-local" aria-label="Конечное время">
+                    <button class="button" type="submit">Найти</button>
+                    <button class="button secondary" type="button" id="request-clear">Очистить</button>
+                </form>
+                <div class="request-grid">
+                    <div class="request-list-pane">
+                        <div class="badge-row" style="justify-content:space-between;margin-bottom:12px"><span class="badge info" id="request-count">0 запросов</span><span class="badge" id="request-query-time">SQL</span></div>
+                        <div class="request-list" id="request-list"></div>
+                        <div class="request-pager">
+                            <button class="button secondary" type="button" id="request-prev">Назад</button>
+                            <span class="badge info" id="request-page">страница 0 / 0</span>
+                            <button class="button secondary" type="button" id="request-next">Вперёд</button>
+                        </div>
+                    </div>
+                    <div class="request-detail" id="request-detail"><div class="request-empty">Выберите сохранённый запрос, чтобы посмотреть заголовки, тела, время выполнения и сведения об исключении.</div></div>
+                </div>
             </article>
         </section>
 
         <section class="section" id="raw">
-            <article class="panel"><div class="panel-header"><div><h3>Raw snapshot</h3><p>Debug view of the single panel API response.</p></div></div><div id="raw-responses"></div></article>
+            <article class="panel"><div class="panel-header"><div><h3>Исходный JSON</h3><p>Отладочное представление ответа основного API панели.</p></div></div><div id="raw-responses"></div></article>
         </section>
     </main>
 
-    <footer class="footer"><span>External static content: <code>static/index.html</code></span><span id="last-updated">Last update: never</span></footer>
+    <footer class="footer"><span>Внешний статический файл: <code>static/index.html</code></span><span id="last-updated">Последнее обновление: ещё не выполнялось</span></footer>
 </div>
 <script>
 (() => {
-    const state = { response: null, snapshot: null, error: null, auto: true, timer: null, refreshing: false, clientMs: null };
+    const state = {
+        response: null,
+        snapshot: null,
+        error: null,
+        auto: true,
+        timer: null,
+        refreshing: false,
+        clientMs: null,
+        requestPage: 0,
+        requestPageSize: 25,
+        requestResponse: null,
+        requestStats: null,
+        requestDetail: null,
+        requestError: null,
+        requestLoading: false,
+        requestNotificationsEnabled: false,
+        requestStreamConnected: false,
+        requestEventSource: null,
+        requestRefreshTimer: null
+    };
     const $ = (id) => document.getElementById(id);
     const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
     const asArray = (value) => Array.isArray(value) ? value : [];
     const json = (value) => JSON.stringify(value, null, 2);
-    const boolText = (value) => value === true ? 'ON' : value === false ? 'OFF' : '—';
+    const boolText = (value) => value === true ? 'ВКЛ' : value === false ? 'ВЫКЛ' : '—';
     const shortPath = (value) => String(value ?? '').replaceAll('\\\\', '/').replaceAll('\\', '/');
-    const fmtDate = (value) => value ? new Date(value).toLocaleString() : '—';
+    const fmtDate = (value) => value ? new Date(value).toLocaleString('ru-RU') : '—';
     const objectPairs = (value) => Object.entries(value || {}).map(([key, val]) => `${key}: ${val}`);
 
     function setText(id, value) { const el = $(id); if (el) el.textContent = value ?? '—'; }
@@ -379,22 +472,231 @@
         return body;
     }
 
+    function readNotificationPreference() {
+        try { return localStorage.getItem('springSuite.requestNotifications') === 'on'; }
+        catch (_) { return false; }
+    }
+
+    function writeNotificationPreference(enabled) {
+        try { localStorage.setItem('springSuite.requestNotifications', enabled ? 'on' : 'off'); }
+        catch (_) { /* Browser storage may be disabled. */ }
+    }
+
+    function notificationsSupported() {
+        return 'Notification' in window && 'EventSource' in window;
+    }
+
+    function updateNotificationButton() {
+        const button = $('request-notifications');
+        if (!button) return;
+        if (!notificationsSupported()) {
+            button.textContent = 'Уведомления не поддерживаются';
+            button.disabled = true;
+            return;
+        }
+        button.disabled = false;
+        if (Notification.permission === 'denied') {
+            button.textContent = 'Уведомления заблокированы';
+            button.title = 'Разрешите уведомления для этого сайта в настройках браузера.';
+            return;
+        }
+        button.title = '';
+        if (!state.requestNotificationsEnabled) {
+            button.textContent = Notification.permission === 'granted' ? 'Уведомления: выкл' : 'Включить уведомления';
+            return;
+        }
+        button.textContent = state.requestStreamConnected ? 'Уведомления: подключены' : 'Уведомления: подключение';
+    }
+
+    async function toggleRequestNotifications() {
+        if (!notificationsSupported()) return;
+        if (state.requestNotificationsEnabled) {
+            state.requestNotificationsEnabled = false;
+            state.requestStreamConnected = false;
+            writeNotificationPreference(false);
+            closeRequestNotificationStream();
+            updateNotificationButton();
+            return;
+        }
+
+        let permission = Notification.permission;
+        if (permission === 'default') permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            state.requestNotificationsEnabled = false;
+            writeNotificationPreference(false);
+            updateNotificationButton();
+            return;
+        }
+
+        state.requestNotificationsEnabled = true;
+        writeNotificationPreference(true);
+        connectRequestNotificationStream();
+        updateNotificationButton();
+    }
+
+    function initializeRequestNotifications() {
+        state.requestNotificationsEnabled = notificationsSupported()
+            && Notification.permission === 'granted'
+            && readNotificationPreference();
+        updateNotificationButton();
+        if (state.requestNotificationsEnabled) connectRequestNotificationStream();
+    }
+
+    function connectRequestNotificationStream() {
+        closeRequestNotificationStream();
+        if (!state.requestNotificationsEnabled || Notification.permission !== 'granted') {
+            updateNotificationButton();
+            return;
+        }
+        const source = new EventSource('/api/admin/requests/stream');
+        state.requestEventSource = source;
+        state.requestStreamConnected = false;
+        updateNotificationButton();
+
+        source.addEventListener('request-journal-ready', () => {
+            state.requestStreamConnected = true;
+            updateNotificationButton();
+        });
+        source.addEventListener('request-journal', event => {
+            state.requestStreamConnected = true;
+            updateNotificationButton();
+            try {
+                const request = JSON.parse(event.data);
+                showBrowserRequestNotification(request);
+                scheduleRequestJournalRefresh();
+            } catch (_) {
+                // Ignore malformed event data; EventSource remains connected.
+            }
+        });
+        source.onopen = () => {
+            state.requestStreamConnected = true;
+            updateNotificationButton();
+        };
+        source.onerror = () => {
+            state.requestStreamConnected = false;
+            updateNotificationButton();
+        };
+    }
+
+    function closeRequestNotificationStream() {
+        if (state.requestEventSource) {
+            state.requestEventSource.close();
+            state.requestEventSource = null;
+        }
+        state.requestStreamConnected = false;
+    }
+
+    function showBrowserRequestNotification(request) {
+        if (!state.requestNotificationsEnabled || Notification.permission !== 'granted') return;
+        const query = request.queryString ? `?${request.queryString}` : '';
+        const status = Number(request.responseStatus || 0);
+        const failure = request.exceptionType ? ` • ${request.exceptionType}` : '';
+        const preview = request.requestPreview ? `
+${request.requestPreview}` : '';
+        const notification = new Notification(`${request.method || 'HTTP'} ${request.requestUri || '/'}`, {
+            body: `HTTP ${status || '—'} • ${request.durationMs ?? '—'} ms • ${request.remoteAddress || 'неизвестно'}${failure}${preview}`,
+            tag: `spring-suite-request-${request.id}`,
+            icon: '/favicon.ico',
+            badge: '/favicon.ico',
+            renotify: false,
+            timestamp: request.startedAt ? new Date(request.startedAt).getTime() : Date.now(),
+            data: { id: request.id, route: `${request.requestUri || '/'}${query}` }
+        });
+        notification.onclick = () => {
+            window.focus();
+            window.location.hash = '#requests';
+            if (request.id) loadRequestDetail(request.id);
+            notification.close();
+        };
+    }
+
+    function scheduleRequestJournalRefresh() {
+        if (state.requestRefreshTimer) clearTimeout(state.requestRefreshTimer);
+        state.requestRefreshTimer = setTimeout(async () => {
+            await refreshRequestJournal(false);
+            renderRequests();
+        }, 300);
+    }
+
+    async function loadApi(path) {
+        const response = await fetch(new URL(path, window.location.origin));
+        const text = await response.text();
+        let body;
+        try { body = JSON.parse(text); }
+        catch (error) { body = { ok: false, code: 'invalid_json', message: error.message, data: text }; }
+        if (!response.ok || body.ok === false) {
+            throw Object.assign(new Error(body.message || ('HTTP ' + response.status)), { body, status: response.status });
+        }
+        return body;
+    }
+
+    function requestSearchPath() {
+        const params = new URLSearchParams({ page: String(state.requestPage), size: String(state.requestPageSize) });
+        const values = {
+            query: $('request-query')?.value.trim() || '',
+            path: $('request-path')?.value.trim() || '',
+            method: $('request-method')?.value || '',
+            status: $('request-status')?.value || '',
+            from: localDateToIso($('request-from')?.value),
+            to: localDateToIso($('request-to')?.value)
+        };
+        Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); });
+        return '/api/admin/requests?' + params.toString();
+    }
+
+    function localDateToIso(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+    }
+
+    async function refreshRequestJournal(resetPage) {
+        if (resetPage) state.requestPage = 0;
+        state.requestLoading = true;
+        state.requestError = null;
+        try {
+            const [stats, page] = await Promise.all([
+                loadApi('/api/admin/requests/stats'),
+                loadApi(requestSearchPath())
+            ]);
+            state.requestStats = stats;
+            state.requestResponse = page;
+        } catch (error) {
+            state.requestError = error?.body || { ok: false, message: error?.message || 'Не удалось выполнить запрос к журналу' };
+        } finally {
+            state.requestLoading = false;
+        }
+    }
+
+    async function loadRequestDetail(id) {
+        if (!id) return;
+        try {
+            const response = await loadApi('/api/admin/requests/' + encodeURIComponent(id));
+            state.requestDetail = response.data || null;
+            state.requestError = null;
+        } catch (error) {
+            state.requestError = error?.body || { ok: false, message: error?.message || 'Не удалось загрузить запись запроса' };
+        }
+        renderRequests();
+    }
+
     async function refreshAll() {
         if (state.refreshing) return;
         state.refreshing = true;
         $('refresh').disabled = true;
-        $('refresh').textContent = 'Refreshing...';
+        $('refresh').textContent = 'Обновление...';
         try {
             state.response = await loadSnapshot();
             state.snapshot = state.response.data || {};
             state.clientMs = state.response.__durationMs;
             state.error = null;
         } catch (error) {
-            state.error = error?.body || { ok: false, message: error?.message || 'request failed' };
+            state.error = error?.body || { ok: false, message: error?.message || 'Запрос завершился ошибкой' };
         }
+        await refreshRequestJournal(false);
         render();
         $('refresh').disabled = false;
-        $('refresh').textContent = 'Refresh';
+        $('refresh').textContent = 'Обновить';
         state.refreshing = false;
     }
 
@@ -405,42 +707,42 @@
         const sys = s.system || {};
         const c = sys.components || {};
         if (state.error) return [
-            ['bad', 'Control snapshot failed', state.error.message || 'The browser could not read /api/control-panel.', state.error.code || 'ERR'],
-            ['warn', 'Check runtime path', 'Verify tunnel, port 8090, and that the deployed jar contains ControlPanelController.', 'DIAG']
+            ['bad', 'Не удалось получить снимок управления', state.error.message || 'Браузер не смог прочитать /api/control-panel.', state.error.code || 'ERR'],
+            ['warn', 'Проверьте путь запуска', 'Проверьте порт, доступность SpringSuite и наличие ControlPanelController в собранном JAR.', 'DIAG']
         ];
         const out = [];
-        out.push(['ok', 'Snapshot online', `Browser used one compact request; JVM collected local state in ${s.durationMs ?? '—'} ms.`, `${state.clientMs ?? '—'} ms`]);
-        out.push(['info', 'Network minimized', 'Heavy endpoints /api/agent/manifest and /api/toolbelt/index are no longer part of initial render.', 'COMPACT']);
-        if (w.allowWrite || w.allowDelete) out.push(['warn', 'Mutation gates enabled', `write=${w.allowWrite}, delete=${w.allowDelete}. The panel is read-only, but backend gates are open.`, 'ELEVATED']);
-        else out.push(['ok', 'Workspace gates conservative', 'Write/delete gates are not both open.', 'SAFE']);
-        if ((t.unavailableCount || 0) > 0) out.push(['warn', 'Toolbelt partially degraded', `${t.unavailableCount} of ${t.count} tools are unavailable.`, 'DEGRADED']);
-        else out.push(['ok', 'Toolbelt available', `${t.availableCount ?? 0} tools are available.`, 'READY']);
-        if (String(c.gitDirty) === 'true') out.push(['warn', 'Dirty build', `Runtime build ${c.build || 'unknown'} was created from a dirty working tree.`, 'GIT']);
+        out.push(['ok', 'Снимок доступен', `Браузер выполнил один компактный запрос; JVM собрала локальное состояние за ${s.durationMs ?? '—'} ms.`, `${state.clientMs ?? '—'} ms`]);
+        out.push(['info', 'Сетевая нагрузка минимизирована', 'Тяжёлые endpoint-ы /api/agent/manifest и /api/toolbelt/index не вызываются при первоначальном отображении.', 'COMPACT']);
+        if (w.allowWrite || w.allowDelete) out.push(['warn', 'Разрешены изменяющие операции', `write=${w.allowWrite}, delete=${w.allowDelete}. Панель доступна только для чтения, но backend-разрешения открыты.`, 'ELEVATED']);
+        else out.push(['ok', 'Политика рабочей области консервативна', 'Запись и удаление не разрешены одновременно.', 'SAFE']);
+        if ((t.unavailableCount || 0) > 0) out.push(['warn', 'Часть инструментов недоступна', `${t.unavailableCount} of ${t.count} инструментов недоступно.`, 'DEGRADED']);
+        else out.push(['ok', 'Инструменты доступны', `${t.availableCount ?? 0} инструментов доступно.`, 'READY']);
+        if (String(c.gitDirty) === 'true') out.push(['warn', 'Сборка из изменённого дерева', `Runtime build ${c.build || 'unknown'} создана из рабочего дерева с незакоммиченными изменениями.`, 'GIT']);
         return out;
     }
 
     function render() {
-        renderHeader(); renderStatusConsole(); renderEndpoints(); renderSystem(); renderWorkspace(); renderToolbelt(); renderCommands(); renderSnapshot(); renderRaw();
-        setText('last-updated', 'Last update: ' + new Date().toLocaleString());
+        renderHeader(); renderStatusConsole(); renderEndpoints(); renderSystem(); renderWorkspace(); renderToolbelt(); renderCommands(); renderRequests(); renderSnapshot(); renderRaw();
+        setText('last-updated', 'Последнее обновление: ' + new Date().toLocaleString('ru-RU'));
     }
 
     function renderHeader() {
         const ok = !state.error && state.response?.ok === true;
         setDot('global-dot', ok);
-        setText('global-status', ok ? `online • ${state.clientMs} ms` : 'offline');
-        setText('hero-title', ok ? 'Control plane synchronized.' : 'Control plane unavailable.');
-        setText('hero-message', ok ? 'The UI is network-facing, but data is collected by a local JVM snapshot through /api/control-panel.' : 'The panel cannot read the compact snapshot. Check tunnel and SpringSuite runtime.');
+        setText('global-status', ok ? `онлайн • ${state.clientMs} мс` : 'недоступно');
+        setText('hero-title', ok ? 'Контур управления синхронизирован.' : 'Контур управления недоступен.');
+        setText('hero-message', ok ? 'Панель доступна по сети, но данные собираются локальным JVM-снимком через /api/control-panel.' : 'Панель не может прочитать компактный снимок. Проверьте SpringSuite и сетевой порт.');
         const sys = state.snapshot?.system || {};
         const c = sys.components || {};
         setText('metric-status', sys.status || '—');
-        setText('metric-status-sub', `PID ${c.pid || '—'} • ${c.version || 'unknown'}`);
+        setText('metric-status-sub', `PID ${c.pid || '—'} • ${c.version || 'неизвестно'}`);
         setText('metric-snapshot', state.snapshot?.durationMs == null ? '—' : `${state.snapshot.durationMs} ms`);
         setText('metric-snapshot-sub', `client ${state.clientMs ?? '—'} ms`);
         setText('metric-tools', state.snapshot?.toolbelt?.count ?? '—');
-        setText('metric-tools-sub', `${state.snapshot?.toolbelt?.availableCount ?? '—'} available • ${state.snapshot?.toolbelt?.unavailableCount ?? '—'} unavailable`);
+        setText('metric-tools-sub', `${state.snapshot?.toolbelt?.availableCount ?? '—'} доступно • ${state.snapshot?.toolbelt?.unavailableCount ?? '—'} недоступно`);
         const commands = asArray(state.snapshot?.commands);
         setText('metric-commands', commands.length || '—');
-        setText('metric-commands-sub', `${new Set(commands.map(c => c.category)).size || 0} categories`);
+        setText('metric-commands-sub', `${new Set(commands.map(c => c.category)).size || 0} категорий`);
     }
 
     function renderStatusConsole() {
@@ -455,38 +757,38 @@
             const heavy = String(endpoint.risk || '').includes('HEAVY');
             const live = endpoint.endpoint === '/api/control-panel';
             const level = live ? 'good' : heavy ? 'warn' : 'info';
-            const label = live ? 'live fetch' : heavy ? 'debug only' : 'local DTO';
+            const label = live ? 'активный запрос' : heavy ? 'только отладка' : 'локальный DTO';
             return `<article class="endpoint-card"><div><div class="item-top"><strong>${esc(endpoint.summary || endpoint.id)}</strong><span class="badge ${level}">${label}</span></div><code>${esc(endpoint.endpoint)}</code></div><div class="badge-row"><span class="badge info">${esc(endpoint.method)}</span><span class="badge ${riskClass(endpoint.risk)}">${esc(endpoint.risk)}</span></div></article>`;
-        }).join('') || empty('No endpoint metadata yet.');
+        }).join('') || empty('Метаданные endpoint-ов пока отсутствуют.');
     }
 
     function renderSystem() {
         const sys = state.snapshot?.system || {}; const c = sys.components || {}; const ok = !state.error && sys.status === 'READY';
-        setDot('system-dot', ok); setText('system-pill', sys.status || 'unknown');
+        setDot('system-dot', ok); setText('system-pill', sys.status || 'неизвестно');
         $('system-kv').innerHTML = rows([
-            ['Application', sys.application], ['Version', c.version], ['Build', c.build], ['Git', `${c.gitBranch || '—'} @ ${c.gitCommit || '—'}${String(c.gitDirty) === 'true' ? ' dirty' : ''}`], ['Started', fmtDate(sys.startedAt)], ['Java', c.java], ['Project root', shortPath(c.projectRoot)], ['Modules', `${c.modulesCount || '0'} loaded / ${c.modulesBlockedCount || '0'} blocked`]
+            ['Приложение', sys.application], ['Версия', c.version], ['Сборка', c.build], ['Git', `${c.gitBranch || '—'} @ ${c.gitCommit || '—'}${String(c.gitDirty) === 'true' ? ' dirty' : ''}`], ['Запущено', fmtDate(sys.startedAt)], ['Java', c.java], ['Корень проекта', shortPath(c.projectRoot)], ['Модули', `${c.modulesCount || '0'} загружено / ${c.modulesBlockedCount || '0'} заблокировано`]
         ]);
         $('network-kv').innerHTML = rows([
-            ['Browser endpoint', '/api/control-panel'], ['Server collection', 'WorkspaceService + ToolbeltService + CommandRegistry'], ['Heavy endpoints', 'not fetched during initial render'], ['Snapshot size goal', 'compact DTO, no tool terms'], ['Client latency', state.clientMs == null ? '—' : `${state.clientMs} ms`], ['Server duration', state.snapshot?.durationMs == null ? '—' : `${state.snapshot.durationMs} ms`]
+            ['Endpoint браузера', '/api/control-panel'], ['Сбор данных сервером', 'WorkspaceService + ToolbeltService + CommandRegistry'], ['Тяжёлые endpoint-ы', 'не вызываются при первоначальном отображении'], ['Цель размера снимка', 'компактный DTO без терминов инструментов'], ['Задержка клиента', state.clientMs == null ? '—' : `${state.clientMs} ms`], ['Время сервера', state.snapshot?.durationMs == null ? '—' : `${state.snapshot.durationMs} ms`]
         ]);
     }
 
     function renderWorkspace() {
         const w = state.snapshot?.workspace || {}; const ok = !state.error && w.enabled === true;
-        setDot('workspace-dot', ok); setText('workspace-pill', w.enabled ? 'enabled' : 'disabled');
+        setDot('workspace-dot', ok); setText('workspace-pill', w.enabled ? 'включено' : 'отключено');
         setText('gate-read', boolText(w.allowRead)); setText('gate-write', boolText(w.allowWrite)); setText('gate-delete', boolText(w.allowDelete)); setText('gate-backups', boolText(w.createBackups));
         $('workspace-kv').innerHTML = rows([
-            ['Roots', asArray(w.roots).map(shortPath).join(' | ')], ['Max read', w.maxReadBytes ? `${w.maxReadBytes} bytes` : '—'], ['Max file', w.maxFileSizeBytes ? `${w.maxFileSizeBytes} bytes` : '—'], ['Deny segments', asArray(w.denySegments).join(', ')], ['Text extensions', asArray(w.textExtensions).slice(0, 18).join(', ') + (asArray(w.textExtensions).length > 18 ? '…' : '')]
+            ['Корневые каталоги', asArray(w.roots).map(shortPath).join(' | ')], ['Максимум чтения', w.maxReadBytes ? `${w.maxReadBytes} bytes` : '—'], ['Максимальный файл', w.maxFileSizeBytes ? `${w.maxFileSizeBytes} bytes` : '—'], ['Запрещённые сегменты', asArray(w.denySegments).join(', ')], ['Текстовые расширения', asArray(w.textExtensions).slice(0, 18).join(', ') + (asArray(w.textExtensions).length > 18 ? '…' : '')]
         ]);
-        $('workspace-ops').innerHTML = asArray(w.operations).map(op => `<div class="item"><div class="item-top"><strong>${esc(op.id || op.command)}</strong><span class="badge ${op.risk === 'READ_ONLY' ? 'good' : 'warn'}">${esc(op.risk)}</span></div><p>${esc(op.summary || '')}</p><div class="badge-row"><span class="badge info">${esc(op.method)}</span><code>${esc(op.endpoint)}</code></div></div>`).join('') || empty('No workspace operations returned.');
+        $('workspace-ops').innerHTML = asArray(w.operations).map(op => `<div class="item"><div class="item-top"><strong>${esc(op.id || op.command)}</strong><span class="badge ${op.risk === 'READ_ONLY' ? 'good' : 'warn'}">${esc(op.risk)}</span></div><p>${esc(op.summary || '')}</p><div class="badge-row"><span class="badge info">${esc(op.method)}</span><code>${esc(op.endpoint)}</code></div></div>`).join('') || empty('Операции рабочей области не получены.');
     }
 
     function renderToolbelt() {
         const t = state.snapshot?.toolbelt || {}; const tools = asArray(state.snapshot?.tools); const ok = !state.error && t.enabled === true;
-        setDot('toolbelt-dot', ok); setText('toolbelt-pill', t.enabled ? 'enabled' : 'disabled');
+        setDot('toolbelt-dot', ok); setText('toolbelt-pill', t.enabled ? 'включено' : 'отключено');
         setText('tools-total', t.count ?? tools.length ?? '—'); setText('tools-available', t.availableCount ?? '—'); setText('tools-unavailable', t.unavailableCount ?? '—'); setText('tools-shown', tools.length || '—');
         $('toolbelt-kv').innerHTML = rows([
-            ['Scanned at', fmtDate(t.scannedAt)], ['By source', objectPairs(t.bySource).join(' | ')], ['By kind', objectPairs(t.byKind).join(' | ')], ['Index mode', `${tools.length} sample tools, terms omitted`]
+            ['Сканирование', fmtDate(t.scannedAt)], ['По источнику', objectPairs(t.bySource).join(' | ')], ['По типу', objectPairs(t.byKind).join(' | ')], ['Режим индекса', `${tools.length} инструментов в выборке, термины не загружены`]
         ]);
         renderToolList();
     }
@@ -494,36 +796,158 @@
     function renderToolList() {
         const tools = asArray(state.snapshot?.tools); const query = $('tool-filter').value.trim().toLowerCase();
         const filtered = tools.filter(tool => !query || [tool.id, tool.publicName, tool.source, tool.kind, String(tool.available)].join(' ').toLowerCase().includes(query));
-        setText('tool-count', `${filtered.length}/${tools.length} shown`);
-        $('tool-list').innerHTML = filtered.map(tool => `<div class="item"><div class="item-top"><strong title="${esc(tool.publicName || tool.id)}">${esc(tool.publicName || tool.id)}</strong><span class="badge ${tool.available ? 'good' : 'bad'}">${tool.available ? 'available' : 'missing'}</span></div><div class="badge-row"><span class="badge info">${esc(tool.source)}</span><span class="badge">${esc(tool.kind)}</span><code>${esc(tool.id)}</code></div></div>`).join('') || empty('No tools match the current filter.');
+        setText('tool-count', `${filtered.length}/${tools.length} показано`);
+        $('tool-list').innerHTML = filtered.map(tool => `<div class="item"><div class="item-top"><strong title="${esc(tool.publicName || tool.id)}">${esc(tool.publicName || tool.id)}</strong><span class="badge ${tool.available ? 'good' : 'bad'}">${tool.available ? 'доступен' : 'отсутствует'}</span></div><div class="badge-row"><span class="badge info">${esc(tool.source)}</span><span class="badge">${esc(tool.kind)}</span><code>${esc(tool.id)}</code></div></div>`).join('') || empty('Нет инструментов, соответствующих фильтру.');
     }
 
     function renderCommands() {
         const commands = asArray(state.snapshot?.commands); const query = $('command-filter').value.trim().toLowerCase();
         const filtered = commands.filter(command => !query || [command.name, command.category, command.riskLevel, command.summary].join(' ').toLowerCase().includes(query));
-        setText('command-count', `${filtered.length}/${commands.length} commands`);
-        $('command-list').innerHTML = filtered.map(command => `<div class="item"><div class="item-top"><strong>${esc(command.name)}</strong><span class="badge ${riskClass(command.riskLevel)}">${esc(command.riskLevel)}</span></div><p>${esc(command.summary || '')}</p><div class="badge-row"><span class="badge info">${esc(command.category)}</span><code>${esc(command.usage)}</code></div></div>`).join('') || empty('No commands match the current filter.');
+        setText('command-count', `${filtered.length}/${commands.length} команд`);
+        $('command-list').innerHTML = filtered.map(command => `<div class="item"><div class="item-top"><strong>${esc(command.name)}</strong><span class="badge ${riskClass(command.riskLevel)}">${esc(command.riskLevel)}</span></div><p>${esc(command.summary || '')}</p><div class="badge-row"><span class="badge info">${esc(command.category)}</span><code>${esc(command.usage)}</code></div></div>`).join('') || empty('Нет команд, соответствующих фильтру.');
+    }
+
+
+    function renderRequests() {
+        const page = state.requestResponse?.data || {};
+        const stats = state.requestStats?.data || {};
+        const items = asArray(page.items);
+        const online = !state.requestError && state.requestResponse?.ok === true;
+        setDot('request-journal-dot', online);
+        setText('request-journal-pill', state.requestLoading ? 'запрос' : online ? 'SQL доступен' : 'недоступно');
+        setText('requests-total', stats.total ?? page.totalElements ?? '—');
+        setText('requests-24h', stats.last24Hours ?? '—');
+        setText('requests-success', stats.successful ?? '—');
+        const failures = stats.clientErrors == null && stats.serverErrors == null ? '—' : (Number(stats.clientErrors || 0) + Number(stats.serverErrors || 0));
+        setText('requests-errors', failures);
+        setText('requests-average', stats.averageDurationMs == null ? '—' : `${Math.round(stats.averageDurationMs)} ms`);
+        setText('request-count', state.requestError ? 'ошибка запроса' : `${page.totalElements ?? 0} найдено`);
+        setText('request-query-time', state.requestLoading ? 'выполняется запрос…' : `размер страницы ${page.size ?? state.requestPageSize}`);
+
+        const selectedId = state.requestDetail?.id || '';
+        $('request-list').innerHTML = state.requestError
+            ? `<div class="request-empty">${esc(state.requestError.message || 'The SQL request journal is недоступно.')}</div>`
+            : items.map(item => {
+                const statusClass = requestStatusClass(item.responseStatus);
+                const query = item.queryString ? `?${item.queryString}` : '';
+                const preview = item.exceptionType || item.requestPreview || item.responsePreview || 'Предпросмотр тела отсутствует';
+                return `<button class="request-entry ${selectedId === item.id ? 'is-selected' : ''}" type="button" data-request-id="${esc(item.id)}">
+                    <span class="method">${esc(item.method)}</span>
+                    <span class="route"><strong>${esc(item.requestUri)}${esc(query)}</strong><small>${esc(fmtDate(item.startedAt))} • ${esc(preview)}</small></span>
+                    <span class="result"><span class="badge ${statusClass}">${esc(item.responseStatus)}</span><small>${esc(item.durationMs)} ms</small></span>
+                </button>`;
+            }).join('') || `<div class="request-empty">Нет сохранённых запросов, соответствующих фильтрам.</div>`;
+
+        const currentPage = Number(page.page ?? state.requestPage);
+        const totalPages = Number(page.totalPages ?? 0);
+        setText('request-page', totalPages ? `страница ${currentPage + 1} / ${totalPages}` : 'страница 0 / 0');
+        $('request-prev').disabled = state.requestLoading || currentPage <= 0;
+        $('request-next').disabled = state.requestLoading || totalPages === 0 || currentPage + 1 >= totalPages;
+        renderRequestDetail();
+    }
+
+    function renderRequestDetail() {
+        const item = state.requestDetail;
+        if (!item) {
+            $('request-detail').innerHTML = '<div class="request-empty">Выберите сохранённый запрос, чтобы посмотреть заголовки, тела, время выполнения и сведения об исключении.</div>';
+            return;
+        }
+        const query = item.queryString ? `?${item.queryString}` : '';
+        const exception = item.exceptionType ? `${item.exceptionType}: ${item.exceptionMessage || ''}` : 'нет';
+        $('request-detail').innerHTML = `<div class="request-detail-head">
+            <div class="item-top"><h4>${esc(item.method)} ${esc(item.requestUri)}${esc(query)}</h4><span class="badge ${requestStatusClass(item.responseStatus)}">${esc(item.responseStatus)}</span></div>
+            <p>${esc(fmtDate(item.startedAt))} • ${esc(item.durationMs)} ms • request ${esc(formatBytes(item.requestSizeBytes))} • response ${esc(formatBytes(item.responseSizeBytes))}</p>
+        </div>
+        <div class="panel-body"><div class="kv">${rows([
+            ['ID запроса', item.id], ['ID корреляции', item.correlationId], ['Завершён', fmtDate(item.completedAt)],
+            ['Источник', `${item.scheme || 'http'}://${item.host || 'unknown'}:${item.serverPort || '—'}`],
+            ['Удалённый адрес', `${item.remoteAddress || '—'}${item.remoteUser ? ' • ' + item.remoteUser : ''}`],
+            ['User-Agent', item.userAgent || '—'], ['Тип запроса', item.requestContentType || '—'],
+            ['Тип ответа', item.responseContentType || '—'], ['Исключение', exception],
+            ['Захват', `запрос обрезан=${item.requestBodyTruncated} • ответ обрезан=${item.responseBodyTruncated}`]
+        ])}</div></div>
+        ${detailBlock('Заголовки запроса', prettyStored(item.requestHeaders))}
+        ${detailBlock('Тело запроса', prettyStored(item.requestBody))}
+        ${detailBlock('Заголовки ответа', prettyStored(item.responseHeaders))}
+        ${detailBlock('Тело ответа', prettyStored(item.responseBody))}`;
+    }
+
+    function detailBlock(title, value) {
+        return `<div class="request-detail-block"><h5>${esc(title)}</h5><pre>${esc(value || '—')}</pre></div>`;
+    }
+
+    function prettyStored(value) {
+        if (value == null || value === '') return '';
+        if (typeof value !== 'string') return json(value);
+        try { return json(JSON.parse(value)); }
+        catch (_) { return value; }
+    }
+
+    function requestStatusClass(status) {
+        const code = Number(status || 0);
+        if (code >= 200 && code < 300) return 'good';
+        if (code >= 300 && code < 400) return 'info';
+        if (code >= 400 && code < 500) return 'warn';
+        if (code >= 500) return 'bad';
+        return 'info';
+    }
+
+    function formatBytes(value) {
+        const bytes = Number(value || 0);
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
     }
 
     function renderSnapshot() {
         const s = state.snapshot || {};
-        $('snapshot-kv').innerHTML = rows([['Schema', s.schema], ['Generated', fmtDate(s.generatedAt)], ['Server duration', s.durationMs == null ? '—' : `${s.durationMs} ms`], ['Client latency', state.clientMs == null ? '—' : `${state.clientMs} ms`], ['Commands', asArray(s.commands).length], ['Tools shown', asArray(s.tools).length]]);
+        $('snapshot-kv').innerHTML = rows([['Схема', s.schema], ['Сформировано', fmtDate(s.generatedAt)], ['Время сервера', s.durationMs == null ? '—' : `${s.durationMs} ms`], ['Задержка клиента', state.clientMs == null ? '—' : `${state.clientMs} ms`], ['Команды', asArray(s.commands).length], ['Показано инструментов', asArray(s.tools).length]]);
         $('endpoint-raw').textContent = json(s.endpoints || []);
     }
 
     function renderRaw() {
-        const payload = state.error || state.response || { ok: false, message: 'not loaded' };
-        $('raw-responses').innerHTML = `<details class="raw" open><summary>Control panel snapshot <code>/api/control-panel</code></summary><pre>${esc(json(payload))}</pre></details>`;
+        const payload = state.error || state.response || { ok: false, message: 'не загружено' };
+        $('raw-responses').innerHTML = `<details class="raw" open><summary>Снимок панели управления <code>/api/control-panel</code></summary><pre>${esc(json(payload))}</pre></details>`;
     }
 
     function rows(items) { return items.map(([key, value]) => `<div class="kv-row"><span>${esc(key)}</span><strong title="${esc(value ?? '—')}">${esc(value ?? '—')}</strong></div>`).join(''); }
     function empty(message) { return `<div class="item"><p>${esc(message)}</p></div>`; }
-    function setAuto(next) { state.auto = next; $('toggle-auto').textContent = 'Auto: ' + (next ? 'on' : 'off'); if (state.timer) clearInterval(state.timer); state.timer = next ? setInterval(refreshAll, 10000) : null; }
+    function setAuto(next) { state.auto = next; $('toggle-auto').textContent = 'Авто: ' + (next ? 'вкл' : 'выкл'); if (state.timer) clearInterval(state.timer); state.timer = next ? setInterval(refreshAll, 10000) : null; }
 
     $('refresh').addEventListener('click', refreshAll);
+    $('request-notifications').addEventListener('click', toggleRequestNotifications);
     $('toggle-auto').addEventListener('click', () => setAuto(!state.auto));
     $('tool-filter').addEventListener('input', renderToolList);
     $('command-filter').addEventListener('input', renderCommands);
+
+    $('request-search-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        await refreshRequestJournal(true);
+        renderRequests();
+    });
+    $('request-clear').addEventListener('click', async () => {
+        ['request-query', 'request-path', 'request-method', 'request-status', 'request-from', 'request-to'].forEach(id => { $(id).value = ''; });
+        state.requestDetail = null;
+        await refreshRequestJournal(true);
+        renderRequests();
+    });
+    $('request-prev').addEventListener('click', async () => {
+        if (state.requestPage <= 0) return;
+        state.requestPage--;
+        await refreshRequestJournal(false);
+        renderRequests();
+    });
+    $('request-next').addEventListener('click', async () => {
+        state.requestPage++;
+        await refreshRequestJournal(false);
+        renderRequests();
+    });
+    $('request-list').addEventListener('click', event => {
+        const target = event.target.closest('[data-request-id]');
+        if (target) loadRequestDetail(target.dataset.requestId);
+    });
+    window.addEventListener('beforeunload', closeRequestNotificationStream);
+    initializeRequestNotifications();
     setAuto(true);
     refreshAll();
 })();

@@ -9,3 +9,18 @@ out/
 /config/
 /modules/
 /.springsuite/
+
+# Embedded SQL runtime data
+/data/
+
+# Local assembled runtime and generated migration artifacts
+/spring-suite.jar
+/spring-suite.jar.bak-*
+/deploy-manifest.json
+/DEPLOY_MANIFEST.json
+/MIGRATION-REPORT.json
+
+# Native build/debug outputs outside the production suiteBinaries payload
+/goSrc/**/*.exe
+/suiteBinaries/*-debug.exe
+/suiteBinaries/*.bak-*

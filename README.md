@@ -68,6 +68,35 @@ GET  /api/tunnel/cloudflared/logs
 GET  /actuator/health
 ```
 
+## SQL request journal
+
+The `suite-database` module adds persistent SQL storage, Flyway migrations and a global HTTP request journal covering every inbound HTTP route by default. The default profile uses an embedded H2 file database at `data/spring-suite`; the runtime data directory is intentionally ignored by Git.
+
+Captured data includes request/correlation identifiers, timestamps, method and URI, query string, origin and remote metadata, headers, request body, response status, response headers/body, byte counts, truncation flags, duration and exception information. Credential-shaped fields are redacted before persistence by default, including authorization headers, cookies, passwords, API keys and tokens. Request and response body capture is bounded to 1 MiB per direction by default.
+
+Administration endpoints:
+
+- `GET /api/admin/requests` — paginated search. Supported parameters: `query`, `path`, `method`, `status` (`200` or `2xx`), `from`, `to`, `page`, and `size`.
+- `GET /api/admin/requests/{id}` — complete stored request/response record.
+- `GET /api/admin/requests/stats` — total, last-24-hour, status-class and latency statistics.
+- `GET /api/admin/requests/stream` — SSE stream emitted after every successfully persisted incoming request.
+- `GET /actuator/health` — includes the `suiteDatabase` health component.
+
+The browser control panel exposes the same data in the **SQL Request Journal** section with full-text search, filters, paging and record inspection. The **Enable notifications** action requests the browser permission once, stores the local preference and subscribes to the SSE stream. After permission is granted, every newly persisted incoming request produces a native Browser Notification; clicking it focuses the panel and opens that request record. The panel page must remain open, while it may be minimized or in a background tab. Journal administration endpoints and the operator SSE stream are excluded from capture to prevent recursive/self-generated traffic.
+
+Database and capture settings live in `config/suite-database.yml`. To use PostgreSQL, replace the datasource block, for example:
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/spring_suite
+    driver-class-name: org.postgresql.Driver
+    username: spring_suite
+    password: ${SPRING_SUITE_DB_PASSWORD}
+```
+
+The PostgreSQL JDBC and Flyway database modules are already present on the runtime classpath.
+
 ## OpenAI integration
 
 SpringSuite includes the `suite-openai` module for server-side OpenAI access. It keeps secrets outside Java code and resolves bearer credentials in this order when `suite.openai.auth.mode=auto`:
@@ -151,6 +180,14 @@ Runtime endpoints:
 - `POST /api/desktop-helper/context/analyze` — analyze `DesktopFocusContext` and report risk, field counts and next actions.
 - `POST /api/desktop-helper/hints` — generate validation, safety and focused-field hints.
 - `POST /api/desktop-helper/form-fill/plan` — map safe profile/constraint values to detected form fields and return an approval-aware plan.
+- `POST /api/desktop-helper/browser-dom/snapshot` — ingest a privacy-preserving semantic snapshot of HTML `<form>` elements.
+- `GET /api/desktop-helper/browser-dom/status` — inspect browser bridge connectivity and recognition counters.
+
+### Browser `<form>` recognition
+
+The Chromium Manifest V3 extension at `browser-extension/springsuite-form-bridge` recognizes native forms, labels, input types, required/disabled/read-only state, select options, submit controls and approximate bounds. It sends only structure plus `valuePresent`; entered values, passwords, selected-option indexes, cookies and page source are not transported. Query strings and URL fragments are removed server-side.
+
+The ingest surface is direct-loopback-only and requires `X-SpringSuite-Browser-Token` by default, so it cannot be reached through the public cloudflared route. DOM write and submit operations remain disabled; the resulting snapshot is used for analysis, hints and fill planning. Setup and verification are documented in [`docs/browser-form-bridge.md`](docs/browser-form-bridge.md).
 
 Console commands:
 

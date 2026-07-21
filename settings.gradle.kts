@@ -17,6 +17,7 @@ rootProject.name = "spring-suite"
 include(
     "suite-core",
     "suite-logging",
+    "suite-database",
     "suite-config",
     "suite-module",
     "suite-cloudflared",

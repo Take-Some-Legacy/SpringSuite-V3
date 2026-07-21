@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "SpringSuite Form Bridge",
+  "version": "0.2.0",
+  "description": "Recognizes HTML forms and sends privacy-preserving DOM snapshots to the local SpringSuite runtime.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "http://[::1]/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_title": "SpringSuite Form Bridge"
+  }
+}

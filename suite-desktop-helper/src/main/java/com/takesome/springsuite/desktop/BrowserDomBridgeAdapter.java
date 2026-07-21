@@ -8,19 +8,35 @@ import org.springframework.stereotype.Component;
 public class BrowserDomBridgeAdapter implements DesktopBridgeAdapter {
     private static final String ID = "browser-dom-bridge-adapter";
 
+    private final BrowserDomProperties properties;
+
+    public BrowserDomBridgeAdapter(BrowserDomProperties properties) {
+        this.properties = properties;
+    }
+
     @Override
     public Descriptor descriptor() {
         return new Descriptor(
                 ID,
-                "Browser DOM Bridge Adapter",
+                "Browser DOM Form Bridge",
+                properties.isEnabled(),
                 false,
-                false,
-                List.of("browser-dom", "form-fill", "field-select", "submit", "external-extension-required", "disabled"),
-                List.of("fill", "select", "check", "uncheck", "submit"),
+                List.of(
+                        "browser-dom",
+                        "web-form-recognition",
+                        "field-detection",
+                        "label-resolution",
+                        "form-action-method",
+                        "extension-ingest",
+                        "read-only"
+                ),
+                List.of(),
                 Map.of(
-                        "realDesktopInput", false,
-                        "futureBackend", "Browser extension or local browser bridge",
-                        "contract", "Metadata skeleton only. No DOM bridge process is wired yet."
+                        "recognitionEnabled", properties.isEnabled(),
+                        "snapshotEndpoint", properties.getEndpointPath(),
+                        "writeActionsEnabled", false,
+                        "backend", "SpringSuite Form Bridge browser extension",
+                        "contract", "DOM recognition is active through the snapshot endpoint. DOM mutation and submit actions remain disabled."
                 )
         );
     }
@@ -29,12 +45,15 @@ public class BrowserDomBridgeAdapter implements DesktopBridgeAdapter {
     public BridgeActionResult perform(BridgeActionContext context) {
         String actionId = context == null || context.action() == null ? "" : context.action().actionId();
         return BridgeActionResult.failed(
-                "bridge_disabled",
-                ID + " is a metadata skeleton and cannot perform DOM actions yet.",
+                "browser_dom_write_disabled",
+                "Browser DOM recognition is available, but DOM write actions are not enabled.",
                 ID,
                 actionId,
-                List.of("No browser DOM bridge is wired."),
-                Map.of("bridge", descriptor())
+                List.of("Use the recognized form for analysis and fill planning only."),
+                Map.of(
+                        "snapshotEndpoint", properties.getEndpointPath(),
+                        "recognitionEnabled", properties.isEnabled()
+                )
         );
     }
 }

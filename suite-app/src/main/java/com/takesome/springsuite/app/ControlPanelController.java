@@ -97,7 +97,10 @@ public class ControlPanelController {
                 new ApiEndpoint("workspace", "GET", "/api/workspace", "Workspace contract", "READ_ONLY"),
                 new ApiEndpoint("toolbelt", "GET", "/api/toolbelt", "Toolbelt summary", "READ_ONLY"),
                 new ApiEndpoint("toolIndex", "GET", "/api/toolbelt/index", "Full tool index with search terms", "READ_ONLY_HEAVY"),
-                new ApiEndpoint("commands", "GET", "/api/commands", "Command registry", "READ_ONLY")
+                new ApiEndpoint("commands", "GET", "/api/commands", "Command registry", "READ_ONLY"),
+                new ApiEndpoint("requestJournal", "GET", "/api/admin/requests", "SQL-backed request journal search", "READ_ONLY_HEAVY"),
+                new ApiEndpoint("requestJournalStats", "GET", "/api/admin/requests/stats", "Request journal statistics", "READ_ONLY"),
+                new ApiEndpoint("requestJournalStream", "GET", "/api/admin/requests/stream", "Live request journal SSE notifications", "READ_ONLY_STREAM")
         );
     }
 

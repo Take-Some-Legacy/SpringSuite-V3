@@ -24,7 +24,7 @@
 
   function saveHistory() {
     try { localStorage.setItem('springsuite.webConsole.history', JSON.stringify(state.history.slice(-200))); } catch (_) {}
-    setText('web-console-history', `${state.history.length} history`);
+    setText('web-console-history', `История: ${state.history.length}`);
   }
 
   function setText(id, text) {
@@ -54,13 +54,13 @@
       state.commands = asArray(body?.data?.commands);
       state.ready = true;
       setDot(true);
-      setText('web-console-pill', `${state.commands.length} commands`);
+      setText('web-console-pill', `${state.commands.length} команд`);
       saveHistory();
     } catch (error) {
       state.ready = false;
       setDot(false);
-      setText('web-console-pill', 'snapshot unavailable');
-      writeSystem(`Could not load command registry: ${error.message}`, 'bad');
+      setText('web-console-pill', 'снимок недоступен');
+      writeSystem(`Не удалось загрузить реестр команд: ${error.message}`, 'bad');
     }
   }
 
@@ -91,7 +91,7 @@
   function clearConsole() {
     const out = $('web-console-output');
     if (out) out.innerHTML = '';
-    writeSystem('SpringSuite Web Console\nEnter: run command • Tab: autocomplete • Up/Down: history • Ctrl+L: clear • Esc: hide suggestions');
+    writeSystem('Веб-консоль SpringSuite\nEnter: выполнить команду • Tab: автодополнение • Вверх/Вниз: история • Ctrl+L: очистить • Esc: скрыть подсказки');
   }
 
   function local(line) {
@@ -99,11 +99,11 @@
     if (!value) return true;
     if (value === 'clear' || value === 'cls') { clearConsole(); return true; }
     if (value === 'history') {
-      write({ command: value, stdout: state.history.map((item, i) => `${String(i + 1).padStart(3, ' ')}  ${item}`).join('\n') || '(empty)', meta: 'local history' });
+      write({ command: value, stdout: state.history.map((item, i) => `${String(i + 1).padStart(3, ' ')}  ${item}`).join('\n') || '(пусто)', meta: 'локальная история' });
       return true;
     }
     if (value === 'web-help') {
-      write({ command: value, stdout: helpText(), meta: 'local help' });
+      write({ command: value, stdout: helpText(), meta: 'локальная справка' });
       return true;
     }
     return false;
@@ -111,12 +111,12 @@
 
   function helpText() {
     return [
-      'Local web console commands:',
-      '  clear      clear terminal locally',
-      '  history    show local history',
-      '  web-help   show this help',
+      'Локальные команды веб-консоли:',
+      '  clear      очистить терминал локально',
+      '  history    показать локальную историю',
+      '  web-help   показать эту справку',
       '',
-      'Backend command names:',
+      'Команды backend:',
       commandNames().join(', ')
     ].join('\n');
   }
@@ -137,8 +137,8 @@
     const descriptor = descriptorOf(value);
     if (shouldConfirm(value)) {
       const risk = descriptor?.riskLevel || 'NON_READ_ONLY';
-      if (!window.confirm(`Run ${risk} command: ${value}?`)) {
-        write({ level: 'warn', command: value, stdout: 'cancelled by operator', meta: risk });
+      if (!window.confirm(`Выполнить команду ${risk}: ${value}?`)) {
+        write({ level: 'warn', command: value, stdout: 'отменено оператором', meta: risk });
         setInput('');
         return;
       }
@@ -147,14 +147,14 @@
     state.busy = true;
     state.started = performance.now();
     setDot(true);
-    setText('web-console-state', 'running');
-    const row = write({ level: 'warn', command: value, stdout: 'running...', meta: 'request started' });
+    setText('web-console-state', 'выполнение');
+    const row = write({ level: 'warn', command: value, stdout: 'выполнение...', meta: 'запрос начат' });
     state.timer = setInterval(() => {
       const elapsed = Math.round(performance.now() - state.started);
       const dots = '.'.repeat((Math.floor(elapsed / 350) % 3) + 1);
       const stdout = row?.querySelector('.stdout');
       const meta = row?.querySelector('.meta');
-      if (stdout) stdout.textContent = `running${dots}`;
+      if (stdout) stdout.textContent = `выполнение${dots}`;
       if (meta) meta.textContent = `${elapsed} ms`;
     }, 180);
     try {
@@ -172,17 +172,17 @@
       const stdoutText = payload._stdout ?? result.message ?? body.message ?? '';
       const failed = !response.ok || result.ok === false || body.ok === false;
       const elapsed = Math.round(performance.now() - started);
-      finishRow(row, value, stdoutText, failed ? (result.message || body.message || 'command failed') : '', `${result.code || body.code || 'ok'} • ${elapsed} ms • ${result.timestamp || body.timestamp || ''}`, failed ? 'bad' : 'good');
-      if (!payload._stdout && Object.keys(payload).length) write({ level: 'system', stdout: JSON.stringify(payload, null, 2), meta: 'structured data' });
+      finishRow(row, value, stdoutText, failed ? (result.message || body.message || 'команда завершилась ошибкой') : '', `${result.code || body.code || 'ok'} • ${elapsed} ms • ${result.timestamp || body.timestamp || ''}`, failed ? 'bad' : 'good');
+      if (!payload._stdout && Object.keys(payload).length) write({ level: 'system', stdout: JSON.stringify(payload, null, 2), meta: 'структурированные данные' });
       loadCommands();
     } catch (error) {
-      finishRow(row, value, '', error.message || 'Failed to fetch', 'network error', 'bad');
+      finishRow(row, value, '', error.message || 'Не удалось выполнить сетевой запрос', 'сетевая ошибка', 'bad');
     } finally {
       if (state.timer) clearInterval(state.timer);
       state.timer = null;
       state.busy = false;
       setDot(true);
-      setText('web-console-state', 'ready');
+      setText('web-console-state', 'готово');
       $('web-console-input')?.focus();
     }
   }

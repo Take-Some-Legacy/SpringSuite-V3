@@ -1,22 +1,39 @@
 package com.takesome.springsuite.app;
 
-import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.config.ExternalSuiteConfigBootstrap;
 import com.takesome.springsuite.config.SuiteConfigBootstrapResult;
 import com.takesome.springsuite.config.SuiteWorkingDirectoryBootstrap;
+import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.logging.ConsoleAnsiBootstrap;
+import com.takesome.springsuite.logging.ConsoleEncodingBootstrap;
 import com.takesome.springsuite.module.SuiteModuleBootstrap;
 import com.takesome.springsuite.module.SuiteModuleBootstrapResult;
+import java.nio.file.Path;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
-import java.nio.file.Path;
 import org.springframework.core.io.DefaultResourceLoader;
 
 @SpringBootApplication(scanBasePackages = "com.takesome.springsuite")
 @ConfigurationPropertiesScan(basePackages = "com.takesome.springsuite")
 public class SpringSuiteApplication {
     public static void main(String[] args) {
+        if (System.getProperty("os.name", "").toLowerCase().contains("windows")) {
+            // Spring Boot defaults to headless mode. Disable it before any AWT class is initialized
+            // so SpringSuite can own a system tray icon and contextual desktop overlays.
+            System.setProperty("java.awt.headless", "false");
+        }
+
+        SpringSuiteCrashReporter.install(args);
+        try {
+            run(args);
+        } catch (Throwable failure) {
+            SpringSuiteCrashReporter.reportStartupFailure(failure);
+            System.exit(1);
+        }
+    }
+
+    private static void run(String[] args) {
         SuiteOperatorMode.promoteFromArgs(args);
         SuiteBuildInfo buildInfo = SuiteBuildInfo.load();
         System.setProperty("suite.version", buildInfo.version());
@@ -42,6 +59,7 @@ public class SpringSuiteApplication {
         System.out.println("[SpringSuite] logs file: " + config.logFile());
 
         SpringApplication application = new SpringApplication(SpringSuiteApplication.class);
+        application.setHeadless(false);
         application.setResourceLoader(new DefaultResourceLoader(modules.classLoader()));
         application.run(args);
     }
