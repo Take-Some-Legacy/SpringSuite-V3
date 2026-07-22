@@ -1,70 +1,68 @@
-# Deployment
+# SpringSuite deployment
 
-SpringSuite deployment is performed by `scripts/deploy.ps1`. The script builds a verified deploy image, stages it inside the target runtime, preserves mutable runtime state, requests a graceful restart through the local MCP bridge and applies the update only after the old JVM exits.
+## Runtime layout
 
-## Standard deployment
+SpringSuite is deployed as a versioned runtime image. The release contains the JVM application, signed modules, launchers, scripts and native control-plane binaries.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\deploy.ps1 `
-  -Target "C:\Users\Aiden\Documents\Take Some\NorthStar-Suite-V3"
-```
-
-When `-Target` is omitted, the script resolves the destination in this order:
-
-1. Explicit `-Target` argument.
-2. `SPRING_SUITE_RUNTIME` environment variable.
-3. `%USERPROFILE%\Documents\Take Some\NorthStar-Suite-V3`.
-
-## Deployment pipeline
-
-```text
-clean → test → assembleDeploy → verifyDeployLayout
-      → stage payload under target/.springsuite
-      → request SpringSuite restart through local MCP
-      → wait for old JVM
-      → back up replaced files
-      → install payload
-      → launch run.bat
-      → wait for /actuator/health = UP
-```
-
-The following target directories are preserved by default:
+Mutable state is preserved across deployments:
 
 - `config/`
 - `data/`
 - `logs/`
 - `.springsuite/`
 
-The signed `modules/` payload, application JAR, launchers, static assets, browser extension, native sidecars, tool descriptors and operational scripts are updated.
+The Windows runtime is split into two execution domains:
 
-## Options
+1. `suite-runtime-controller.exe` owns the JVM from Windows Session 0.
+2. `suite-runtime-tray.exe` owns notifications and the notification-area icon from the signed-in user's interactive session.
 
-| Option | Behavior |
-|---|---|
-| `-SkipTests` | Builds without executing the test suite. |
-| `-SkipBuild` | Uses the existing `build/deploy` image. |
-| `-NoStart` | Applies the payload but leaves the runtime stopped. |
-| `-ReplaceConfig` | Replaces target configuration with the deploy image configuration. |
-| `-ForceStop` | Force-stops an active JVM only when graceful MCP restart is unavailable. |
-| `-KeepBuild` | Keeps Gradle build output after a successful deployment. |
-| `-Port 8090` | Sets the local management port used for status and health checks. |
-| `-WhatIf` | Shows the target operation without staging or applying files. |
+A service process must never create notification-area UI directly.
 
-## Authentication for graceful restart
+## Verification
 
-The deployment script resolves the MCP bridge token from:
+Before publishing or applying a deployment image:
 
-1. `NORTHSTAR_BRIDGE_ACCESS_TOKEN`.
-2. `%LOCALAPPDATA%\NoesisSuite\authority\bridge_access_token.txt`.
-3. `<target>\authority\bridge_access_token.txt`.
+```powershell
+.\gradlew.bat clean test verifyDeployLayout
+```
 
-Without a token, an active runtime is not terminated unless `-ForceStop` is explicitly supplied.
+The deploy manifest must contain the release version and SHA-256 inventory for every managed file.
 
+## Canary
 
-## User-session tray indicator
+Run the candidate from a separate root and use ports that do not overlap production. Verify:
 
-The runtime controller Windows service runs in Session 0 and does not create desktop UI. Install the per-user broker from a normal interactive terminal:
+- application version;
+- deployment identity;
+- runtime root;
+- JVM PID and supervisor PID;
+- application status `READY`;
+- management health `UP`;
+- graceful shutdown;
+- release of both application and management ports.
+
+Canary processes must run headless so a deliberately failed startup cannot create a desktop crash dialog.
+
+## Runtime-controller installation
+
+Run the installer from a normal interactive terminal. In `Service` and `Portable` modes the tray is installed and started by default before the controller phase:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\install-runtime-controller.ps1 `
+  -Mode Service `
+  -Start
+```
+
+For a read-only check:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\install-runtime-controller.ps1 `
+  -Mode Preflight
+```
+
+To install or repair only the current user's tray registration while remaining in preflight mode:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
@@ -73,7 +71,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -InstallToast
 ```
 
-The installer registers `suite-runtime-tray.exe` under the current user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` and starts it immediately. The process remains in the user session even when SpringSuite is stopped, so the notification-area icon can show the stopped state.
+`-InstallToast` is retained as a compatibility name; it installs the combined toast and tray user-session broker. Use `-NoTray` only for an explicitly headless installation.
+
+The installer rejects tray installation from Session 0. It registers `suite-runtime-tray.exe` under the current user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, starts it immediately, and verifies that the process belongs to the same interactive Windows session. The process remains in the user session while SpringSuite is stopped, allowing the icon to show the stopped state.
 
 | Color | Meaning |
 |---|---|
@@ -82,7 +82,7 @@ The installer registers `suite-runtime-tray.exe` under the current user `HKCU\So
 | Yellow | Startup, probation, bootstrapping or a bounded wait is in progress. |
 | Red | Runtime is stopped, failed, inaccessible, or a READY state references dead processes. |
 
-Closing the tray indicator from its context menu does not stop SpringSuite. Running the installer again or signing in again restarts the per-user indicator.
+Closing the tray indicator from its context menu does not stop SpringSuite. Running the interactive installer again or signing in again restarts the per-user indicator.
 
 ## Backups and logs
 

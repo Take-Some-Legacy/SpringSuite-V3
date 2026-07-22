@@ -36,7 +36,8 @@ public class SystemStatusController {
         components.put("projectRoot", System.getProperty("suite.project.root", ""));
         components.put("workingDirectory", System.getProperty("suite.working.directory", ""));
         components.put("launchDirectory", System.getProperty("suite.launch.dir", ""));
-        components.put("supervised", Boolean.parseBoolean(System.getenv().getOrDefault("SPRING_SUITE_SUPERVISED", "false")));
+        String supervisedValue = System.getenv().getOrDefault("SPRING_SUITE_SUPERVISED", "false");
+        components.put("supervised", Boolean.parseBoolean(supervisedValue) || "1".equals(supervisedValue));
         components.put("supervisorPid", parseLong(System.getProperty("suite.supervisor.pid", "0")));
         components.put("deploymentId", System.getProperty("suite.deployment.id", ""));
         Path incidentPath = Path.of(System.getProperty("suite.working.directory", System.getProperty("user.dir", ".")))
