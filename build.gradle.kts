@@ -2,6 +2,7 @@ import groovy.json.JsonOutput
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Instant
+import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.bundling.Zip
 
@@ -56,6 +57,47 @@ tasks.register("deploySignedModules") {
 
 val deployDirectory = layout.buildDirectory.dir("deploy")
 
+val runtimeControlPlaneBinaryNames = listOf(
+    "suite-runtime-controller.exe",
+    "suite-runtime-replacer.exe",
+    "suite-runtime-bootstrap.exe",
+    "suite-runtime-toast.exe",
+    "suite-runtime-tray.exe",
+    "suite-runtime-toast-host.exe"
+)
+val runtimeControlPlaneRootPath = providers.gradleProperty("runtimeControlPlaneRoot")
+    .orElse(providers.environmentVariable("SPRING_SUITE_RUNTIME_CONTROLLER_ROOT"))
+    .orElse(layout.projectDirectory.dir("../suite-runtime-controller-go").asFile.absolutePath)
+val runtimeControlPlaneRoot = provider { file(runtimeControlPlaneRootPath.get()) }
+val runtimeControlPlaneDist = provider { File(runtimeControlPlaneRoot.get(), "dist") }
+val buildRuntimeControlPlane = tasks.register<Exec>("buildRuntimeControlPlane") {
+    group = "distribution"
+    description = "Build the sibling Go/C++ runtime control plane when its source repository is available."
+    val root = runtimeControlPlaneRoot.get()
+    val buildScript = File(root, "scripts/build.ps1")
+    onlyIf { System.getProperty("os.name").lowercase().contains("windows") && buildScript.isFile }
+    workingDir(root)
+    commandLine(
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        buildScript.absolutePath,
+        "-Output",
+        runtimeControlPlaneDist.get().absolutePath,
+        "-RequireNativeToast"
+    )
+}
+val runtimeControlPlaneBinarySource = provider {
+    val built = runtimeControlPlaneDist.get()
+    if (runtimeControlPlaneBinaryNames.all { File(built, it).isFile }) {
+        built
+    } else {
+        layout.projectDirectory.dir("suiteBinaries").asFile
+    }
+}
+
 fun sha256(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
     file.inputStream().use { input ->
@@ -72,7 +114,7 @@ fun sha256(file: File): String {
 tasks.register<Sync>("assembleDeploy") {
     group = "distribution"
     description = "Assemble a portable SpringSuite runtime under build/deploy."
-    dependsOn(":suite-app:bootJar", "buildSignedModules")
+    dependsOn(":suite-app:bootJar", "buildSignedModules", buildRuntimeControlPlane)
 
     into(deployDirectory)
 
@@ -104,6 +146,11 @@ tasks.register<Sync>("assembleDeploy") {
     from(layout.projectDirectory.dir("suiteBinaries")) {
         into("suiteBinaries")
         exclude("*-debug.exe")
+        exclude(runtimeControlPlaneBinaryNames)
+    }
+    from(runtimeControlPlaneBinarySource) {
+        into("suiteBinaries")
+        include(runtimeControlPlaneBinaryNames)
     }
     from(layout.projectDirectory.dir("suite-dashboard-module/build/signed-modules")) {
         include("*.jar")
@@ -157,6 +204,9 @@ tasks.register<Sync>("assembleDeploy") {
 
             Рабочие каталоги data, logs и .springsuite создаются локально внутри этой директории.
             Нативный desktop-agent расположен в suiteBinaries/suite-desktop-agent.exe.
+            Go runtime control plane расположен в suiteBinaries/suite-runtime-controller.exe.
+            Его portable-конфигурация: config/runtime-controller.json.
+            Подготовка service/toast integration: scripts/install-runtime-controller.ps1.
             Browser Form Bridge расположен в browser-extension/springsuite-form-bridge/.
             Подписанные runtime-модули расположены в modules/.
 
@@ -207,6 +257,8 @@ tasks.register<Sync>("assembleDeploy") {
             "schema" to "spring-suite.deploy-manifest.v1",
             "version" to project.version.toString(),
             "builtAt" to Instant.now().toString(),
+            "preservedRoots" to listOf("config", "data", "logs", ".springsuite", "authority"),
+            "controlPlaneFiles" to runtimeControlPlaneBinaryNames.map { "suiteBinaries/$it" },
             "fileCount" to files.size,
             "files" to files
         )
@@ -309,11 +361,18 @@ tasks.register("verifyDeployLayout") {
             "scripts/apply-deploy.ps1",
             "scripts/spring-suite-supervisor.ps1",
             "scripts/suite-toast.ps1",
+            "scripts/install-runtime-controller.ps1",
             "scripts/clean.ps1",
             "scripts/verify-repository.ps1",
             "scripts/spring-suite-single-instance-check.ps1",
             "config/suite-cloudflared.yml",
+            "config/runtime-controller.json",
             "suiteBinaries/suite-cloudflared-wrapper.exe",
+            "suiteBinaries/suite-runtime-controller.exe",
+            "suiteBinaries/suite-runtime-replacer.exe",
+            "suiteBinaries/suite-runtime-bootstrap.exe",
+            "suiteBinaries/suite-runtime-toast.exe",
+            "suiteBinaries/suite-runtime-toast-host.exe",
             "deploy-manifest.json"
         )
         val missing = requiredFiles.filterNot { File(root, it).isFile }

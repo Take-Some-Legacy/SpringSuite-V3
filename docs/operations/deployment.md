@@ -61,6 +61,29 @@ The deployment script resolves the MCP bridge token from:
 
 Without a token, an active runtime is not terminated unless `-ForceStop` is explicitly supplied.
 
+
+## User-session tray indicator
+
+The runtime controller Windows service runs in Session 0 and does not create desktop UI. Install the per-user broker from a normal interactive terminal:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\install-runtime-controller.ps1 `
+  -Mode Preflight `
+  -InstallToast
+```
+
+The installer registers `suite-runtime-tray.exe` under the current user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` and starts it immediately. The process remains in the user session even when SpringSuite is stopped, so the notification-area icon can show the stopped state.
+
+| Color | Meaning |
+|---|---|
+| Green | Runtime is READY and the recorded controller/JVM PIDs are alive. |
+| Blue | Update, rollback or restart handoff is in progress. |
+| Yellow | Startup, probation, bootstrapping or a bounded wait is in progress. |
+| Red | Runtime is stopped, failed, inaccessible, or a READY state references dead processes. |
+
+Closing the tray indicator from its context menu does not stop SpringSuite. Running the installer again or signing in again restarts the per-user indicator.
+
 ## Backups and logs
 
 Replaced files are copied to:
