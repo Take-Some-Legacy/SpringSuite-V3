@@ -22,6 +22,7 @@ The repository is a multi-project Gradle build. Java modules remain at the root 
 - [Documentation index](docs/README.md)
 - [Repository layout](docs/architecture/repository-layout.md)
 - [Deployment guide](docs/operations/deployment.md)
+- [Observability and metrics](docs/operations/observability.md)
 
 ## Build and run
 

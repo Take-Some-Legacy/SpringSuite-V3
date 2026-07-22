@@ -1,7 +1,10 @@
 package com.takesome.springsuite.desktop;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.takesome.springsuite.core.ai.AiChatRequest;
 import com.takesome.springsuite.core.ai.AiChatResponse;
 import com.takesome.springsuite.core.ai.AiGenerationOptions;
@@ -25,9 +28,13 @@ import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopSafetyRule;
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopWorkflow;
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
+import com.takesome.springsuite.observability.SuiteTelemetry;
 import com.takesome.springsuite.toolbelt.ToolDescriptor;
 import com.takesome.springsuite.toolbelt.ToolbeltService;
+import java.security.MessageDigest;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,19 +59,33 @@ public class DesktopHelperService {
     private final ToolbeltService toolbeltService;
     private final ObjectMapper objectMapper;
     private final OperatorLogService logService;
+    private final SuiteTelemetry telemetry;
+    private final Cache<String, DesktopFormFillPlan> deterministicPlanCache;
 
     public DesktopHelperService(
             DesktopHelperProperties properties,
             AiService aiService,
             ToolbeltService toolbeltService,
             ObjectMapper objectMapper,
-            OperatorLogService logService
+            OperatorLogService logService,
+            SuiteTelemetry telemetry
     ) {
         this.properties = properties;
         this.aiService = aiService;
         this.toolbeltService = toolbeltService;
         this.objectMapper = objectMapper;
         this.logService = logService;
+        this.telemetry = telemetry;
+        this.deterministicPlanCache = Caffeine.newBuilder()
+                .maximumSize(256)
+                .expireAfterWrite(Duration.ofSeconds(2))
+                .recordStats()
+                .build();
+        telemetry.registerGauge(
+                "form_intelligence",
+                "deterministic_plan_cache_size",
+                () -> (int) Math.min(Integer.MAX_VALUE, deterministicPlanCache.estimatedSize())
+        );
     }
 
     public DesktopHelperStatus status() {
@@ -84,6 +105,8 @@ public class DesktopHelperService {
         policy.put("maxApprovalTokenTtlSeconds", properties.getMaxApprovalTokenTtlSeconds());
         policy.put("maxScreenTextChars", properties.getMaxScreenTextChars());
         policy.put("maxSuggestionCount", properties.getMaxSuggestionCount());
+        policy.put("deterministicPlanCacheSize", deterministicPlanCache.estimatedSize());
+        policy.put("deterministicPlanCacheHitRate", deterministicPlanCache.stats().hitRate());
 
         return new DesktopHelperStatus(
                 properties.isEnabled(),
@@ -123,7 +146,7 @@ public class DesktopHelperService {
                 "mode", "recognition plus operator-confirmed insertion",
                 "transport", "Manifest V3 extension to token-protected loopback HTTP endpoints",
                 "pageValues", "existing page values are never transmitted; only valuePresent is accepted",
-                "proposedValues", "only non-sensitive values shown in the desktop overlay are sent back after the operator clicks «Вставить»",
+                "proposedValues", "only non-sensitive values shown in the desktop overlay are sent back after the operator clicks «Заполнить»",
                 "writeActions", "fill/select/check/uncheck through a short-lived page-bound command",
                 "submitActions", "disabled"
         ));
@@ -293,7 +316,8 @@ public class DesktopHelperService {
             ));
         }
 
-        String aiSuggestion = askAi("desktop hints", Map.of(
+        boolean skipAi = metadataBoolean(safeRequest.preferences().get("skipAi"), false);
+        String aiSuggestion = skipAi ? "" : askAi("desktop hints", Map.of(
                 "goal", safeRequest.userGoal(),
                 "locale", safeRequest.locale(),
                 "context", aiSafeContext(context)
@@ -312,6 +336,106 @@ public class DesktopHelperService {
     }
 
     public DesktopFormFillPlan planFormFill(DesktopFormFillRequest request) {
+        SuiteTelemetry.Operation operation = telemetry.start("form_intelligence", "plan_local");
+        try {
+            String key = deterministicPlanCacheKey(request);
+            if (!key.isBlank()) {
+                DesktopFormFillPlan cached = deterministicPlanCache.getIfPresent(key);
+                if (cached != null) {
+                    telemetry.event("form_intelligence", "plan_cache", "hit");
+                    operation.success();
+                    return cached;
+                }
+                telemetry.event("form_intelligence", "plan_cache", "miss");
+            }
+            DesktopFormFillPlan result = planFormFillInternal(request, true);
+            if (!key.isBlank() && result.ok()) {
+                deterministicPlanCache.put(key, result);
+            }
+            operation.success();
+            return result;
+        } catch (RuntimeException ex) {
+            operation.failure("exception");
+            throw ex;
+        }
+    }
+
+    public DesktopFormFillPlan planFormFillExternal(DesktopFormFillRequest request) {
+        SuiteTelemetry.Operation operation = telemetry.start("form_intelligence", "plan_external");
+        try {
+            DesktopFormFillPlan result = planFormFillInternal(request, false);
+            operation.success();
+            return result;
+        } catch (RuntimeException ex) {
+            operation.failure("exception");
+            throw ex;
+        }
+    }
+
+    public DesktopFormFillPlan planFormFillWithAi(DesktopFormFillRequest request) {
+        SuiteTelemetry.Operation operation = telemetry.start("form_intelligence", "plan_ai");
+        try {
+            DesktopFormFillPlan result = planFormFillWithAiInternal(request);
+            operation.success();
+            return result;
+        } catch (RuntimeException ex) {
+            operation.failure("exception");
+            throw ex;
+        }
+    }
+
+    private DesktopFormFillPlan planFormFillWithAiInternal(DesktopFormFillRequest request) {
+        DesktopFormFillRequest safeRequest = request == null
+                ? new DesktopFormFillRequest(DesktopFocusContext.empty(), "", "en-US", Map.of(), Map.of(), false)
+                : request;
+        AiProfileResult generated = generateAiProfile(safeRequest);
+        DesktopFormFillRequest generatedRequest = new DesktopFormFillRequest(
+                safeRequest.context(),
+                safeRequest.userGoal(),
+                safeRequest.locale(),
+                generated.values(),
+                safeRequest.constraints(),
+                false
+        );
+        DesktopFormFillPlan plan = planFormFillInternal(generatedRequest, false);
+
+        ArrayList<String> warnings = new ArrayList<>(plan.warnings());
+        warnings.addAll(generated.warnings());
+        LinkedHashMap<String, Object> metadata = new LinkedHashMap<>(plan.metadata());
+        metadata.put("fillSource", "ai");
+        metadata.put("aiProvider", generated.providerId());
+        metadata.put("aiModel", generated.model());
+        metadata.put("aiGeneratedValueCount", generated.values().size());
+        metadata.put("aiWarning", generated.warnings().stream().findFirst().orElse(""));
+
+        String summary = generated.values().isEmpty()
+                ? "ИИ не предложил безопасных значений для распознанных полей."
+                : "ИИ подготовил " + generated.values().size() + " безопасных значений; проверьте их перед заполнением.";
+        return new DesktopFormFillPlan(
+                plan.ok(),
+                summary,
+                plan.fields(),
+                warnings,
+                plan.requiresApproval(),
+                "",
+                metadata
+        );
+    }
+
+    private String deterministicPlanCacheKey(DesktopFormFillRequest request) {
+        if (request == null) {
+            return "";
+        }
+        try {
+            byte[] payload = objectMapper.writeValueAsBytes(request);
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(payload);
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private DesktopFormFillPlan planFormFillInternal(DesktopFormFillRequest request, boolean includeAiReview) {
         DesktopFormFillRequest safeRequest = request == null ? new DesktopFormFillRequest(DesktopFocusContext.empty(), "", "en-US", Map.of(), Map.of(), false) : request;
         if (!properties.isEnabled()) {
             return new DesktopFormFillPlan(false, "Desktop helper is disabled.", List.of(), List.of("suite.desktop-helper.enabled=false"), false, "", Map.of("code", "desktop_helper_disabled"));
@@ -442,18 +566,23 @@ public class DesktopHelperService {
             warnings.add(askCount + " required field(s) still need operator input.");
         }
 
-        String aiSuggestion = askAi("form fill plan review", Map.of(
-                "goal", safeRequest.userGoal(),
-                "locale", safeRequest.locale(),
-                "context", aiSafeContext(safeRequest.context()),
-                "profileKeys", sortedKeys(safeRequest.profile()),
-                "constraintKeys", sortedKeys(safeRequest.constraints()),
-                "plan", aiSafePlan(plans)
-        ));
+        String aiSuggestion = includeAiReview
+                ? askAi("form fill plan review", Map.of(
+                        "goal", safeRequest.userGoal(),
+                        "locale", safeRequest.locale(),
+                        "context", aiSafeContext(safeRequest.context()),
+                        "profileKeys", sortedKeys(safeRequest.profile()),
+                        "constraintKeys", sortedKeys(safeRequest.constraints()),
+                        "plan", aiSafePlan(plans)
+                ))
+                : "";
 
         boolean requiresApproval = properties.isRequireApprovalForWriteActions() && fillCount > 0;
         String summary = "Planned " + plans.size() + " field action(s): " + fillCount + " fill/select, " + reviewCount + " review, " + askCount + " ask.";
         logService.append(OperatorLogLevel.INFO, SOURCE, "desktop form fill plan generated", Map.of(
+                SuiteTelemetry.CORRELATION_ID, stringValue(
+                        safeRequest.context().metadata().get(SuiteTelemetry.CORRELATION_ID)
+                ),
                 "fields", plans.size(),
                 "fill", fillCount,
                 "review", reviewCount,
@@ -472,9 +601,258 @@ public class DesktopHelperService {
                 Map.of(
                         "formId", form.id(),
                         "formName", form.name(),
-                        "executionEnabled", properties.isAllowAutofillExecution()
+                        "executionEnabled", properties.isAllowAutofillExecution(),
+                        SuiteTelemetry.CORRELATION_ID, stringValue(
+                                safeRequest.context().metadata().get(SuiteTelemetry.CORRELATION_ID)
+                        )
                 )
         );
+    }
+
+    private AiProfileResult generateAiProfile(DesktopFormFillRequest request) {
+        if (!properties.isAiEnrichmentEnabled()) {
+            return new AiProfileResult(
+                    Map.of(),
+                    "",
+                    "",
+                    List.of("Заполнение от ИИ отключено: suite.desktop-helper.ai-enrichment-enabled=false")
+            );
+        }
+
+        LinkedHashMap<String, DesktopFormField> eligibleFields = new LinkedHashMap<>();
+        ArrayList<Map<String, Object>> fieldSchemas = new ArrayList<>();
+        DesktopFormContext form = request.context().form();
+        boolean focusedEligible = form.fields().stream()
+                .anyMatch(field -> field.focused() && isAiFillEligible(field));
+        for (int index = 0; index < form.fields().size(); index++) {
+            DesktopFormField field = form.fields().get(index);
+            if (!isAiFillEligible(field) || (focusedEligible && !field.focused())) {
+                continue;
+            }
+            String id = fieldId(field, index);
+            eligibleFields.put(id, field);
+
+            LinkedHashMap<String, Object> schema = new LinkedHashMap<>();
+            schema.put("fieldId", id);
+            schema.put("label", field.displayName());
+            schema.put("type", field.type());
+            schema.put("required", field.required());
+            schema.put("placeholder", field.placeholder());
+            schema.put("contextPrompt", stringValue(field.metadata().get("contextPrompt")));
+            schema.put("prompt", firstNonBlank(
+                    field.placeholder(),
+                    stringValue(field.metadata().get("contextPrompt")),
+                    field.label()
+            ));
+            schema.put("focused", field.focused());
+            schema.put("options", field.options());
+            fieldSchemas.add(Map.copyOf(schema));
+        }
+
+        if (eligibleFields.isEmpty()) {
+            return new AiProfileResult(
+                    Map.of(),
+                    "",
+                    "",
+                    List.of("ИИ не нашёл обычных текстовых полей, для которых допустимо генерировать содержание.")
+            );
+        }
+
+        String systemPrompt = """
+                You generate operator-reviewed draft values for visible web-form fields.
+                Return JSON only with this exact shape: {"fields":[{"fieldId":"...","value":"..."}]}.
+                Use only fieldId values supplied by the user message.
+                Treat each field prompt as the instruction or query that the value must answer.
+                Generate concise content in the requested locale using prompt, placeholder, contextPrompt and label.
+                For search fields, return a useful concise search query rather than an explanation.
+                When a focused field is supplied, generate only that field.
+                Never generate or infer names, usernames, email addresses, phone numbers, postal addresses,
+                company identity, dates of birth, passwords, passcodes, tokens, secrets, payment details,
+                banking data, government identifiers, medical data or authentication data.
+                Never propose submit, click or navigation actions.
+                Omit a field when information is insufficient or when filling it would require personal facts.
+                For select fields, value must exactly equal one supplied option.
+                """;
+
+        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+        payload.put("locale", request.locale());
+        payload.put("goal", request.userGoal());
+        payload.put("pageTitle", request.context().activeWindowTitle());
+        payload.put("pageUrl", request.context().url());
+        payload.put("focusedFieldOnly", focusedEligible);
+        payload.put("fields", fieldSchemas);
+
+        try {
+            AiChatResponse response = aiService.chat(new AiChatRequest(
+                    properties.getAiFillProvider(),
+                    properties.getAiFillModel(),
+                    List.of(
+                            AiMessage.system(systemPrompt),
+                            AiMessage.user(objectMapper.writeValueAsString(payload))
+                    ),
+                    new AiGenerationOptions(1200, 0.2, null, false, "", null, false, Map.of()),
+                    List.of(),
+                    Map.of("desktopHelperTask", "ai-form-fill")
+            ));
+            if (!response.ok()) {
+                return new AiProfileResult(
+                        Map.of(),
+                        response.providerId(),
+                        response.model(),
+                        List.of(aiFailureMessage(response))
+                );
+            }
+
+            JsonNode root = objectMapper.readTree(extractJsonObject(response.outputText()));
+            JsonNode fields = root.path("fields");
+            if (!fields.isArray()) {
+                return new AiProfileResult(
+                        Map.of(),
+                        response.providerId(),
+                        response.model(),
+                        List.of("ИИ вернул ответ без массива fields; заполнение заблокировано.")
+                );
+            }
+
+            LinkedHashMap<String, Object> values = new LinkedHashMap<>();
+            for (JsonNode item : fields) {
+                String fieldId = stringValue(item.path("fieldId").asText()).trim();
+                String value = stringValue(item.path("value").asText()).trim();
+                DesktopFormField field = eligibleFields.get(fieldId);
+                if (field == null || value.isBlank() || value.length() > 4_000 || !isAiFillEligible(field)) {
+                    continue;
+                }
+                if (!optionsAccept(field, value)) {
+                    continue;
+                }
+                values.put(fieldId, value);
+            }
+            return new AiProfileResult(
+                    Map.copyOf(values),
+                    response.providerId(),
+                    response.model(),
+                    values.isEmpty()
+                            ? List.of("ИИ не предложил значений, прошедших локальную safety-проверку.")
+                            : List.of()
+            );
+        } catch (RuntimeException | JsonProcessingException ex) {
+            return new AiProfileResult(
+                    Map.of(),
+                    "",
+                    "",
+                    List.of("Не удалось разобрать ответ ИИ: " + safeError(ex))
+            );
+        }
+    }
+
+    private String aiFailureMessage(AiChatResponse response) {
+        String provider = firstNonBlank(response.providerId(), properties.getAiFillProvider(), "AI");
+        String model = firstNonBlank(response.model(), properties.getAiFillModel());
+        String raw = firstNonBlank(response.errorMessage(), response.errorCode(), "unknown error");
+        String normalized = lower(response.errorCode() + " " + response.errorMessage());
+
+        if (normalized.contains("quota")
+                || normalized.contains("insufficient_quota")
+                || normalized.contains("billing")) {
+            return "Квота OpenAI API исчерпана. Модель " + model
+                    + " выбрана правильно, но ключ не может выполнить платный запрос. Пополните API billing или укажите другой доступный provider.";
+        }
+        if (normalized.contains("model_not_found")
+                || normalized.contains("does not exist")
+                || normalized.contains("not have access to model")) {
+            return "Модель " + model + " недоступна для текущего API-проекта " + provider + ".";
+        }
+        if (normalized.contains("rate_limit") || normalized.contains("too many requests")) {
+            return "OpenAI временно ограничил частоту запросов к " + model + ". Повторите попытку позже.";
+        }
+        if (normalized.contains("authentication")
+                || normalized.contains("invalid_api_key")
+                || normalized.contains("unauthorized")) {
+            return "API-ключ для " + provider + " отклонён. Проверьте credentials перед повтором запроса к " + model + ".";
+        }
+        return "ИИ " + model + " не сформировал план: " + raw;
+    }
+
+    private boolean isAiFillEligible(DesktopFormField field) {
+        if (field == null || isSensitive(field) || fieldHasValue(field) || !fieldAvailabilityIssue(field).isBlank()) {
+            return false;
+        }
+        String type = lower(field.type());
+        if (!(type.equals("text") || type.equals("textarea") || type.equals("search") || type.startsWith("select"))) {
+            return false;
+        }
+
+        String key = searchable(field);
+        List<String> personalHints = List.of(
+                "name", "firstname", "lastname", "surname", "username", "login",
+                "email", "mail", "phone", "mobile", "telephone", "address", "street",
+                "city", "country", "postal", "postcode", "zipcode", "company", "organization",
+                "employer", "birthday", "birthdate", "dateofbirth", "medical", "diagnosis"
+        );
+        if (personalHints.stream().anyMatch(key::contains)) {
+            return false;
+        }
+
+        String unicodeKey = lower(String.join(
+                " ",
+                field.id(),
+                field.label(),
+                field.name(),
+                field.type(),
+                field.placeholder(),
+                stringValue(field.metadata().get("contextPrompt"))
+        ));
+        List<String> localizedPersonalHints = List.of(
+                "имя", "фамили", "логин", "почт", "телефон", "мобильн", "адрес",
+                "улиц", "город", "стран", "индекс", "компани", "организац", "работодател",
+                "дата рождения", "медицин", "диагноз", "паспорт", "банк", "карта"
+        );
+        if (localizedPersonalHints.stream().anyMatch(unicodeKey::contains)) {
+            return false;
+        }
+
+        String prompt = firstNonBlank(
+                stringValue(field.metadata().get("contextPrompt")),
+                field.placeholder(),
+                field.label()
+        );
+        String normalizedPrompt = lower(prompt).replaceAll("[^\\p{L}\\p{N}]+", "");
+        return !normalizedPrompt.isBlank()
+                && !normalizedPrompt.equals("text")
+                && !normalizedPrompt.equals("textarea")
+                && !normalizedPrompt.equals("field")
+                && !normalizedPrompt.startsWith("webfield");
+    }
+
+    private String extractJsonObject(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.startsWith("```")) {
+            int newline = value.indexOf('\n');
+            int closing = value.lastIndexOf("```");
+            if (newline >= 0 && closing > newline) {
+                value = value.substring(newline + 1, closing).trim();
+            }
+        }
+        int start = value.indexOf('{');
+        int end = value.lastIndexOf('}');
+        if (start < 0 || end < start) {
+            throw new IllegalArgumentException("AI response does not contain a JSON object.");
+        }
+        return value.substring(start, end + 1);
+    }
+
+    private record AiProfileResult(
+            Map<String, Object> values,
+            String providerId,
+            String model,
+            List<String> warnings
+    ) {
+        private AiProfileResult {
+            values = values == null ? Map.of() : Map.copyOf(values);
+            providerId = providerId == null ? "" : providerId;
+            model = model == null ? "" : model;
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+        }
     }
 
     private List<DesktopIntegrationSurface> surfaces() {
@@ -862,7 +1240,15 @@ public class DesktopHelperService {
     }
 
     private String searchable(DesktopFormField field) {
-        return normalize(String.join(" ", field.id(), field.label(), field.name(), field.type(), field.placeholder()));
+        return normalize(String.join(
+                " ",
+                field.id(),
+                field.label(),
+                field.name(),
+                field.type(),
+                field.placeholder(),
+                stringValue(field.metadata().get("contextPrompt"))
+        ));
     }
 
     private String fieldId(DesktopFormField field, int index) {
@@ -911,6 +1297,18 @@ public class DesktopHelperService {
         if (value != null && !value.isBlank()) {
             values.add(value);
         }
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private String stringValue(Object value) {

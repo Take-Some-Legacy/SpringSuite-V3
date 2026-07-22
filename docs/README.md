@@ -13,4 +13,5 @@
 ## Operations
 
 - [Deployment](operations/deployment.md)
+- [Observability](operations/observability.md)
 - [Crash reporting](operations/crash-reporting.md)

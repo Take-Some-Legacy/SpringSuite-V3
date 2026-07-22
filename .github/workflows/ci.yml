@@ -31,14 +31,14 @@ jobs:
         if: runner.os != 'Windows'
         run: chmod +x gradlew
 
-      - name: Run tests
+      - name: Verify module boundaries and run tests
         if: runner.os != 'Windows'
-        run: ./gradlew test --no-daemon --stacktrace
+        run: ./gradlew verifyModuleBoundaries test --no-daemon --stacktrace
 
-      - name: Run tests
+      - name: Verify module boundaries and run tests
         if: runner.os == 'Windows'
         shell: pwsh
-        run: .\gradlew.bat test --no-daemon --stacktrace
+        run: .\gradlew.bat verifyModuleBoundaries test --no-daemon --stacktrace
 
   deploy-image:
     name: Verify deploy image

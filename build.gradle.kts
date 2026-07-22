@@ -217,10 +217,84 @@ tasks.register<Sync>("assembleDeploy") {
     }
 }
 
+tasks.register("verifyModuleBoundaries") {
+    group = "verification"
+    description = "Verify SpringSuite module dependency direction and contract purity."
+
+    doLast {
+        val projectDependencyPattern = Regex("""project\(\":([^\"]+)\"\)""")
+        val forbiddenEdges = mapOf(
+            "suite-core" to emptySet(),
+            "suite-ai-api" to emptySet(),
+            "suite-desktop-api" to emptySet(),
+            "suite-platform" to emptySet(),
+            "suite-observability" to emptySet(),
+            "suite-desktop-config" to setOf("suite-desktop-helper", "suite-form-intelligence", "suite-browser-dom", "suite-agent", "suite-app"),
+            "suite-form-intelligence" to setOf("suite-browser-dom", "suite-desktop-helper", "suite-agent", "suite-app", "suite-openai"),
+            "suite-browser-dom" to setOf("suite-form-intelligence", "suite-desktop-helper", "suite-agent", "suite-app", "suite-openai")
+        )
+        val errors = mutableListOf<String>()
+
+        forbiddenEdges.forEach { (module, forbidden) ->
+            val buildFile = file("$module/build.gradle.kts")
+            check(buildFile.isFile) { "Missing module build file: ${buildFile.path}" }
+            val dependencies = projectDependencyPattern.findAll(buildFile.readText(StandardCharsets.UTF_8))
+                .map { it.groupValues[1] }
+                .toSet()
+            if (forbidden.isEmpty() && dependencies.isNotEmpty()) {
+                errors += "$module must remain dependency-free but depends on ${dependencies.sorted().joinToString()}"
+            } else {
+                val invalid = dependencies.intersect(forbidden)
+                if (invalid.isNotEmpty()) {
+                    errors += "$module has forbidden dependencies: ${invalid.sorted().joinToString()}"
+                }
+            }
+        }
+
+        val forbiddenSourceTokens = mapOf(
+            "suite-core" to listOf("org.springframework", "com.takesome.springsuite.ai", "com.takesome.springsuite.desktop"),
+            "suite-ai-api" to listOf("org.springframework"),
+            "suite-desktop-api" to listOf("org.springframework"),
+            "suite-platform" to listOf("org.springframework"),
+            "suite-form-intelligence" to listOf(
+                "BrowserDomService",
+                "DesktopAgentService",
+                "DesktopAgentUi",
+                "com.takesome.springsuite.openai"
+            ),
+            "suite-browser-dom" to listOf(
+                "DesktopAgentService",
+                "DesktopAgentUi",
+                "DesktopBridgeService",
+                "com.takesome.springsuite.openai"
+            )
+        )
+        forbiddenSourceTokens.forEach { (module, tokens) ->
+            val sourceRoot = file("$module/src/main/java")
+            if (!sourceRoot.isDirectory) return@forEach
+            sourceRoot.walkTopDown()
+                .filter { it.isFile && it.extension == "java" }
+                .forEach { source ->
+                    val content = source.readText(StandardCharsets.UTF_8)
+                    tokens.forEach { token ->
+                        if (content.contains(token)) {
+                            errors += "$module source ${source.relativeTo(projectDir)} contains forbidden token: $token"
+                        }
+                    }
+                }
+        }
+
+        check(errors.isEmpty()) {
+            "Module boundary violations:\n - " + errors.joinToString("\n - ")
+        }
+        logger.lifecycle("Module boundary verification passed for ${forbiddenEdges.size} modules.")
+    }
+}
+
 tasks.register("verifyDeployLayout") {
     group = "verification"
     description = "Verify that build/deploy contains a complete runnable SpringSuite image."
-    dependsOn("assembleDeploy")
+    dependsOn("assembleDeploy", "verifyModuleBoundaries")
 
     doLast {
         val root = deployDirectory.get().asFile
@@ -233,6 +307,8 @@ tasks.register("verifyDeployLayout") {
             "run-elevated.sh",
             "scripts/deploy.ps1",
             "scripts/apply-deploy.ps1",
+            "scripts/spring-suite-supervisor.ps1",
+            "scripts/suite-toast.ps1",
             "scripts/clean.ps1",
             "scripts/verify-repository.ps1",
             "scripts/spring-suite-single-instance-check.ps1",

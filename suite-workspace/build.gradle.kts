@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     api(project(":suite-core"))
+    implementation(project(":suite-platform"))
     implementation(project(":suite-config"))
     implementation(project(":suite-logging"))
     implementation(project(":suite-command"))

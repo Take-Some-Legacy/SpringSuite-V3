@@ -3,8 +3,8 @@ package com.takesome.springsuite.agent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.takesome.springsuite.command.CommandDescriptor;
-import com.takesome.springsuite.command.CommandExecutionContext;
 import com.takesome.springsuite.command.CommandRegistry;
+import com.takesome.springsuite.desktop.DesktopFormRelay;
 import com.takesome.springsuite.agent.audit.AgentAuditService;
 import com.takesome.springsuite.toolbelt.ToolDescriptor;
 import com.takesome.springsuite.toolbelt.ToolIndexEntry;
@@ -33,6 +33,7 @@ public class McpService {
     private final WorkspaceService workspaceService;
     private final ToolbeltService toolbeltService;
     private final CommandRegistry commandRegistry;
+    private final DesktopFormRelay desktopFormRelay;
     private final BasicKnowledgeStore basicKnowledgeStore;
     private final ObjectMapper objectMapper;
     private final AgentAuditService audit;
@@ -44,6 +45,7 @@ public class McpService {
             WorkspaceService workspaceService,
             ToolbeltService toolbeltService,
             CommandRegistry commandRegistry,
+            DesktopFormRelay desktopFormRelay,
             BasicKnowledgeStore basicKnowledgeStore,
             ObjectMapper objectMapper,
             AgentAuditService audit
@@ -54,6 +56,7 @@ public class McpService {
         this.workspaceService = workspaceService;
         this.toolbeltService = toolbeltService;
         this.commandRegistry = commandRegistry;
+        this.desktopFormRelay = desktopFormRelay;
         this.basicKnowledgeStore = basicKnowledgeStore;
         this.objectMapper = objectMapper;
         this.audit = audit;
@@ -151,10 +154,28 @@ public class McpService {
         out.add(tool("basicKnowledge.list", "List all global BasicKnowledge facts.", schema(Map.of(), List.of()), true));
         out.add(tool("basicKnowledge.dump", "Dump the BasicKnowledge database metadata and items.", schema(Map.of(), List.of()), true));
         out.add(tool("toolbelt.run", "Run a discovered toolbelt tool by id/name when execution is enabled.", schema(orderedMap("toolId", str("Tool id/name/public name."), "args", array("Arguments."), "cwd", str("Working directory."), "stdin", str("Optional stdin."), "timeoutSec", integer("Timeout seconds."), "dryRun", bool("Dry-run command construction.")), List.of("toolId")), false));
-        out.add(tool("command.execute", "Execute a SpringSuite console command line. Runtime shutdown commands are rejected for MCP/API callers unless explicitly enabled.", schema(orderedMap("line", str("Command line.")), List.of("line")), false));
+        out.add(tool("command.execute", "Execute a SpringSuite console command line.", schema(orderedMap("line", str("Command line.")), List.of("line")), false));
         out.add(tool("fn.list", "List FN operator buttons.", schema(Map.of(), List.of()), true));
         out.add(tool("fn.trigger", "Trigger one FN operator button.", schema(orderedMap("fn", str("FN button code."), "target", str("Target."), "maxWidth", integer("Max width.")), List.of("fn")), false));
         out.add(tool("desktop.screenshot.send", "Explicit operator image handoff.", schema(orderedMap("target", str("Target."), "maxWidth", integer("Max width.")), List.of()), false));
+        out.add(tool("desktop.form.relay.current",
+                "Return the active form waiting for a ChatGPT 5.6 draft. Existing values and secrets are never returned.",
+                schema(Map.of(), List.of()), true));
+        out.add(tool("desktop.form.relay.status",
+                "Return the current ChatGPT form relay status without field contents.",
+                schema(orderedMap("relayId", str("Optional relay id.")), List.of()), true));
+        out.add(tool("desktop.form.relay.submit",
+                "Submit operator-reviewed draft values for the active form. SpringSuite validates them and does not write anything until the operator presses Fill.",
+                schema(orderedMap(
+                        "relayId", str("Relay id returned by desktop.form.relay.current."),
+                        "fields", arrayOf("Draft field values.", schema(orderedMap(
+                "fieldId", str("Exact fieldId returned by desktop.form.relay.current."),
+                "value", str("Draft value. Do not submit secrets, authentication data, payment data or inferred personal facts."),
+                "reason", str("Brief reason for this value."),
+                "confidence", orderedMap("type", "number", "description", "Confidence from 0 to 1.")
+        ), List.of("fieldId", "value"))),
+                        "summary", str("Brief summary shown in the overlay.")
+                ), List.of("relayId", "fields")), false));
         for (ToolIndexEntry entry : toolbeltService.index()) {
             out.add(tool(entry.publicName(), "Descriptor tool: " + entry.name() + " [" + entry.source() + "/" + entry.kind() + "]", schema(orderedMap("args", array("Arguments."), "cwd", str("Working directory."), "stdin", str("Optional stdin."), "timeoutSec", integer("Timeout seconds."), "dryRun", bool("Dry-run command construction.")), List.of()), false));
         }
@@ -185,29 +206,18 @@ public class McpService {
             case "basicKnowledge.list" -> basicKnowledgeStore.list();
             case "basicKnowledge.dump" -> basicKnowledgeStore.dump();
             case "toolbelt.run" -> toolbeltService.run(toolRunRequest(strAt(args, "toolId", ""), args));
-            case "command.execute" -> executeCommandFromMcp(args);
+            case "command.execute" -> commandRegistry.executeRaw(strAt(args, "line", ""));
             case "fn.list" -> fnList();
             case "fn.trigger" -> triggerFn(args);
             case "desktop.screenshot.send" -> desktopScreenshot(args, "direct");
+            case "desktop.form.relay.current" -> desktopFormRelay.currentRequest();
+            case "desktop.form.relay.status" -> desktopFormRelay.status(strAt(args, "relayId", ""));
+            case "desktop.form.relay.submit" -> desktopFormRelay.submit(args);
             default -> dynamicTool(name, args);
         };
         return toolResult(payload);
     }
 
-
-    private Object executeCommandFromMcp(Map<String, Object> args) {
-        try {
-            return CommandExecutionContext.runAs(
-                    CommandExecutionContext.Source.API,
-                    () -> commandRegistry.executeRaw(strAt(args, "line", ""))
-            );
-        } catch (Exception ex) {
-            throw new McpException(
-                    -32000,
-                    ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()
-            );
-        }
-    }
 
     private Map<String, Object> fnList() {
         ArrayList<Map<String, Object>> buttons = new ArrayList<>();
@@ -462,6 +472,8 @@ public class McpService {
                     "buttons", arrayOf("FN button descriptors.", looseObjectSchema("FN button descriptor."))
             ), List.of("schema", "count", "buttons"));
             case "desktop.screenshot.send" -> desktopScreenshotOutputSchema();
+            case "desktop.form.relay.current", "desktop.form.relay.status", "desktop.form.relay.submit"
+                    -> flexibleStructuredOutputSchema("ChatGPT form relay state or submission result.");
             case "fn.trigger" -> flexibleStructuredOutputSchema("FN trigger result or desktop screenshot handoff.");
             default -> name.startsWith("tool_") ? toolRunResultOutputSchema() : flexibleStructuredOutputSchema("Structured result returned by " + name + ".");
         };

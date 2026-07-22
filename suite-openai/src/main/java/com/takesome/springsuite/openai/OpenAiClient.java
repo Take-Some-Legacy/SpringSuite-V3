@@ -53,7 +53,8 @@ public class OpenAiClient {
         if (maxOutputTokens != null && maxOutputTokens > 0) {
             payload.put("max_output_tokens", maxOutputTokens);
         }
-        if (request.temperature() != null) {
+        boolean temperatureSupported = supportsTemperature(model);
+        if (request.temperature() != null && temperatureSupported) {
             payload.put("temperature", request.temperature());
         }
         if (request.metadata() != null && !request.metadata().isEmpty()) {
@@ -65,7 +66,9 @@ public class OpenAiClient {
                 "endpoint", properties.getResponses().getEndpoint(),
                 "inputChars", input.length(),
                 "maxOutputTokens", maxOutputTokens == null ? 0 : maxOutputTokens,
-                "store", payload.get("store")
+                "store", payload.get("store"),
+                "temperatureRequested", request.temperature() != null,
+                "temperatureSent", payload.containsKey("temperature")
         ));
 
         try {
@@ -143,6 +146,15 @@ public class OpenAiClient {
             audit.error("OpenAI response request runtime failure", Map.of("model", model, "error", safeMessage(ex), "durationMs", (System.nanoTime() - started) / 1_000_000L));
             throw ex;
         }
+    }
+
+    static boolean supportsTemperature(String model) {
+        String normalized = model == null ? "" : model.trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalized.isBlank()) {
+            return true;
+        }
+        return !normalized.startsWith("gpt-5")
+                && !normalized.matches("^o[134](?:-|$).*");
     }
 
     private URI responseUri() {

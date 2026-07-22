@@ -56,6 +56,13 @@ $requiredRootFiles = @(
 
 $requiredModules = @(
     "suite-core",
+    "suite-ai-api",
+    "suite-platform",
+    "suite-desktop-api",
+    "suite-desktop-config",
+    "suite-observability",
+    "suite-form-intelligence",
+    "suite-browser-dom",
     "suite-logging",
     "suite-database",
     "suite-config",

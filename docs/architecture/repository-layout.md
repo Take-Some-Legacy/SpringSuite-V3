@@ -6,7 +6,9 @@ SpringSuite is a Java 17 multi-project Gradle repository. The repository deliber
 
 ```text
 SpringSuite/
-├─ suite-core/                    Shared contracts and platform primitives
+├─ suite-core/                    Minimal runtime contracts: API, mode and status
+├─ suite-ai-api/                  Stable provider-neutral AI contracts
+├─ suite-platform/                OS and executable-discovery primitives
 ├─ suite-config/                  External configuration bootstrap
 ├─ suite-logging/                 Operator and runtime logging
 ├─ suite-database/                SQL persistence and request journal
@@ -16,7 +18,12 @@ SpringSuite/
 ├─ suite-workspace/               Bounded repository and filesystem access
 ├─ suite-ai/                      Provider-neutral AI routing
 ├─ suite-openai/                  OpenAI provider integration
-├─ suite-desktop-helper/          Desktop and browser assistance layer
+├─ suite-desktop-api/             Desktop form/snapshot/action contracts and ports
+├─ suite-desktop-config/          Typed desktop subsystem configuration
+├─ suite-observability/           Bounded metrics, latency and correlation primitives
+├─ suite-form-intelligence/       Form matching, planning, AI/Plus and safety filtering
+├─ suite-browser-dom/             Browser DOM ingest, command queue and REST surface
+├─ suite-desktop-helper/          Desktop orchestration, native runtime and compatibility facade
 ├─ suite-agent/                   MCP, OAuth and external agent bridge
 ├─ suite-cloudflared/             Managed Cloudflare Tunnel lifecycle
 ├─ suite-app/                     Spring Boot composition root
@@ -37,20 +44,23 @@ SpringSuite/
 The intended dependency flow is:
 
 ```text
-suite-core
-   ↑
-suite-config / suite-logging / suite-database
-   ↑
-suite-command / suite-toolbelt / suite-workspace / suite-ai
-   ↑
-feature integrations and signed modules
-   ↑
-suite-agent
-   ↑
-suite-app
+suite-core       suite-ai-api       suite-platform
+      \             |                 /
+       \            |                /
+        suite-config / suite-logging / suite-database
+                         ↑
+       suite-desktop-api → suite-browser-dom
+                         ↑
+       suite-command / suite-toolbelt / suite-workspace / suite-ai
+                         ↑
+          feature capabilities and signed modules
+                         ↑
+                     suite-agent
+                         ↑
+                      suite-app
 ```
 
-Lower-level modules must not depend on `suite-app`. Integration modules should depend on contracts from `suite-core` or a narrow infrastructure module rather than reaching across unrelated feature packages.
+Lower-level modules must not depend on `suite-app`. Integration modules must depend on the narrowest contract module available. AI consumers use `suite-ai-api`; executable discovery uses `suite-platform`; generic runtime API, operator mode and status remain in `suite-core`. Feature modules must not recover these dependencies transitively through a broad aggregate module.
 
 ## Source and runtime separation
 

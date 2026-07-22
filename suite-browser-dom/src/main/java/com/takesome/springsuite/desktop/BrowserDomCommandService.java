@@ -9,6 +9,7 @@ import com.takesome.springsuite.desktop.DesktopBridgeModels.DesktopSnapshot;
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopFormField;
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
+import com.takesome.springsuite.observability.SuiteTelemetry;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
@@ -28,15 +29,22 @@ public class BrowserDomCommandService {
 
     private final BrowserDomProperties properties;
     private final OperatorLogService logService;
+    private final SuiteTelemetry telemetry;
     private final Map<String, BrowserDomFillCommand> pendingByPageId = new ConcurrentHashMap<>();
     private final Map<String, BrowserDomFillCommand> pendingByCommandId = new ConcurrentHashMap<>();
     private final AtomicLong queuedCount = new AtomicLong();
     private final AtomicLong acknowledgedCount = new AtomicLong();
     private final AtomicLong rejectedCount = new AtomicLong();
 
-    public BrowserDomCommandService(BrowserDomProperties properties, OperatorLogService logService) {
+    public BrowserDomCommandService(
+            BrowserDomProperties properties,
+            OperatorLogService logService,
+            SuiteTelemetry telemetry
+    ) {
         this.properties = properties;
         this.logService = logService;
+        this.telemetry = telemetry;
+        telemetry.registerGauge("browser_dom", "pending_commands", pendingByCommandId::size);
     }
 
     public BrowserDomFillCommand enqueue(DesktopSnapshot snapshot, List<DesktopApprovedAction> actions) {
@@ -120,6 +128,7 @@ public class BrowserDomCommandService {
                 List.copyOf(fillFields),
                 Map.of(
                         "source", SOURCE,
+                        SuiteTelemetry.CORRELATION_ID, correlationId(snapshot),
                         "explicitUserGesture", true,
                         "fieldCount", fillFields.size(),
                         "submitDisabled", true
@@ -132,11 +141,79 @@ public class BrowserDomCommandService {
         }
         pendingByCommandId.put(command.commandId(), command);
         queuedCount.incrementAndGet();
+        telemetry.event("browser_dom", "command_queued", "fill");
         logService.append(OperatorLogLevel.INFO, SOURCE, "browser DOM fill command queued", Map.of(
+                SuiteTelemetry.CORRELATION_ID, correlationId(snapshot),
                 "commandId", command.commandId(),
                 "pageId", pageId,
                 "snapshotId", snapshot.snapshotId(),
                 "fields", fillFields.size(),
+                "expiresAt", command.expiresAt().toString()
+        ));
+        return command;
+    }
+
+    public BrowserDomFillCommand enqueueChatGptPlusRelay(
+            DesktopSnapshot snapshot,
+            String relayId,
+            String prompt
+    ) {
+        cleanupExpired();
+        if (snapshot == null || snapshot.context() == null) {
+            throw new IllegalArgumentException("Browser DOM snapshot is missing.");
+        }
+        String pageId = text(snapshot.context().metadata().get("pageId"));
+        if (pageId.isBlank()) {
+            pageId = text(snapshot.metadata().get("pageId"));
+        }
+        if (pageId.isBlank()) {
+            throw new IllegalArgumentException("Browser DOM snapshot does not contain pageId.");
+        }
+        String pageUrl = sanitizePageUrl(snapshot.context().url());
+        if (pageUrl.isBlank()) {
+            throw new IllegalArgumentException("Browser DOM snapshot does not contain a valid page URL.");
+        }
+        String normalizedRelayId = normalize(relayId);
+        String normalizedPrompt = normalize(prompt);
+        if (normalizedRelayId.isBlank() || normalizedPrompt.isBlank()) {
+            throw new IllegalArgumentException("ChatGPT Plus relayId and prompt are required.");
+        }
+
+        Instant now = Instant.now();
+        BrowserDomFillCommand command = new BrowserDomFillCommand(
+                UUID.randomUUID().toString(),
+                pageId,
+                pageUrl,
+                snapshot.snapshotId(),
+                now,
+                now.plus(properties.getCommandTtl()),
+                true,
+                false,
+                List.of(),
+                Map.of(
+                        "source", SOURCE,
+                        SuiteTelemetry.CORRELATION_ID, correlationId(snapshot),
+                        "commandType", "chatgpt-plus-relay",
+                        "relayId", normalizedRelayId,
+                        "prompt", normalizedPrompt,
+                        "explicitUserGesture", true,
+                        "submitDisabled", true
+                )
+        );
+
+        BrowserDomFillCommand previous = pendingByPageId.put(pageId, command);
+        if (previous != null) {
+            pendingByCommandId.remove(previous.commandId());
+        }
+        pendingByCommandId.put(command.commandId(), command);
+        queuedCount.incrementAndGet();
+        telemetry.event("browser_dom", "command_queued", "chatgpt_plus");
+        logService.append(OperatorLogLevel.INFO, SOURCE, "ChatGPT Plus relay command queued", Map.of(
+                SuiteTelemetry.CORRELATION_ID, correlationId(snapshot),
+                "commandId", command.commandId(),
+                "pageId", pageId,
+                "snapshotId", snapshot.snapshotId(),
+                "relayId", normalizedRelayId,
                 "expiresAt", command.expiresAt().toString()
         ));
         return command;
@@ -157,6 +234,7 @@ public class BrowserDomCommandService {
             rejectedCount.incrementAndGet();
             return Optional.empty();
         }
+        telemetry.event("browser_dom", "command_polled", "success");
         return Optional.of(command);
     }
 
@@ -196,11 +274,13 @@ public class BrowserDomCommandService {
 
         remove(command);
         acknowledgedCount.incrementAndGet();
+        telemetry.event("browser_dom", "command_acknowledged", safeRequest.ok() ? "success" : "partial");
         String code = safeRequest.ok() ? "ok" : "browser_dom_fill_partial_or_failed";
         String message = safeRequest.ok()
                 ? "Browser form fields were inserted after explicit operator confirmation."
                 : "Browser form insertion completed with skipped or failed fields.";
         logService.append(safeRequest.ok() ? OperatorLogLevel.INFO : OperatorLogLevel.WARN, SOURCE, "browser DOM fill command acknowledged", Map.of(
+                SuiteTelemetry.CORRELATION_ID, text(command.metadata().get(SuiteTelemetry.CORRELATION_ID)),
                 "commandId", command.commandId(),
                 "pageId", command.pageId(),
                 "filled", safeRequest.filledCount(),
@@ -242,6 +322,7 @@ public class BrowserDomCommandService {
     private void cleanupExpired() {
         for (BrowserDomFillCommand command : List.copyOf(pendingByCommandId.values())) {
             if (command.expired()) {
+                telemetry.event("browser_dom", "command_expired", "expired");
                 remove(command);
             }
         }
@@ -283,6 +364,18 @@ public class BrowserDomCommandService {
         } catch (URISyntaxException ignored) {
             return "";
         }
+    }
+
+    private String correlationId(DesktopSnapshot snapshot) {
+        if (snapshot == null) {
+            return "";
+        }
+        return firstText(
+                text(snapshot.metadata().get(SuiteTelemetry.CORRELATION_ID)),
+                snapshot.context() == null
+                        ? ""
+                        : text(snapshot.context().metadata().get(SuiteTelemetry.CORRELATION_ID))
+        );
     }
 
     private String normalizeAction(String action) {

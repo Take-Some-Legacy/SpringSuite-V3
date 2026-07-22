@@ -22,6 +22,9 @@
   }
 
   async function sendSnapshot(force) {
+    if (document.visibilityState !== "visible") {
+      return;
+    }
     const payload = collectSnapshot();
     const fingerprint = stableFingerprint(payload);
     if (!force && fingerprint === lastFingerprint) {
@@ -60,6 +63,7 @@
         origin: location.origin,
         path: location.pathname,
         formCount: forms.length,
+        visibilityState: document.visibilityState,
         viewport: {
           width: window.innerWidth,
           height: window.innerHeight,
@@ -124,7 +128,9 @@
   function collectField(field, index, formSelector, activeElement) {
     const type = fieldType(field);
     const selector = selectorFor(field) || `${field.tagName.toLowerCase()}:nth-of-type(${index + 1})`;
-    const label = labelFor(field);
+    const placeholder = field.getAttribute("placeholder") || "";
+    const promptContext = placeholder ? { text: "", source: "placeholder" } : promptContextFor(field);
+    const label = labelFor(field, promptContext.text);
     const bounds = screenBounds(field);
     const options = field instanceof HTMLSelectElement
       ? Array.from(field.options).slice(0, MAX_OPTIONS_PER_FIELD).map((option) => cleanText(option.label || option.textContent || option.value))
@@ -144,7 +150,7 @@
       name: field.getAttribute("name") || field.id || selector,
       type,
       role: field.getAttribute("role") || roleFor(field, type),
-      placeholder: field.getAttribute("placeholder") || "",
+      placeholder,
       required: Boolean(field.required || field.getAttribute("aria-required") === "true"),
       focused: field === activeElement,
       sensitive,
@@ -166,6 +172,8 @@
         minLength: numericProperty(field, "minLength"),
         maxLength: numericProperty(field, "maxLength"),
         multiple: Boolean(field.multiple),
+        contextPrompt: promptContext.text,
+        promptSource: promptContext.source,
         bounds
       }
     };
@@ -233,7 +241,7 @@
     return false;
   }
 
-  function labelFor(field) {
+  function labelFor(field, contextPrompt = "") {
     const nativeLabels = field.labels ? Array.from(field.labels).map((label) => cleanText(label.textContent)).filter(Boolean) : [];
     const labelledBy = (field.getAttribute("aria-labelledby") || "")
       .split(/\s+/)
@@ -245,10 +253,63 @@
       field.getAttribute("aria-label"),
       labelledBy.join(" / "),
       field.getAttribute("placeholder"),
+      contextPrompt,
       field.getAttribute("name"),
       field.id,
       fieldType(field)
     );
+  }
+
+  function promptContextFor(field) {
+    const describedBy = (field.getAttribute("aria-describedby") || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((id) => cleanText(document.getElementById(id)?.textContent))
+      .filter(Boolean)
+      .join(" / ");
+    if (describedBy) return { text: describedBy, source: "aria-describedby" };
+
+    const fieldset = field.closest("fieldset");
+    const legend = cleanText(fieldset?.querySelector(":scope > legend")?.textContent);
+    if (legend) return { text: legend, source: "fieldset-legend" };
+
+    let cursor = field;
+    for (let depth = 0; cursor && depth < 5; depth++) {
+      let sibling = cursor.previousElementSibling;
+      for (let offset = 0; sibling && offset < 3; offset++, sibling = sibling.previousElementSibling) {
+        const text = promptTextFrom(sibling);
+        if (text) return { text, source: "preceding-block" };
+      }
+
+      const container = cursor.parentElement;
+      if (!container || container === document.body || container === document.documentElement) break;
+
+      const explicitPrompt = container.querySelector(
+        ":scope > label, :scope > legend, :scope > [data-label], :scope > [class*='label'], " +
+        ":scope > [class*='prompt'], :scope > [class*='question'], :scope > [class*='hint'], " +
+        ":scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > p"
+      );
+      if (explicitPrompt && !explicitPrompt.contains(field)) {
+        const text = promptTextFrom(explicitPrompt);
+        if (text) return { text, source: "container-prompt" };
+      }
+
+      if (container.matches("label, li, td, th, section, article, [role='group'], [role='radiogroup']")) {
+        const text = promptTextFrom(container);
+        if (text) return { text, source: "nearest-container" };
+      }
+      cursor = container;
+    }
+    return { text: "", source: "none" };
+  }
+
+  function promptTextFrom(element) {
+    if (!(element instanceof Element)) return "";
+    const clone = element.cloneNode(true);
+    clone.querySelectorAll("input, select, textarea, button, script, style, svg, noscript").forEach((node) => node.remove());
+    const text = cleanText(clone.textContent);
+    if (!text || text.length < 2 || text.length > 320) return "";
+    return text;
   }
 
   function selectorFor(element) {
@@ -321,14 +382,17 @@
         return;
       }
       lastCommandId = command.commandId;
-      const result = executeFillCommand(command);
+      const commandType = String(command.metadata?.commandType || "fill").toLowerCase();
+      const result = commandType === "chatgpt-plus-relay"
+        ? await executeChatGptPlusRelayCommand(command)
+        : executeFillCommand(command);
       await chrome.runtime.sendMessage({
         type: "SPRINGSUITE_COMMAND_ACK",
         commandId: command.commandId,
         payload: {
           pageId: PAGE_ID,
           pageUrl: location.href,
-          ok: result.failedCount === 0 && result.filledCount > 0,
+          ok: result.ok === true || (result.failedCount === 0 && result.filledCount > 0),
           filledCount: result.filledCount,
           skippedCount: result.skippedCount,
           failedCount: result.failedCount,
@@ -336,7 +400,8 @@
           metadata: {
             extensionVersion: chrome.runtime.getManifest().version,
             submitPerformed: false,
-            explicitUserGesture: true
+            explicitUserGesture: true,
+            commandType: String(command.metadata?.commandType || "fill")
           }
         }
       });
@@ -346,6 +411,100 @@
     } finally {
       commandPollInFlight = false;
     }
+  }
+
+  async function executeChatGptPlusRelayCommand(command) {
+    const relayId = cleanText(command.metadata?.relayId);
+    const prompt = String(command.metadata?.prompt || "").trim();
+    if (!relayId || !prompt) {
+      return {
+        ok: false,
+        filledCount: 0,
+        skippedCount: 0,
+        failedCount: 1,
+        warnings: ["ChatGPT Plus relay command is missing relayId or prompt."]
+      };
+    }
+    const response = await chrome.runtime.sendMessage({
+      type: "SPRINGSUITE_CHATGPT_PLUS_RELAY",
+      payload: { relayId, prompt }
+    });
+    return {
+      ok: response?.ok === true,
+      filledCount: 0,
+      skippedCount: 0,
+      failedCount: response?.ok ? 0 : 1,
+      warnings: response?.ok ? [] : [cleanText(response?.message) || "ChatGPT Plus relay dispatch failed."]
+    };
+  }
+
+  async function sendChatGptPlusTurn(payload) {
+    if (!isChatGptPage()) {
+      return { ok: false, code: "not_chatgpt_page", message: "The target tab is not ChatGPT." };
+    }
+    const prompt = String(payload?.prompt || "").trim();
+    if (!prompt) {
+      return { ok: false, code: "chatgpt_prompt_missing", message: "Relay prompt is empty." };
+    }
+
+    const composer = await waitForChatGptElement([
+      "#prompt-textarea",
+      "textarea[data-id='root']",
+      "div[contenteditable='true'][data-lexical-editor='true']",
+      "textarea[placeholder*='Message']",
+      "textarea[placeholder*='Сообщение']"
+    ], 10000);
+    if (!composer) {
+      return { ok: false, code: "chatgpt_composer_missing", message: "ChatGPT message composer was not found." };
+    }
+
+    composer.focus();
+    if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
+      setNativeValue(composer, prompt);
+      dispatchFieldEvents(composer);
+    } else {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(composer);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.execCommand("insertText", false, prompt);
+      composer.dispatchEvent(new InputEvent("input", {
+        bubbles: true,
+        composed: true,
+        inputType: "insertText",
+        data: prompt
+      }));
+    }
+
+    const sendButton = await waitForChatGptElement([
+      "button[data-testid='send-button']",
+      "button[aria-label='Send prompt']",
+      "button[aria-label='Send message']",
+      "button[aria-label='Отправить сообщение']",
+      "button[aria-label='Отправить запрос']"
+    ], 10000, (element) => !element.disabled && element.getAttribute("aria-disabled") !== "true");
+    if (!sendButton) {
+      return { ok: false, code: "chatgpt_send_button_missing", message: "ChatGPT send button was not available." };
+    }
+    sendButton.click();
+    return { ok: true, code: "chatgpt_plus_turn_sent", relayId: cleanText(payload?.relayId) };
+  }
+
+  function isChatGptPage() {
+    return location.hostname === "chatgpt.com" || location.hostname === "chat.openai.com";
+  }
+
+  async function waitForChatGptElement(selectors, timeoutMs, predicate = () => true) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (element && predicate(element)) return element;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+    return null;
   }
 
   function executeFillCommand(command) {
@@ -485,6 +644,9 @@
         active: form.active,
         fields: form.fields.map((field) => ({
           id: field.id,
+          label: field.label,
+          placeholder: field.placeholder,
+          contextPrompt: field.metadata?.contextPrompt || "",
           type: field.type,
           required: field.required,
           focused: field.focused,
@@ -526,10 +688,34 @@
     return String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
   }
 
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type !== "SPRINGSUITE_CHATGPT_PLUS_SEND") {
+      return false;
+    }
+    sendChatGptPlusTurn(message.payload)
+      .then(sendResponse)
+      .catch((error) => sendResponse({
+        ok: false,
+        code: "chatgpt_plus_content_error",
+        message: cleanText(error?.message || error)
+      }));
+    return true;
+  });
+
+  if (isChatGptPage()) {
+    return;
+  }
+
   document.addEventListener("focusin", () => schedule(false), true);
   document.addEventListener("input", () => schedule(false), true);
   document.addEventListener("change", () => schedule(false), true);
   document.addEventListener("submit", () => schedule(true), true);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      lastFingerprint = "";
+      schedule(true);
+    }
+  }, true);
 
   const observer = new MutationObserver(() => schedule(false));
   observer.observe(document.documentElement, {
@@ -538,11 +724,13 @@
     attributes: true,
     attributeFilter: [
       "action", "method", "name", "id", "type", "role", "required", "disabled", "readonly",
-      "placeholder", "autocomplete", "aria-label", "aria-labelledby", "aria-required", "aria-disabled"
+      "placeholder", "autocomplete", "aria-label", "aria-labelledby", "aria-describedby", "aria-required", "aria-disabled"
     ]
   });
 
   schedule(true);
-  window.setInterval(() => sendSnapshot(true), 5000);
+  window.setInterval(() => {
+    if (document.visibilityState === "visible") sendSnapshot(true);
+  }, 5000);
   window.setInterval(pollForCommand, 800);
 })();

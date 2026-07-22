@@ -29,8 +29,8 @@ public class BrowserDomService {
     public static final String SOURCE = "browser-dom-extension";
 
     private final BrowserDomProperties properties;
-    private final DesktopBridgeService bridgeService;
-    private final DesktopAgentService agentService;
+    private final DesktopSnapshotIngestor snapshotIngestor;
+    private final DesktopSnapshotConsumer snapshotConsumer;
     private final OperatorLogService logService;
     private final AtomicLong receivedSnapshots = new AtomicLong();
     private final AtomicLong acceptedSnapshots = new AtomicLong();
@@ -46,13 +46,13 @@ public class BrowserDomService {
 
     public BrowserDomService(
             BrowserDomProperties properties,
-            DesktopBridgeService bridgeService,
-            DesktopAgentService agentService,
+            DesktopSnapshotIngestor snapshotIngestor,
+            DesktopSnapshotConsumer snapshotConsumer,
             OperatorLogService logService
     ) {
         this.properties = properties;
-        this.bridgeService = bridgeService;
-        this.agentService = agentService;
+        this.snapshotIngestor = snapshotIngestor;
+        this.snapshotConsumer = snapshotConsumer;
         this.logService = logService;
     }
 
@@ -70,6 +70,15 @@ public class BrowserDomService {
         }
         if (request == null) {
             return reject("browser_dom_payload_missing", "Browser DOM snapshot payload is missing.", List.of(), Map.of());
+        }
+        if (!Boolean.TRUE.equals(request.metadata().get("activeTab"))
+                || !Boolean.TRUE.equals(request.metadata().get("windowFocused"))) {
+            return reject(
+                    "browser_dom_inactive_tab",
+                    "Browser DOM snapshot was ignored because it did not come from the active tab in the focused browser window.",
+                    List.of("Reload SpringSuite Form Bridge 0.3.1 or newer."),
+                    Map.of("pageId", request.pageId(), "url", request.url())
+            );
         }
         if (request.forms().size() > properties.getMaxForms()) {
             return reject(
@@ -183,7 +192,7 @@ public class BrowserDomService {
         ingestBody.put("source", SOURCE);
         ingestBody.put("store", true);
         ingestBody.put("snapshot", raw);
-        DesktopSnapshotResult snapshotResult = bridgeService.ingest(ingestBody);
+        DesktopSnapshotResult snapshotResult = snapshotIngestor.ingest(ingestBody);
         if (!snapshotResult.ok() || snapshotResult.snapshot() == null) {
             return reject(
                     firstText(snapshotResult.code(), "browser_dom_ingest_failed"),
@@ -198,7 +207,7 @@ public class BrowserDomService {
         lastFormCount = request.forms().size();
         lastFieldCount = fields.size();
         updateState("ok", "Recognized web form with " + fields.size() + " field(s).");
-        agentService.acceptExternalSnapshot(snapshotResult.snapshot());
+        snapshotConsumer.acceptSnapshot(snapshotResult.snapshot());
 
         LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("selectedFormId", activeForm.id());
@@ -364,7 +373,8 @@ public class BrowserDomService {
                     field.metadata(),
                     List.of(
                             "cssSelector", "formSelector", "tagName", "autocomplete", "inputMode",
-                            "min", "max", "step", "pattern", "minLength", "maxLength", "multiple", "bounds"
+                            "min", "max", "step", "pattern", "minLength", "maxLength", "multiple",
+                            "contextPrompt", "promptSource", "bounds"
                     )
             );
             metadata.put("browserDom", true);

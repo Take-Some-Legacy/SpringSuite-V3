@@ -1,6 +1,6 @@
 # SpringSuite Form Bridge
 
-Manifest V3 extension for Chromium-based browsers. It recognizes real HTML `<form>` elements, sends a privacy-preserving structure snapshot to the local SpringSuite runtime, and executes a short-lived fill command only after the operator clicks **«Вставить»** in the SpringSuite suggestion window.
+Manifest V3 extension for Chromium-based browsers. It recognizes real HTML `<form>` elements, sends a privacy-preserving structure snapshot to the local SpringSuite runtime, and executes a short-lived fill command only after the operator clicks **«Заполнить»** in the SpringSuite suggestion window.
 
 ## Captured
 
@@ -22,7 +22,17 @@ The server removes query strings, URL fragments and user-info before storing a s
 
 ## Operator-confirmed insertion
 
-When SpringSuite finds values in `suite.desktop-helper.agent.autofill-profile`, the desktop suggestion window shows the exact non-sensitive text proposed for each field. Nothing is inserted until the operator clicks **«Вставить»**.
+When SpringSuite finds values in `suite.desktop-helper.agent.autofill-profile`, the desktop suggestion window shows the exact non-sensitive text proposed for each field. Nothing is inserted until the operator clicks **«Заполнить»**.
+
+The overlay provides two fill sources:
+
+- **Из памяти** — values from `suite.desktop-helper.agent.autofill-profile`;
+- **От ИИ** — ChatGPT Plus relay through the currently open authenticated ChatGPT tab. The same operator click creates a visible relay turn, waits for the NorthStar MCP result, validates it locally and fills the focused field. The OpenAI API key and API billing are not used by this path.
+
+The Plus relay sends only a relay identifier and instructions to the ChatGPT tab. ChatGPT reads the privacy-filtered field schema through NorthStar MCP. Passwords, codes, existing values and hidden data are never embedded in the chat message. The bridge never submits the form.
+
+When a field has no placeholder, the extension resolves a prompt from `aria-describedby`, a fieldset legend, a preceding text block, or the nearest semantic container. The overlay shows the active field, its placeholder or resolved context, and a **Поля: N** button with the complete recognized-field list.
+
 
 The command channel:
 

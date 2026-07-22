@@ -6,6 +6,7 @@ import com.takesome.springsuite.command.CommandInvocation;
 import com.takesome.springsuite.command.CommandRegistry;
 import com.takesome.springsuite.command.CommandRiskLevel;
 import com.takesome.springsuite.command.SuiteCommand;
+import com.takesome.springsuite.desktop.DesktopAgentUi;
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
 import java.util.List;
@@ -22,12 +23,19 @@ public class RestartCommand implements SuiteCommand {
     public static final int RESTART_EXIT_CODE = 42;
     private final ConfigurableApplicationContext context;
     private final ObjectProvider<CommandRegistry> commandRegistryProvider;
+    private final ObjectProvider<DesktopAgentUi> desktopUiProvider;
     private final OperatorLogService logService;
     private final AtomicBoolean restartRequested = new AtomicBoolean(false);
 
-    public RestartCommand(ConfigurableApplicationContext context, ObjectProvider<CommandRegistry> commandRegistryProvider, OperatorLogService logService) {
+    public RestartCommand(
+            ConfigurableApplicationContext context,
+            ObjectProvider<CommandRegistry> commandRegistryProvider,
+            ObjectProvider<DesktopAgentUi> desktopUiProvider,
+            OperatorLogService logService
+    ) {
         this.context = context;
         this.commandRegistryProvider = commandRegistryProvider;
+        this.desktopUiProvider = desktopUiProvider;
         this.logService = logService;
     }
 
@@ -59,6 +67,7 @@ public class RestartCommand implements SuiteCommand {
         if (!restartRequested.compareAndSet(false, true)) {
             return CommandExecutionResult.failed("restart_already_requested", "A restart request is already scheduled.");
         }
+        notifyInfo("SpringSuite restart", "A supervised restart will begin in " + delaySeconds + " second(s).");
         Thread thread = new Thread(() -> runRestartAfterDelay(delaySeconds, force), "suite-restart-scheduler");
         thread.setDaemon(false);
         thread.start();
@@ -71,19 +80,44 @@ public class RestartCommand implements SuiteCommand {
             int activeNow = commandRegistryProvider.getObject().activeExecutions();
             if (!force && activeNow > 0) {
                 restartRequested.set(false);
+                notifyWarning("SpringSuite restart cancelled", "Another command is still running.");
                 logService.append(OperatorLogLevel.WARN, "process", "restart cancelled because command workers are active", Map.of("activeExecutions", activeNow));
                 return;
             }
+            notifyInfo("SpringSuite restarting", "The supervisor will relaunch the runtime automatically.");
             logService.append(OperatorLogLevel.WARN, "process", "spring suite graceful restart requested", Map.of("exitCode", RESTART_EXIT_CODE, "force", force));
             int code = SpringApplication.exit(context, () -> RESTART_EXIT_CODE);
             System.exit(code);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             restartRequested.set(false);
+            notifyWarning("SpringSuite restart interrupted", "The restart scheduler was interrupted.");
             logService.append(OperatorLogLevel.WARN, "process", "restart scheduler interrupted");
         } catch (Exception ex) {
             restartRequested.set(false);
+            notifyError("SpringSuite restart failed", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
             logService.append(OperatorLogLevel.ERROR, "process", "restart failed", Map.of("error", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()));
+        }
+    }
+
+    private void notifyInfo(String title, String message) {
+        DesktopAgentUi ui = desktopUiProvider.getIfAvailable();
+        if (ui != null) {
+            ui.notifyInfo(title, message);
+        }
+    }
+
+    private void notifyWarning(String title, String message) {
+        DesktopAgentUi ui = desktopUiProvider.getIfAvailable();
+        if (ui != null) {
+            ui.notifyWarning(title, message);
+        }
+    }
+
+    private void notifyError(String title, String message) {
+        DesktopAgentUi ui = desktopUiProvider.getIfAvailable();
+        if (ui != null) {
+            ui.notifyError(title, message);
         }
     }
 

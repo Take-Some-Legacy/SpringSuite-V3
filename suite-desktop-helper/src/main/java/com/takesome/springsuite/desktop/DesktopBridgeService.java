@@ -10,6 +10,7 @@ import com.takesome.springsuite.desktop.DesktopBridgeModels.NormalizedDesktopSna
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopFocusContext;
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
+import com.takesome.springsuite.observability.SuiteTelemetry;
 import com.takesome.springsuite.toolbelt.ToolRunResult;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,7 +20,7 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
-public class DesktopBridgeService {
+public class DesktopBridgeService implements DesktopSnapshotIngestor {
     private static final String SOURCE = "desktop-bridge";
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
@@ -30,6 +31,7 @@ public class DesktopBridgeService {
     private final DesktopSnapshotCache cache;
     private final ObjectMapper objectMapper;
     private final OperatorLogService logService;
+    private final SuiteTelemetry telemetry;
 
     public DesktopBridgeService(
             DesktopHelperProperties properties,
@@ -37,7 +39,8 @@ public class DesktopBridgeService {
             DesktopContextNormalizer normalizer,
             DesktopSnapshotCache cache,
             ObjectMapper objectMapper,
-            OperatorLogService logService
+            OperatorLogService logService,
+            SuiteTelemetry telemetry
     ) {
         this.properties = properties;
         this.captureAdapter = captureAdapter;
@@ -45,6 +48,7 @@ public class DesktopBridgeService {
         this.cache = cache;
         this.objectMapper = objectMapper;
         this.logService = logService;
+        this.telemetry = telemetry;
     }
 
     public DesktopSnapshotResult capture(DesktopCaptureRequest request) {
@@ -59,6 +63,8 @@ public class DesktopBridgeService {
         ToolRunResult run = captureAdapter.capture(safeRequest);
         ArrayList<String> warnings = new ArrayList<>();
         LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+        String correlationId = telemetry.newCorrelationId();
+        metadata.put(SuiteTelemetry.CORRELATION_ID, correlationId);
         metadata.put("toolId", run.toolId());
         metadata.put("toolOk", run.ok());
         metadata.put("exitCode", run.exitCode());
@@ -93,6 +99,7 @@ public class DesktopBridgeService {
                 : transientSnapshot(withMetadata(normalized, metadata));
 
         logService.append(OperatorLogLevel.INFO, SOURCE, "desktop snapshot captured", Map.of(
+                SuiteTelemetry.CORRELATION_ID, correlationId,
                 "snapshotId", snapshot.snapshotId(),
                 "source", snapshot.source(),
                 "stored", safeRequest.store(),
@@ -102,6 +109,7 @@ public class DesktopBridgeService {
         return DesktopSnapshotResult.ok("Desktop snapshot captured.", snapshot, warnings, metadata);
     }
 
+    @Override
     public DesktopSnapshotResult ingest(Map<String, Object> body) {
         if (!properties.isEnabled()) {
             return DesktopSnapshotResult.failed("desktop_helper_disabled", "Desktop helper is disabled.", List.of(), Map.of());
@@ -120,6 +128,8 @@ public class DesktopBridgeService {
 
         NormalizedDesktopSnapshot normalized = normalizer.normalize(source, raw, explicitContext);
         LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
+        String correlationId = firstText(text(body.get(SuiteTelemetry.CORRELATION_ID)), telemetry.newCorrelationId());
+        metadata.put(SuiteTelemetry.CORRELATION_ID, correlationId);
         metadata.put("ingestSource", source);
         metadata.put("stored", store);
         metadata.put("payloadKeys", body.keySet().stream().sorted().toList());
@@ -130,6 +140,7 @@ public class DesktopBridgeService {
                 : transientSnapshot(withMetadata(normalized, metadata));
 
         logService.append(OperatorLogLevel.INFO, SOURCE, "desktop snapshot ingested", Map.of(
+                SuiteTelemetry.CORRELATION_ID, correlationId,
                 "snapshotId", snapshot.snapshotId(),
                 "source", snapshot.source(),
                 "stored", store,

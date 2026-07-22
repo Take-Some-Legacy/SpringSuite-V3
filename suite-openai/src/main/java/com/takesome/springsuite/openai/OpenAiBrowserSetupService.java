@@ -30,6 +30,10 @@ public class OpenAiBrowserSetupService {
         return properties.getBrowserSetup().isEnabled();
     }
 
+    public boolean localOnly() {
+        return properties.getBrowserSetup().isLocalOnly();
+    }
+
     public synchronized String setupToken() {
         Instant now = Instant.now();
         if (setupToken.isBlank() || !now.isBefore(setupTokenExpiresAt)) {
@@ -50,6 +54,22 @@ public class OpenAiBrowserSetupService {
             return false;
         }
         return Instant.now().isBefore(setupTokenExpiresAt) && constantTimeEquals(token.trim(), setupToken);
+    }
+
+    public boolean trustedLocalMutationRequest(HttpServletRequest request) {
+        if (!requestAllowed(request)) {
+            return false;
+        }
+        String origin = request == null ? "" : nullSafe(request.getHeader("Origin"));
+        if (!origin.isBlank() && isTrustedLocalOrigin(origin)) {
+            return true;
+        }
+        String referer = request == null ? "" : nullSafe(request.getHeader("Referer"));
+        if (!referer.isBlank() && isTrustedLocalOrigin(referer)) {
+            return true;
+        }
+        String fetchSite = request == null ? "" : nullSafe(request.getHeader("Sec-Fetch-Site"));
+        return "same-origin".equalsIgnoreCase(fetchSite);
     }
 
     public boolean requestAllowed(HttpServletRequest request) {
@@ -78,7 +98,10 @@ public class OpenAiBrowserSetupService {
     }
 
     public String requestSetupUrl(HttpServletRequest request) {
-        if (request == null) {
+        // Never advertise an externally routed URL when mutations are loopback-only.
+        // Clients may call status through a reverse proxy, but credential binding must
+        // still happen directly against the local runtime.
+        if (request == null || localOnly()) {
             return localSetupUrl();
         }
         String proto = firstHeader(request, "X-Forwarded-Proto", request.isSecure() ? "https" : "http");
@@ -114,6 +137,23 @@ public class OpenAiBrowserSetupService {
         } catch (Exception ex) {
             audit.warn("OpenAI setup page browser open failed", Map.of("url", url, "error", safeMessage(ex)));
             return new OpenAiBrowserLaunchResult(false, url, "could not open browser automatically: " + safeMessage(ex));
+        }
+    }
+
+    private boolean isTrustedLocalOrigin(String value) {
+        try {
+            URI uri = URI.create(value.trim());
+            if (!"http".equalsIgnoreCase(uri.getScheme()) || !isLocalHost(uri.getHost())) {
+                return false;
+            }
+            int configuredPort = Integer.parseInt(environment.getProperty(
+                    "local.server.port",
+                    environment.getProperty("server.port", "8090")
+            ));
+            int requestPort = uri.getPort() < 0 ? 80 : uri.getPort();
+            return requestPort == configuredPort;
+        } catch (RuntimeException ignored) {
+            return false;
         }
     }
 

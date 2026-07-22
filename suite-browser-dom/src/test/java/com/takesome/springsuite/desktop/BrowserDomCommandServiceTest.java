@@ -11,6 +11,8 @@ import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopFocusContext;
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopFormContext;
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopFormField;
 import com.takesome.springsuite.logging.OperatorLogService;
+import com.takesome.springsuite.observability.SuiteTelemetry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +26,11 @@ class BrowserDomCommandServiceTest {
     @BeforeEach
     void setUp() {
         properties = new BrowserDomProperties();
-        service = new BrowserDomCommandService(properties, mock(OperatorLogService.class));
+        service = new BrowserDomCommandService(
+                properties,
+                mock(OperatorLogService.class),
+                new SuiteTelemetry(new SimpleMeterRegistry())
+        );
     }
 
     @Test

@@ -8,7 +8,9 @@ Keep the bootable suite small and stable by leaving only runtime-critical infras
 
 These parts should stay system-owned because they define boot, configuration, command routing, module loading, auth, logging, and filesystem safety boundaries:
 
-- `suite-core` — API DTOs, status model, runtime operator mode.
+- `suite-core` — minimal API envelope, status model and runtime operator mode only.
+- `suite-ai-api` — stable provider-neutral AI contracts with no Spring or runtime implementation dependency.
+- `suite-platform` — isolated OS/executable discovery primitives.
 - `suite-config` — external configuration bootstrap and config contributors.
 - `suite-logging` — operator log pipeline and console/Jansi integration.
 - `suite-module` — module bootstrap, trust, registry, lifecycle, publisher management.
@@ -16,6 +18,79 @@ These parts should stay system-owned because they define boot, configuration, co
 - `suite-agent` — MCP/OAuth/bridge-token surface.
 - `suite-workspace` — workspace path policy and local mutation API.
 - `suite-toolbelt` — descriptor-driven tool discovery/execution kernel.
+
+## Core decomposition completed
+
+The first core-hardening phase is complete:
+
+- `core.ai.*` moved physically from `suite-core` to `suite-ai-api` without changing Java package names or public type names.
+- `PlatformExecutables` moved from `suite-core` to `suite-platform`.
+- AI/runtime consumers now declare explicit dependencies instead of receiving these capabilities through `suite-core`.
+- `suite-core` no longer owns provider contracts or OS-specific executable discovery.
+
+This is a source-compatible structural extraction. Package renaming is intentionally deferred until downstream feature decomposition is complete.
+
+## Desktop capability decomposition
+
+The second decomposition phase is complete:
+
+- `suite-desktop-api` now owns immutable form, snapshot, approval and execution contracts.
+- `DesktopSnapshotIngestor` defines the normalization/storage input port.
+- `DesktopSnapshotConsumer` defines the downstream orchestration notification port.
+- `suite-browser-dom` now owns DOM snapshot ingest, browser REST endpoints, command queue, browser bridge adapter and browser executor descriptor.
+- `BrowserDomService` no longer depends on `DesktopBridgeService` or `DesktopAgentService` concrete implementations.
+- `suite-desktop-helper` implements the two ports through `DesktopBridgeService` and `DesktopAgentService` and composes the browser capability from above.
+
+Current dependency DAG:
+
+```text
+suite-desktop-api
+        ↑
+suite-browser-dom
+        ↑
+suite-desktop-helper
+```
+
+The third desktop-hardening phase is complete:
+
+- `suite-desktop-config` owns typed desktop, agent and sidecar configuration.
+- `suite-form-intelligence` owns form analysis, memory matching, ChatGPT Plus relay state, optional provider-API planning and local safety filtering.
+- `suite-observability` owns bounded Micrometer metrics and correlation-id primitives.
+- deterministic local plans use a bounded 256-entry, 2-second Caffeine cache; AI and Plus branches bypass it.
+- correlation ids propagate from snapshot ingest through plan metadata, browser command queue and acknowledgement logs.
+- `verifyModuleBoundaries` enforces dependency direction and contract purity in local builds and matrix CI.
+
+Current dependency DAG:
+
+```text
+suite-desktop-api       suite-desktop-config       suite-observability
+        ↑                         ↑                         ↑
+        ├──────── suite-form-intelligence ────────────────┤
+        └──────── suite-browser-dom ──────────────────────┤
+                              ↑
+                    suite-desktop-helper
+```
+
+Remaining extraction wave:
+
+```text
+suite-desktop-api
+    ↑
+    ├─ suite-form-intelligence
+    ├─ suite-desktop-runtime
+    └─ suite-browser-dom
+              ↑
+       suite-desktop-agent
+              ↑
+     suite-desktop-helper facade
+```
+
+Remaining cycle breakers:
+
+- replace concrete bridge/executor registry access with capability catalog ports;
+- move snapshot cache, approval, execution guards and native adapters into `suite-desktop-runtime`;
+- move sidecar lifecycle, scan orchestration and Swing UI into `suite-desktop-agent` / `suite-desktop-ui`;
+- reduce `suite-desktop-helper` to composition, controllers and compatibility façades only.
 
 ## Already module-shaped
 

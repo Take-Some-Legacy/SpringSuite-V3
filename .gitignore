@@ -17,6 +17,7 @@ Thumbs.db
 
 # SpringSuite local runtime state
 /.springsuite/
+/.springsuite-patch-backups/
 **/.springsuite-repository.json
 /config/
 /data/

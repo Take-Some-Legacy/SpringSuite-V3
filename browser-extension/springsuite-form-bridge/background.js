@@ -29,6 +29,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "SPRINGSUITE_COMMAND_ACK":
       operation = acknowledgeCommand(message.commandId, message.payload);
       break;
+    case "SPRINGSUITE_CHATGPT_PLUS_RELAY":
+      operation = dispatchChatGptPlusRelay(message.payload, sender);
+      break;
     default:
       return false;
   }
@@ -40,12 +43,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function forwardSnapshot(payload, sender) {
+  const source = await activeTabSource(sender);
+  if (!source.active) {
+    return {
+      ok: true,
+      ignored: true,
+      code: source.code,
+      message: source.message,
+      pageUrl: sender?.tab?.url || payload?.url || "",
+      updatedAt: new Date().toISOString()
+    };
+  }
+
   const settings = await settingsOrThrow();
   const endpoint = validateLocalEndpoint(settings.endpoint);
+  const enrichedPayload = {
+    ...(payload || {}),
+    metadata: {
+      ...(payload?.metadata || {}),
+      activeTab: true,
+      windowFocused: true,
+      tabId: source.tabId,
+      windowId: source.windowId
+    }
+  };
   const response = await fetchJson(endpoint, {
     method: "POST",
     headers: bridgeHeaders(settings),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(enrichedPayload),
     cache: "no-store",
     credentials: "omit"
   });
@@ -60,6 +85,52 @@ async function forwardSnapshot(payload, sender) {
   };
   await chrome.storage.local.set({ lastBridgeStatus: status });
   return status;
+}
+
+async function activeTabSource(sender) {
+  const tab = sender?.tab;
+  if (!tab || !Number.isInteger(tab.id) || !Number.isInteger(tab.windowId)) {
+    return {
+      active: false,
+      code: "sender_tab_missing",
+      message: "Snapshot sender is not associated with a browser tab."
+    };
+  }
+  if (!tab.active) {
+    return {
+      active: false,
+      code: "inactive_tab_ignored",
+      message: "Snapshot ignored because its tab is not active."
+    };
+  }
+
+  let browserWindow;
+  try {
+    browserWindow = await chrome.windows.get(tab.windowId);
+  } catch (_) {
+    return {
+      active: false,
+      code: "browser_window_unavailable",
+      message: "Snapshot ignored because its browser window is unavailable."
+    };
+  }
+  if (!browserWindow?.focused) {
+    return {
+      active: false,
+      code: "background_window_ignored",
+      message: "Snapshot ignored because its browser window is not focused."
+    };
+  }
+
+  const [activeTab] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
+  if (!activeTab || activeTab.id !== tab.id) {
+    return {
+      active: false,
+      code: "active_tab_mismatch",
+      message: "Snapshot ignored because another tab is active in this window."
+    };
+  }
+  return { active: true, code: "ok", message: "Active tab confirmed.", tabId: tab.id, windowId: tab.windowId };
 }
 
 async function pollCommand(pageId, pageUrl) {
@@ -110,6 +181,73 @@ async function acknowledgeCommand(commandId, payload) {
     code: response.body?.code || response.body?.data?.code || (response.ok ? "ok" : "command_ack_failed"),
     message: response.body?.message || response.body?.data?.message || response.statusText
   };
+}
+
+async function dispatchChatGptPlusRelay(payload, sender) {
+  const relayId = String(payload?.relayId || "").trim();
+  const prompt = String(payload?.prompt || "").trim();
+  if (!relayId || !prompt) {
+    return { ok: false, code: "chatgpt_plus_payload_missing", message: "relayId and prompt are required." };
+  }
+
+  const tabs = await chrome.tabs.query({
+    url: ["https://chatgpt.com/*", "https://chat.openai.com/*"]
+  });
+  const candidates = tabs
+    .filter((tab) => Number.isInteger(tab.id))
+    .sort((left, right) => {
+      if (left.active !== right.active) return left.active ? -1 : 1;
+      return Number(right.lastAccessed || 0) - Number(left.lastAccessed || 0);
+    });
+  const chatTab = candidates[0];
+  if (!chatTab) {
+    return {
+      ok: false,
+      code: "chatgpt_plus_tab_missing",
+      message: "Open an authenticated ChatGPT tab before using Plus relay."
+    };
+  }
+
+  const originTabId = sender?.tab?.id;
+  const originWindowId = sender?.tab?.windowId;
+  try {
+    if (Number.isInteger(chatTab.windowId)) {
+      await chrome.windows.update(chatTab.windowId, { focused: true });
+    }
+    await chrome.tabs.update(chatTab.id, { active: true });
+    const result = await chrome.tabs.sendMessage(chatTab.id, {
+      type: "SPRINGSUITE_CHATGPT_PLUS_SEND",
+      payload: { relayId, prompt }
+    });
+    if (!result?.ok) {
+      return result || {
+        ok: false,
+        code: "chatgpt_plus_send_failed",
+        message: "ChatGPT content bridge did not accept the relay turn."
+      };
+    }
+
+    if (Number.isInteger(originWindowId)) {
+      await chrome.windows.update(originWindowId, { focused: true }).catch(() => {});
+    }
+    if (Number.isInteger(originTabId)) {
+      await chrome.tabs.update(originTabId, { active: true }).catch(() => {});
+    }
+    return {
+      ok: true,
+      code: "chatgpt_plus_turn_sent",
+      message: "The relay turn was submitted to the current ChatGPT Plus session.",
+      relayId,
+      chatTabId: chatTab.id
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "chatgpt_plus_dispatch_failed",
+      message: safeMessage(error),
+      relayId
+    };
+  }
 }
 
 async function settingsOrThrow() {

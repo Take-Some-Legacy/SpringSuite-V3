@@ -2,7 +2,7 @@
 
 SpringSuite Form Bridge adds semantic recognition and operator-confirmed filling of real HTML `<form>` elements to `suite-desktop-helper`. The browser extension sends bounded DOM structure to the local runtime. SpringSuite builds a deterministic fill plan from the local autofill profile and shows the exact proposed text in its desktop suggestion window.
 
-No page field is changed until the operator presses **«Вставить»**.
+No page field is changed until the operator presses **«Заполнить»**.
 
 ## Supported form semantics
 
@@ -23,15 +23,19 @@ Input values are never transported from the page to SpringSuite. The bridge does
 
 ## Fill workflow
 
-1. The extension sends a structural form snapshot.
-2. SpringSuite matches fields against `suite.desktop-helper.agent.autofill-profile`.
-3. The desktop overlay displays every proposed `label: value` pair.
-4. The operator reviews the proposal, may drag the notification window by its title, and clicks **«Вставить»**.
-5. SpringSuite queues one short-lived command bound to the current `pageId`, page URL, and snapshot.
-6. The extension receives the command, validates the page again, fills permitted controls, and emits native `input` and `change` events.
-7. The extension acknowledges filled, skipped, and failed field counts.
+1. The extension sends a structural form snapshot from the active tab and focused browser window.
+2. SpringSuite identifies the focused field and resolves its prompt from `placeholder`, `aria-describedby`, a fieldset legend, a preceding text block, or the nearest semantic container.
+3. The desktop overlay shows the active field, prompt context, source selector, and **Поля: N** details button.
+4. In **Из памяти**, SpringSuite uses `suite.desktop-helper.agent.autofill-profile`.
+5. In **От ИИ**, SpringSuite uses the current authenticated ChatGPT Plus tab rather than the OpenAI API.
+6. Pressing **«Заполнить»** creates a short-lived privacy-filtered relay and queues a `chatgpt-plus-relay` browser command.
+7. The extension briefly activates the most recently used ChatGPT tab, inserts a visible service turn containing only the relay id and MCP instructions, sends it, and restores the originating form tab.
+8. ChatGPT reads the active field schema through NorthStar MCP and submits ordinary non-sensitive draft values through `form-relay submit`.
+9. SpringSuite revalidates the relay result locally against the current form signature, field id, type, options, sensitivity policy, existing-value policy and maximum length.
+10. The original **«Заполнить»** gesture authorizes the validated value to be queued to the browser DOM command channel. No second click is required.
+11. The extension fills the field, emits native `input` and `change` events, and acknowledges the result.
 
-The bridge never submits the form. The user remains responsible for reviewing the completed form and pressing the site's submit button.
+The bridge never submits the form. ChatGPT Plus relay requires an open authenticated `chatgpt.com` tab with the SpringSuite extension loaded. OpenAI API credentials and API quota are not used for this workflow.
 
 ## Runtime endpoints
 
@@ -97,6 +101,11 @@ suite:
 
 Passwords, passcodes, secrets, tokens, API keys, payment-card data, banking data, government identifiers, one-time codes, and file controls remain manual regardless of the profile.
 
+AI fill mode is limited to ordinary visible text, textarea, search, and select fields with a meaningful prompt. The model receives field schema and nearby prompt text, returns strict JSON keyed by known `fieldId` values, and every result is revalidated locally. Personal identity fields such as names, email, phone, address, company, date of birth, medical data, and authentication data are excluded from AI generation.
+
+Prompt resolution order for fields without a placeholder is: `aria-describedby`, fieldset legend, preceding text block, then nearest semantic container. The resolved text is stored as `contextPrompt` metadata and participates in field matching and AI drafting.
+
+
 ## Install or update the extension
 
 The unpacked extension is stored at:
@@ -127,7 +136,7 @@ After opening a page containing a form:
 - `lastCode` becomes `ok`;
 - `lastFieldCount` is greater than zero;
 - the SpringSuite overlay shows the proposed field values;
-- pressing **«Вставить»** fills only the displayed safe values;
+- pressing **«Заполнить»** fills only the displayed safe values;
 - the form is not submitted.
 
 ## Safety invariants

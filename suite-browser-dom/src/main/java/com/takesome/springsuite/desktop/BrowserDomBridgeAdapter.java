@@ -43,7 +43,7 @@ public class BrowserDomBridgeAdapter implements DesktopBridgeAdapter {
                         "preserveExistingValues", properties.isPreserveExistingValues(),
                         "submitEnabled", false,
                         "backend", "SpringSuite Form Bridge browser extension",
-                        "contract", "The bridge recognizes forms and accepts a short-lived fill command only after the operator clicks «Вставить». It never submits the form automatically."
+                        "contract", "The bridge recognizes forms and accepts a short-lived fill command only after the operator clicks «Заполнить». It never submits the form automatically."
                 )
         );
     }
@@ -53,10 +53,10 @@ public class BrowserDomBridgeAdapter implements DesktopBridgeAdapter {
         String actionId = context == null || context.action() == null ? "" : context.action().actionId();
         return BridgeActionResult.failed(
                 "browser_dom_batch_command_required",
-                "Browser DOM actions must be queued as one operator-confirmed form command by DesktopAgentService.",
+                "Browser DOM actions must be queued as one operator-confirmed form command through the desktop orchestration layer.",
                 ID,
                 actionId,
-                List.of("Use the SpringSuite form suggestion window and click «Вставить»."),
+                List.of("Use the SpringSuite form suggestion window and click «Заполнить»."),
                 Map.of(
                         "snapshotEndpoint", properties.getEndpointPath(),
                         "commandEndpoint", BrowserDomProperties.COMMAND_NEXT_ENDPOINT,

@@ -11,6 +11,8 @@ public class DesktopHelperProperties {
     private boolean enabled = true;
     private String mode = "assistive";
     private boolean aiEnrichmentEnabled = true;
+    private String aiFillProvider = "openai";
+    private String aiFillModel = "gpt-5.6";
     private boolean requireApprovalForWriteActions = true;
     private boolean allowDesktopCapture = true;
     private boolean allowClipboardRead = false;
@@ -66,6 +68,22 @@ public class DesktopHelperProperties {
 
     public void setAiEnrichmentEnabled(boolean aiEnrichmentEnabled) {
         this.aiEnrichmentEnabled = aiEnrichmentEnabled;
+    }
+
+    public String getAiFillProvider() {
+        return aiFillProvider;
+    }
+
+    public void setAiFillProvider(String aiFillProvider) {
+        this.aiFillProvider = valueOr(aiFillProvider, "openai");
+    }
+
+    public String getAiFillModel() {
+        return aiFillModel;
+    }
+
+    public void setAiFillModel(String aiFillModel) {
+        this.aiFillModel = valueOr(aiFillModel, "gpt-5.6");
     }
 
     public boolean isRequireApprovalForWriteActions() {

@@ -60,6 +60,7 @@ springBoot {
 
 dependencies {
     implementation(project(":suite-core"))
+    implementation(project(":suite-observability"))
     implementation(project(":suite-logging"))
     implementation(project(":suite-database"))
     implementation(project(":suite-config"))
@@ -75,7 +76,9 @@ dependencies {
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.named<BootJar>("bootJar") {

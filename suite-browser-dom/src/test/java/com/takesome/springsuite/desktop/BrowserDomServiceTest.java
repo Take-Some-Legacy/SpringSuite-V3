@@ -24,18 +24,18 @@ import org.mockito.ArgumentCaptor;
 
 class BrowserDomServiceTest {
     private BrowserDomProperties properties;
-    private DesktopBridgeService bridgeService;
-    private DesktopAgentService agentService;
+    private DesktopSnapshotIngestor snapshotIngestor;
+    private DesktopSnapshotConsumer snapshotConsumer;
     private BrowserDomService service;
 
     @BeforeEach
     void setUp() {
         properties = new BrowserDomProperties();
         properties.setRequireToken(false);
-        bridgeService = mock(DesktopBridgeService.class);
-        agentService = mock(DesktopAgentService.class);
+        snapshotIngestor = mock(DesktopSnapshotIngestor.class);
+        snapshotConsumer = mock(DesktopSnapshotConsumer.class);
         OperatorLogService logService = mock(OperatorLogService.class);
-        service = new BrowserDomService(properties, bridgeService, agentService, logService);
+        service = new BrowserDomService(properties, snapshotIngestor, snapshotConsumer, logService);
     }
 
     @Test
@@ -51,13 +51,13 @@ class BrowserDomServiceTest {
                 DesktopFocusContext.empty(),
                 Map.of()
         );
-        when(bridgeService.ingest(any())).thenReturn(DesktopSnapshotResult.ok("ok", snapshot, List.of(), Map.of()));
+        when(snapshotIngestor.ingest(any())).thenReturn(DesktopSnapshotResult.ok("ok", snapshot, List.of(), Map.of()));
 
         BrowserDomIngestResult result = service.ingest(request(now), "", "chrome-extension://test");
 
         assertThat(result.ok()).isTrue();
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
-        verify(bridgeService).ingest(captor.capture());
+        verify(snapshotIngestor).ingest(captor.capture());
         Map<String, Object> ingest = captor.getValue();
         Map<String, Object> raw = map(ingest.get("snapshot"));
         Map<String, Object> form = map(raw.get("form"));
@@ -66,9 +66,12 @@ class BrowserDomServiceTest {
         assertThat(field).doesNotContainKey("value");
         assertThat(field.get("valuePresent")).isEqualTo(true);
         assertThat(field.get("required")).isEqualTo(true);
+        Map<String, Object> fieldMetadata = map(field.get("metadata"));
+        assertThat(fieldMetadata.get("contextPrompt")).isEqualTo("Введите рабочий email");
+        assertThat(fieldMetadata.get("promptSource")).isEqualTo("preceding-block");
         assertThat(form.get("action")).isEqualTo("https://example.test/submit");
         assertThat(form.get("method")).isEqualTo("post");
-        verify(agentService).acceptExternalSnapshot(snapshot);
+        verify(snapshotConsumer).acceptSnapshot(snapshot);
     }
 
     @Test
@@ -77,7 +80,7 @@ class BrowserDomServiceTest {
 
         assertThat(result.ok()).isFalse();
         assertThat(result.code()).isEqualTo("browser_dom_snapshot_stale");
-        verify(bridgeService, never()).ingest(any());
+        verify(snapshotIngestor, never()).ingest(any());
     }
 
     @Test
@@ -89,7 +92,7 @@ class BrowserDomServiceTest {
 
         assertThat(result.ok()).isFalse();
         assertThat(result.code()).isEqualTo("browser_dom_unauthorized");
-        verify(bridgeService, never()).ingest(any());
+        verify(snapshotIngestor, never()).ingest(any());
     }
 
     private BrowserDomSnapshotRequest request(Instant capturedAt) {
@@ -108,7 +111,12 @@ class BrowserDomServiceTest {
                 true,
                 true,
                 List.of(),
-                Map.of("cssSelector", "#email", "bounds", Map.of("left", 10, "top", 20, "right", 210, "bottom", 50))
+                Map.of(
+                        "cssSelector", "#email",
+                        "contextPrompt", "Введите рабочий email",
+                        "promptSource", "preceding-block",
+                        "bounds", Map.of("left", 10, "top", 20, "right", 210, "bottom", 50)
+                )
         );
         BrowserDomForm form = new BrowserDomForm(
                 "dom:#account-form",
@@ -130,7 +138,10 @@ class BrowserDomServiceTest {
                 "chromium-extension",
                 "#email",
                 List.of(form),
-                Map.of()
+                Map.of(
+                        "activeTab", true,
+                        "windowFocused", true
+                )
         );
     }
 

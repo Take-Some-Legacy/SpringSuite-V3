@@ -16,6 +16,7 @@ import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopFormFillPlan;
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopFormFillRequest;
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopHintRequest;
 import com.takesome.springsuite.desktop.DesktopHelperModels.DesktopHintResponse;
+import com.takesome.springsuite.observability.SuiteTelemetry;
 import jakarta.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,9 +36,12 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 @Service
-public class DesktopAgentService {
+public class DesktopAgentService implements DesktopSnapshotConsumer {
     private static final Logger LOGGER = LoggerFactory.getLogger(DesktopAgentService.class);
     private static final String NATIVE_BRIDGE_ID = "windows-ui-automation-bridge-adapter";
+    private static final String FILL_SOURCE_MEMORY = "memory";
+    private static final String FILL_SOURCE_AI = "ai";
+    private static final String FILL_SOURCE_CHATGPT = ChatGptFormRelayService.SOURCE_ID;
 
     private final DesktopHelperProperties helperProperties;
     private final DesktopAgentProperties properties;
@@ -47,8 +51,10 @@ public class DesktopAgentService {
     private final DesktopAgentSidecarRuntime sidecarRuntime;
     private final DesktopBridgeService bridgeService;
     private final DesktopHelperService helperService;
+    private final ChatGptFormRelayService chatGptRelayService;
     private final DesktopApprovalService approvalService;
     private final DesktopAgentUi ui;
+    private final SuiteTelemetry telemetry;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
         Thread thread = new Thread(runnable, "spring-suite-desktop-agent");
         thread.setDaemon(true);
@@ -57,6 +63,7 @@ public class DesktopAgentService {
     private final AtomicBoolean running = new AtomicBoolean();
     private final AtomicBoolean paused = new AtomicBoolean();
     private final AtomicBoolean scanInFlight = new AtomicBoolean();
+    private final AtomicBoolean aiFillInFlight = new AtomicBoolean();
     private final AtomicLong scanCount = new AtomicLong();
     private final AtomicLong formDetectionCount = new AtomicLong();
     private final AtomicLong actionExecutionCount = new AtomicLong();
@@ -83,8 +90,10 @@ public class DesktopAgentService {
             DesktopAgentSidecarRuntime sidecarRuntime,
             DesktopBridgeService bridgeService,
             DesktopHelperService helperService,
+            ChatGptFormRelayService chatGptRelayService,
             DesktopApprovalService approvalService,
-            DesktopAgentUi ui
+            DesktopAgentUi ui,
+            SuiteTelemetry telemetry
     ) {
         this.helperProperties = helperProperties;
         this.properties = properties;
@@ -94,8 +103,12 @@ public class DesktopAgentService {
         this.sidecarRuntime = sidecarRuntime;
         this.bridgeService = bridgeService;
         this.helperService = helperService;
+        this.chatGptRelayService = chatGptRelayService;
         this.approvalService = approvalService;
         this.ui = ui;
+        this.telemetry = telemetry;
+        telemetry.registerGauge("desktop_agent", "scan_inflight", () -> scanInFlight.get() ? 1 : 0);
+        telemetry.registerGauge("desktop_agent", "ai_fill_inflight", () -> aiFillInFlight.get() ? 1 : 0);
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -136,6 +149,11 @@ public class DesktopAgentService {
             start();
         }
         scheduler.execute(this::pollSafely);
+    }
+
+    @Override
+    public void acceptSnapshot(DesktopSnapshot snapshot) {
+        acceptExternalSnapshot(snapshot);
     }
 
     public void acceptExternalSnapshot(DesktopSnapshot snapshot) {
@@ -237,9 +255,12 @@ public class DesktopAgentService {
         if (!running.get() || paused.get() || !scanInFlight.compareAndSet(false, true)) {
             return;
         }
+        SuiteTelemetry.Operation operation = telemetry.start("desktop_agent", "scan");
         try {
             poll();
+            operation.success();
         } catch (Exception ex) {
+            operation.failure("scan_failed");
             updateState("scan_failed", safeMessage(ex));
             LOGGER.debug("Ошибка сканирования активной формы", ex);
         } finally {
@@ -272,8 +293,12 @@ public class DesktopAgentService {
     }
 
     private void processSnapshot(DesktopSnapshot snapshot) {
-        currentSnapshot = snapshot;
         DesktopFocusContext context = snapshot.context();
+        if (aiFillInFlight.get() && currentSuggestion != null
+                && !formSignature(context).equals(currentSuggestion.signature())) {
+            return;
+        }
+        currentSnapshot = snapshot;
         List<DesktopFormField> fields = context.form().fields();
         if (fields.size() < properties.getMinimumFieldCount()) {
             clearCandidate();
@@ -298,50 +323,262 @@ public class DesktopAgentService {
             return;
         }
         if (signature.equals(activeSignature)) {
+            if (aiFillInFlight.get()) {
+                return;
+            }
+            DesktopFormSuggestion existing = currentSuggestion;
+            if (existing != null && FILL_SOURCE_CHATGPT.equals(normalizeFillSource(
+                    textValue(existing.metadata().get("fillSource"))))) {
+                long relayRevision = chatGptRelayService.revisionFor(signature);
+                long suggestionRevision = longValue(existing.metadata().get("relayRevision"));
+                if (relayRevision > suggestionRevision && chatGptRelayService.readyFor(signature).isPresent()) {
+                    DesktopFormSuggestion refreshed = buildSuggestion(signature, snapshot, FILL_SOURCE_CHATGPT);
+                    currentSuggestion = refreshed;
+                    updateState("chatgpt_relay_ready", refreshed.summary());
+                    showSuggestionOverlay(refreshed);
+                    return;
+                }
+            }
+            if (existing != null && (existing.snapshot() == null
+                    || !snapshot.snapshotId().equals(existing.snapshot().snapshotId()))) {
+                DesktopFormSuggestion refreshed = refreshSuggestionSnapshot(existing, snapshot);
+                currentSuggestion = refreshed;
+                updateState("form_context_updated", refreshed.summary());
+                showSuggestionOverlay(refreshed);
+            }
             return;
         }
 
-        DesktopFormSuggestion suggestion = buildSuggestion(signature, snapshot);
+        DesktopFormSuggestion suggestion = buildSuggestion(signature, snapshot, FILL_SOURCE_MEMORY);
         currentSuggestion = suggestion;
         activeSignature = signature;
         lastFormDetectedAt = now;
         formDetectionCount.incrementAndGet();
+        telemetry.event("desktop_agent", "form_detected", "success");
         updateState("form_detected", suggestion.summary());
+        showSuggestionOverlay(suggestion);
+    }
+
+    private void showSuggestionOverlay(DesktopFormSuggestion suggestion) {
         ui.showSuggestion(
                 suggestion,
                 () -> scheduler.execute(() -> executeSuggestion(suggestion)),
                 () -> scheduler.execute(() -> showHints(suggestion)),
+                source -> scheduler.execute(() -> switchFillSource(suggestion, source)),
                 () -> suppress(suggestion.signature())
         );
     }
 
-    private DesktopFormSuggestion buildSuggestion(String signature, DesktopSnapshot snapshot) {
+    private void switchFillSource(DesktopFormSuggestion suggestion, String requestedSource) {
+        String source = normalizeFillSource(requestedSource);
+        String currentSource = textValue(suggestion.metadata().get("fillSource"));
+        if (source.equals(currentSource)) {
+            return;
+        }
+        if (suggestion.snapshot() == null || !isSnapshotFresh(suggestion.snapshot())) {
+            ui.showTransientMessage("Форма изменилась или устарела. Выполните повторное сканирование.");
+            return;
+        }
+
+        if (FILL_SOURCE_CHATGPT.equals(currentSource) && !FILL_SOURCE_CHATGPT.equals(source)) {
+            chatGptRelayService.cancel(suggestion.signature(), "Operator selected another fill source.");
+        }
+        ui.setOverlayMessage(FILL_SOURCE_CHATGPT.equals(source)
+                ? "ChatGPT Plus готов. Нажмите «Заполнить», чтобы отправить запрос в текущий чат."
+                : "Читаю значения из локальной памяти автозаполнения…");
+        DesktopFormSuggestion refreshed = buildSuggestion(suggestion.signature(), suggestion.snapshot(), source);
+        currentSuggestion = refreshed;
+        updateState("fill_source_changed", "Источник заполнения: " + source);
+        showSuggestionOverlay(refreshed);
+    }
+
+    private String normalizeFillSource(String source) {
+        String normalized = source == null ? "" : source.trim();
+        if (FILL_SOURCE_AI.equalsIgnoreCase(normalized)) {
+            return FILL_SOURCE_CHATGPT;
+        }
+        if (FILL_SOURCE_CHATGPT.equalsIgnoreCase(normalized) || "chatgpt".equalsIgnoreCase(normalized)) {
+            return FILL_SOURCE_CHATGPT;
+        }
+        return FILL_SOURCE_MEMORY;
+    }
+
+    private DesktopFormSuggestion refreshSuggestionSnapshot(
+            DesktopFormSuggestion existing,
+            DesktopSnapshot snapshot
+    ) {
         DesktopFocusContext context = snapshot.context();
-        DesktopFormFillPlan plan = helperService.planFormFill(new DesktopFormFillRequest(
+        DesktopFormField activeField = context.form().fields().stream()
+                .filter(DesktopFormField::focused)
+                .findFirst()
+                .orElse(context.form().fields().get(0));
+        String activeFieldPrompt = textValue(activeField.metadata().get("contextPrompt"));
+        String activeFieldLabel = activeField.label();
+        String activeFieldName = firstText(
+                activeFieldPrompt.equalsIgnoreCase(activeFieldLabel) ? "" : activeFieldLabel,
+                activeField.name(),
+                activeField.id(),
+                activeField.type(),
+                "неизвестное поле"
+        );
+
+        LinkedHashMap<String, Object> metadata = new LinkedHashMap<>(existing.metadata());
+        metadata.put("windowTitle", context.activeWindowTitle());
+        metadata.put("url", context.url());
+        metadata.put("snapshotSource", snapshot.source());
+        metadata.put("browserDom", isBrowserDomSnapshot(snapshot));
+        metadata.put("activeFieldName", activeFieldName);
+        metadata.put("activeFieldPlaceholder", activeField.placeholder());
+        metadata.put("activeFieldPrompt", activeFieldPrompt);
+        metadata.put("activeFieldType", activeField.type());
+
+        List<DesktopApprovedAction> actions = approvedActions(existing.plan(), snapshot);
+        String source = normalizeFillSource(textValue(metadata.get("fillSource")));
+        String summary = existing.summary();
+        if (actions.isEmpty() && !existing.actions().isEmpty()) {
+            summary = FILL_SOURCE_AI.equals(source)
+                    ? "AI-черновик больше не применим к текущему состоянию формы. Нажмите «Заполнить», чтобы пересоздать его."
+                    : "Ранее предложенные значения больше не применимы к текущему состоянию формы.";
+        }
+
+        return new DesktopFormSuggestion(
+                existing.signature(),
+                snapshot,
+                existing.plan(),
+                existing.hints(),
+                actions,
+                existing.x(),
+                existing.y(),
+                existing.title(),
+                summary,
+                metadata
+        );
+    }
+
+    private DesktopFormSuggestion buildSuggestion(String signature, DesktopSnapshot snapshot, String requestedSource) {
+        return buildSuggestion(signature, snapshot, requestedSource, false);
+    }
+
+    private DesktopFormSuggestion buildSuggestion(
+            String signature,
+            DesktopSnapshot snapshot,
+            String requestedSource,
+            boolean generateAi
+    ) {
+        DesktopFocusContext context = snapshot.context();
+        String fillSource = normalizeFillSource(requestedSource);
+        ChatGptFormRelayService.RelayResult relayResult = null;
+        Map<String, Object> relayView = Map.of();
+        Map<String, Object> profile = properties.getAutofillProfile();
+        String goal = "Заполни форму безопасными значениями из локальной памяти";
+
+        if (FILL_SOURCE_CHATGPT.equals(fillSource)) {
+            relayView = chatGptRelayService.publish(signature, snapshot, properties.getLocale());
+            relayResult = chatGptRelayService.readyFor(signature).orElse(null);
+            if (relayResult != null) {
+                profile = new LinkedHashMap<>(relayResult.profile());
+            } else {
+                profile = Map.of();
+            }
+            goal = "Примени только локально проверенный черновик, возвращённый ChatGPT 5.6 через NorthStar MCP";
+        } else if (FILL_SOURCE_AI.equals(fillSource)) {
+            profile = Map.of();
+            goal = "Сформируй безопасное значение по placeholder или ближайшему prompt активного поля формы";
+        }
+
+        DesktopFormFillRequest fillRequest = new DesktopFormFillRequest(
                 context,
-                "Помоги безопасно заполнить активную форму на рабочем столе",
+                goal,
                 properties.getLocale(),
-                properties.getAutofillProfile(),
+                profile,
                 properties.getConstraints(),
                 false
-        ));
+        );
+        DesktopFormFillPlan plan = FILL_SOURCE_AI.equals(fillSource)
+                ? generateAi
+                        ? helperService.planFormFillWithAi(fillRequest)
+                        : helperService.planFormFillExternal(fillRequest)
+                : FILL_SOURCE_CHATGPT.equals(fillSource)
+                        ? helperService.planFormFillExternal(fillRequest)
+                        : helperService.planFormFill(fillRequest);
         DesktopHintResponse hints = helperService.hints(new DesktopHintRequest(
                 context,
                 "Предложи безопасные действия для активной формы на рабочем столе",
                 properties.getLocale(),
-                Map.of("surface", "desktop-agent-overlay")
+                Map.of(
+                        "surface", "desktop-agent-overlay",
+                        "skipAi", true,
+                        "reason", "The explicit Fill action owns the only AI request for this interaction."
+                )
         ));
         List<DesktopApprovedAction> actions = approvedActions(plan, snapshot);
         int[] point = overlayPoint(context);
         String application = firstText(context.activeApplication(), "активное приложение");
         boolean browserDom = isBrowserDomSnapshot(snapshot);
-        String summary = actions.isEmpty()
-                ? browserDom
-                        ? "Распознана веб-форма: " + context.form().fields().size() + " полей. В локальном профиле нет безопасных значений для вставки."
-                        : "Обнаружена форма: " + context.form().fields().size() + " полей. Профиль не содержит безопасных значений для автоматического заполнения."
-                : browserDom
-                        ? "Распознана веб-форма: " + context.form().fields().size() + " полей. Проверьте предложенный текст и нажмите «Вставить»."
-                        : "Обнаружена форма: " + context.form().fields().size() + " полей. Можно безопасно заполнить " + actions.size() + ".";
+        DesktopFormField activeField = context.form().fields().stream()
+                .filter(DesktopFormField::focused)
+                .findFirst()
+                .orElse(context.form().fields().get(0));
+        String activeFieldPrompt = textValue(activeField.metadata().get("contextPrompt"));
+        String activeFieldLabel = activeField.label();
+        String activeFieldName = firstText(
+                activeFieldPrompt.equalsIgnoreCase(activeFieldLabel) ? "" : activeFieldLabel,
+                activeField.name(),
+                activeField.id(),
+                activeField.type(),
+                "неизвестное поле"
+        );
+        String activeFieldPlaceholder = activeField.placeholder();
+
+        String summary;
+        if (FILL_SOURCE_CHATGPT.equals(fillSource)) {
+            String relayStatus = textValue(relayView.get("status"));
+            if (relayResult == null) {
+                summary = "Нажмите «Заполнить»: SpringSuite отправит служебный turn в текущий ChatGPT Plus-чат и заполнит поле после MCP-проверки.";
+            } else if (actions.isEmpty()) {
+                summary = "ChatGPT 5.6 вернул черновик, но ни одно значение не прошло локальные safety-проверки.";
+            } else {
+                summary = "ChatGPT Plus подготовил безопасное значение; SpringSuite выполняет заполнение без отправки формы.";
+            }
+        } else if (FILL_SOURCE_AI.equals(fillSource) && !generateAi) {
+            summary = "Нажмите «Заполнить»: ИИ возьмёт placeholder или ближайший prompt поля «"
+                    + activeFieldName + "», создаст значение и заполнит поле без отправки формы.";
+        } else if (actions.isEmpty()) {
+            String aiWarning = textValue(plan.metadata().get("aiWarning"));
+            summary = FILL_SOURCE_AI.equals(fillSource)
+                    ? firstText(
+                            aiWarning,
+                            "ИИ не предложил безопасного значения для поля «" + activeFieldName
+                                    + "». Личные и чувствительные данные не генерируются."
+                    )
+                    : "Для поля «" + activeFieldName
+                            + "» нет подходящего значения в локальной памяти автозаполнения.";
+        } else {
+            summary = FILL_SOURCE_AI.equals(fillSource)
+                    ? "ИИ подготовил значение по prompt активного поля. Выполняю безопасное заполнение."
+                    : browserDom
+                            ? "Найдены значения в локальной памяти. Проверьте их и нажмите «Заполнить»."
+                            : "Можно безопасно заполнить " + actions.size() + ".";
+        }
+
+        LinkedHashMap<String, Object> suggestionMetadata = new LinkedHashMap<>();
+        suggestionMetadata.put("windowTitle", context.activeWindowTitle());
+        suggestionMetadata.put("url", context.url());
+        suggestionMetadata.put("snapshotSource", snapshot.source());
+        suggestionMetadata.put("browserDom", browserDom);
+        suggestionMetadata.put("fillSource", fillSource);
+        suggestionMetadata.put("activeFieldName", activeFieldName);
+        suggestionMetadata.put("activeFieldPlaceholder", activeFieldPlaceholder);
+        suggestionMetadata.put("activeFieldPrompt", activeFieldPrompt);
+        suggestionMetadata.put("activeFieldType", activeField.type());
+        suggestionMetadata.put("aiGenerated", generateAi);
+        if (FILL_SOURCE_CHATGPT.equals(fillSource)) {
+            suggestionMetadata.put("relayId", textValue(relayView.get("relayId")));
+            suggestionMetadata.put("relayStatus", textValue(relayView.get("status")));
+            suggestionMetadata.put("relayRevision", longValue(relayView.get("revision")));
+            suggestionMetadata.put("relayValueCount", relayResult == null ? 0 : relayResult.profile().size());
+        }
+
         return new DesktopFormSuggestion(
                 signature,
                 snapshot,
@@ -350,14 +587,9 @@ public class DesktopAgentService {
                 actions,
                 point[0],
                 point[1],
-                "SpringSuite В· " + application,
+                "SpringSuite · " + application,
                 summary,
-                Map.of(
-                        "windowTitle", context.activeWindowTitle(),
-                        "url", context.url(),
-                        "snapshotSource", snapshot.source(),
-                        "browserDom", browserDom
-                )
+                suggestionMetadata
         );
     }
 
@@ -391,6 +623,9 @@ public class DesktopAgentService {
             }
 
             DesktopFormField formField = fieldsById.get(field.fieldId());
+            if (formField != null && fieldHasValue(formField)) {
+                continue;
+            }
             LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
             metadata.put("bridgeId", browserDom ? "browser-dom-bridge-adapter" : NATIVE_BRIDGE_ID);
             metadata.put("source", "desktop-agent-overlay");
@@ -420,7 +655,104 @@ public class DesktopAgentService {
 
     private void executeSuggestion(DesktopFormSuggestion suggestion) {
         if (suggestion.actions().isEmpty()) {
-            ui.showTransientMessage("Нет безопасных значений для автоматического заполнения. Добавьте autofill-profile в конфигурацию.");
+            String source = normalizeFillSource(textValue(suggestion.metadata().get("fillSource")));
+            if (FILL_SOURCE_CHATGPT.equals(source)) {
+                if (!aiFillInFlight.compareAndSet(false, true)) {
+                    ui.setOverlayMessage("Запрос ChatGPT Plus уже выполняется…");
+                    return;
+                }
+                try {
+                    DesktopSnapshot snapshot = currentSnapshot != null
+                            && formSignature(currentSnapshot.context()).equals(suggestion.signature())
+                            && isSnapshotFresh(currentSnapshot)
+                                    ? currentSnapshot
+                                    : suggestion.snapshot();
+                    if (snapshot == null || !isSnapshotFresh(snapshot)) {
+                        aiFillInFlight.set(false);
+                        ui.showFillError("Форма устарела. Откройте её снова и повторите заполнение через ChatGPT Plus.");
+                        return;
+                    }
+
+                    DesktopFormSuggestion published = buildSuggestion(
+                            suggestion.signature(),
+                            snapshot,
+                            FILL_SOURCE_CHATGPT
+                    );
+                    String relayId = textValue(published.metadata().get("relayId"));
+                    if (relayId.isBlank()) {
+                        aiFillInFlight.set(false);
+                        ui.showFillError("SpringSuite не смог создать ChatGPT Plus relay для активной формы.");
+                        return;
+                    }
+
+                    String relayPrompt = chatGptPlusPrompt(relayId);
+                    browserDomCommandService.enqueueChatGptPlusRelay(snapshot, relayId, relayPrompt);
+                    currentSuggestion = published;
+                    telemetry.event("desktop_agent", "chatgpt_plus", "dispatched");
+                    updateState("chatgpt_plus_dispatched", "Запрос отправляется в текущий ChatGPT Plus-чат.");
+                    ui.setOverlayMessage("Ожидаю ответ ChatGPT Plus и локальную проверку значения…");
+                    awaitChatGptPlusRelay(
+                            suggestion.signature(),
+                            snapshot,
+                            relayId,
+                            Instant.now().plusSeconds(150)
+                    );
+                } catch (Exception ex) {
+                    aiFillInFlight.set(false);
+                    failAction("chatgpt_plus_dispatch_failed", safeMessage(ex));
+                }
+                return;
+            }
+            if (FILL_SOURCE_AI.equals(source)) {
+                if (!aiFillInFlight.compareAndSet(false, true)) {
+                    ui.setOverlayMessage("AI-запрос уже выполняется…");
+                    return;
+                }
+                try {
+                    DesktopSnapshot snapshot = currentSnapshot != null
+                            && formSignature(currentSnapshot.context()).equals(suggestion.signature())
+                            && isSnapshotFresh(currentSnapshot)
+                                    ? currentSnapshot
+                                    : suggestion.snapshot();
+                    if (snapshot == null || !isSnapshotFresh(snapshot)) {
+                        ui.showFillError("Форма устарела. Выполните повторное сканирование перед AI-заполнением.");
+                        return;
+                    }
+
+                    updateState("ai_fill_loading", "ИИ формирует значение по prompt активного поля.");
+                    DesktopFormSuggestion generated = buildSuggestion(
+                            suggestion.signature(),
+                            snapshot,
+                            FILL_SOURCE_AI,
+                            true
+                    );
+
+                    DesktopSnapshot latest = freshExternalSnapshot();
+                    if (latest != null
+                            && formSignature(latest.context()).equals(suggestion.signature())
+                            && isSnapshotFresh(latest)) {
+                        generated = refreshSuggestionSnapshot(generated, latest);
+                    }
+                    currentSuggestion = generated;
+
+                    if (generated.actions().isEmpty()) {
+                        updateState("ai_fill_empty", generated.summary());
+                        showSuggestionOverlay(generated);
+                        return;
+                    }
+
+                    updateState("ai_fill_ready", "ИИ подготовил значение; выполняется заполнение активного поля.");
+                    executeSuggestion(generated);
+                } catch (Exception ex) {
+                    failAction("ai_fill_failed", safeMessage(ex));
+                } finally {
+                    aiFillInFlight.set(false);
+                }
+                return;
+            }
+            ui.showTransientMessage(
+                    "В памяти нет значения для активного поля. Добавьте его в autofill-profile или выберите «От ИИ»."
+            );
             return;
         }
         if (isBrowserDomSnapshot(suggestion.snapshot())) {
@@ -430,9 +762,13 @@ public class DesktopAgentService {
                         suggestion.actions()
                 );
                 actionExecutionCount.incrementAndGet();
+                telemetry.event("desktop_agent", "action_execution", "browser_dom_success");
+                if (FILL_SOURCE_CHATGPT.equals(normalizeFillSource(textValue(suggestion.metadata().get("fillSource"))))) {
+                    chatGptRelayService.markConsumed(suggestion.signature());
+                }
                 suppress(suggestion.signature());
-                updateState("browser_dom_command_queued", "Команда вставки передана расширению для " + command.fields().size() + " полей.");
-                ui.showTransientMessage("Команда передана расширению. Текст будет вставлен в форму без автоматической отправки.");
+                updateState("browser_dom_command_queued", "Команда заполнения передана расширению для " + command.fields().size() + " полей.");
+                ui.showFillSuccess("Готово: значение получено и передано активному полю без отправки формы.");
             } catch (Exception ex) {
                 failAction("browser_dom_command_failed", safeMessage(ex));
             }
@@ -485,13 +821,77 @@ public class DesktopAgentService {
                 return;
             }
             actionExecutionCount.incrementAndGet();
+            telemetry.event("desktop_agent", "action_execution", "native_success");
+            if (FILL_SOURCE_CHATGPT.equals(normalizeFillSource(textValue(suggestion.metadata().get("fillSource"))))) {
+                chatGptRelayService.markConsumed(suggestion.signature());
+            }
             suppress(suggestion.signature());
             updateState("action_executed", "Заполнено " + suggestion.actions().size() + " полей в активной форме.");
             ui.notifyInfo("SpringSuite", "Заполнено полей: " + suggestion.actions().size());
-            ui.hideSuggestion();
+            ui.showFillSuccess("Готово: заполнено полей — " + suggestion.actions().size() + ".");
         } catch (Exception ex) {
             failAction("action_failed", safeMessage(ex));
         }
+    }
+
+    private String chatGptPlusPrompt(String relayId) {
+        return "SpringSuite Plus Relay " + relayId + ". "
+                + "Используй подключённый NorthStar MCP. Сначала выполни form-relay current, "
+                + "сформируй краткое безопасное значение только для сфокусированного обычного поля "
+                + "по его placeholder или contextPrompt, затем передай результат через form-relay submit "
+                + relayId + " <base64url-json>. Не заполняй пароли, коды, персональные, банковские, "
+                + "медицинские или государственные данные. Не отправляй форму и не задавай уточняющих вопросов.";
+    }
+
+    private void awaitChatGptPlusRelay(
+            String signature,
+            DesktopSnapshot fallbackSnapshot,
+            String relayId,
+            Instant deadline
+    ) {
+        if (!aiFillInFlight.get()) {
+            return;
+        }
+        if (Instant.now().isAfter(deadline)) {
+            aiFillInFlight.set(false);
+            telemetry.event("desktop_agent", "chatgpt_plus", "timeout");
+            updateState("chatgpt_plus_timeout", "ChatGPT Plus не вернул relay-значение за отведённое время.");
+            ui.showFillError("ChatGPT Plus не ответил за 150 секунд. Проверьте, что открыт авторизованный ChatGPT-таб, и повторите.");
+            return;
+        }
+
+        if (chatGptRelayService.readyFor(signature).isPresent()) {
+            DesktopSnapshot snapshot = freshExternalSnapshot();
+            if (snapshot == null || !formSignature(snapshot.context()).equals(signature)) {
+                snapshot = fallbackSnapshot;
+            }
+            if (snapshot == null || !isSnapshotFresh(snapshot)) {
+                aiFillInFlight.set(false);
+                ui.showFillError("ChatGPT Plus вернул значение, но форма уже устарела. Повторите запрос на актуальном поле.");
+                return;
+            }
+
+            DesktopFormSuggestion generated = buildSuggestion(signature, snapshot, FILL_SOURCE_CHATGPT);
+            currentSuggestion = generated;
+            if (generated.actions().isEmpty()) {
+                aiFillInFlight.set(false);
+                updateState("chatgpt_plus_no_safe_value", generated.summary());
+                ui.showFillError(generated.summary());
+                return;
+            }
+
+            aiFillInFlight.set(false);
+            telemetry.event("desktop_agent", "chatgpt_plus", "ready");
+            updateState("chatgpt_plus_ready", "ChatGPT Plus вернул значение; выполняется безопасное заполнение.");
+            executeSuggestion(generated);
+            return;
+        }
+
+        scheduler.schedule(
+                () -> awaitChatGptPlusRelay(signature, fallbackSnapshot, relayId, deadline),
+                700L,
+                TimeUnit.MILLISECONDS
+        );
     }
 
     private void showHints(DesktopFormSuggestion suggestion) {
@@ -528,18 +928,23 @@ public class DesktopAgentService {
     }
 
     private String formSignature(DesktopFocusContext context) {
+        return stableFormSignature(context);
+    }
+
+    static String stableFormSignature(DesktopFocusContext context) {
         StringBuilder material = new StringBuilder()
                 .append(context.activeApplication()).append('|')
-                .append(context.activeWindowTitle()).append('|')
                 .append(context.url()).append('|')
                 .append(context.form().id()).append('|')
+                .append(context.form().name()).append('|')
                 .append(context.form().action()).append('|')
                 .append(context.form().method()).append('|');
         for (DesktopFormField field : context.form().fields()) {
             material.append(field.id()).append(':')
+                    .append(field.name()).append(':')
                     .append(field.type()).append(':')
                     .append(field.required()).append(':')
-                    .append(fieldHasValue(field)).append('|');
+                    .append(field.sensitive()).append('|');
         }
         return Integer.toUnsignedString(material.toString().hashCode(), 16);
     }
@@ -563,9 +968,10 @@ public class DesktopAgentService {
     }
 
     private void failAction(String code, String message) {
+        telemetry.event("desktop_agent", "action_execution", "failed");
         updateState(code, message);
         ui.notifyWarning("SpringSuite · действие заблокировано", truncate(message, 240));
-        ui.showTransientMessage("Действие не выполнено: " + message);
+        ui.showFillError("Действие не выполнено: " + message);
     }
 
     private void updateState(String code, String message) {
@@ -648,6 +1054,17 @@ public class DesktopAgentService {
             return Integer.parseInt(value == null ? "0" : String.valueOf(value));
         } catch (NumberFormatException ignored) {
             return 0;
+        }
+    }
+
+    private long longValue(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return value == null ? 0L : Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return 0L;
         }
     }
 

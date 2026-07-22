@@ -4,6 +4,8 @@ import com.takesome.springsuite.core.api.SuiteApiResponse;
 import com.takesome.springsuite.core.status.SuiteComponentStatus;
 import com.takesome.springsuite.core.status.SuiteSystemStatus;
 import java.lang.management.ManagementFactory;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -34,6 +36,18 @@ public class SystemStatusController {
         components.put("projectRoot", System.getProperty("suite.project.root", ""));
         components.put("workingDirectory", System.getProperty("suite.working.directory", ""));
         components.put("launchDirectory", System.getProperty("suite.launch.dir", ""));
+        components.put("supervised", Boolean.parseBoolean(System.getenv().getOrDefault("SPRING_SUITE_SUPERVISED", "false")));
+        components.put("supervisorPid", parseLong(System.getProperty("suite.supervisor.pid", "0")));
+        components.put("deploymentId", System.getProperty("suite.deployment.id", ""));
+        Path incidentPath = Path.of(System.getProperty("suite.working.directory", System.getProperty("user.dir", ".")))
+                .toAbsolutePath()
+                .normalize()
+                .resolve(".springsuite")
+                .resolve("incidents")
+                .resolve("current.json");
+        components.put("incidentAvailable", Files.isRegularFile(incidentPath));
+        components.put("incidentPath", incidentPath.toString());
+        components.put("incidentCommand", "incident current");
         components.put("userDir", System.getProperty("user.dir", ""));
         components.put("modulesEnabled", System.getProperty("suite.modules.enabled", ""));
         components.put("modulesDir", System.getProperty("suite.modules.dir", ""));
@@ -70,4 +84,12 @@ public class SystemStatusController {
                 components
         ));
     }
+    private long parseLong(String value) {
+        try {
+            return Long.parseLong(value == null ? "0" : value.trim());
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
+    }
+
 }

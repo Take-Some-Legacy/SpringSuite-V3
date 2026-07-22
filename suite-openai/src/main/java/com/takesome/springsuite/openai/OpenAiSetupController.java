@@ -2,6 +2,7 @@ package com.takesome.springsuite.openai;
 
 import com.takesome.springsuite.core.api.SuiteApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -31,11 +32,33 @@ public class OpenAiSetupController {
     @GetMapping(value = {"/openai/setup", "/api/openai/setup"}, produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> setupPage(HttpServletRequest request) {
         if (!browserSetup.requestAllowed(request)) {
+            if (browserSetup.enabled() && browserSetup.localOnly()) {
+                String target = browserSetup.localSetupUrl();
+                audit.info("OpenAI setup request redirected to loopback", Map.of(
+                        "remoteAddr", request.getRemoteAddr(),
+                        "host", request.getHeader("Host"),
+                        "target", target
+                ));
+                return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
+                        .location(URI.create(target))
+                        .contentType(MediaType.TEXT_HTML)
+                        .body("");
+            }
             audit.warn("OpenAI setup page blocked", Map.of("remoteAddr", request.getRemoteAddr(), "host", request.getHeader("Host")));
             return html(HttpStatus.FORBIDDEN, page("OpenAI setup blocked", "Browser setup is disabled or this request is not local.", "", request));
         }
         audit.info("OpenAI setup page served", Map.of("remoteAddr", request.getRemoteAddr(), "host", request.getHeader("Host"), "setupUrl", browserSetup.requestSetupUrl(request)));
         return html(HttpStatus.OK, page("OpenAI setup", "Link OpenAI credentials to this local SpringSuite runtime.", "", request));
+    }
+
+    @GetMapping(value = "/api/openai/link/api-key", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> apiKeySetupRedirect() {
+        String target = browserSetup.localSetupUrl();
+        audit.info("OpenAI API key setup endpoint redirected to loopback", Map.of("target", target));
+        return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
+                .location(URI.create(target))
+                .contentType(MediaType.TEXT_HTML)
+                .body("");
     }
 
     @GetMapping("/api/openai/link/status")
@@ -121,6 +144,13 @@ public class OpenAiSetupController {
             throw new OpenAiException("OpenAI browser setup is disabled or this request is not local");
         }
         if (!browserSetup.verifySetupToken(setupToken)) {
+            if (browserSetup.trustedLocalMutationRequest(request)) {
+                audit.info("OpenAI setup mutation accepted from trusted same-origin loopback form", Map.of(
+                        "remoteAddr", request.getRemoteAddr(),
+                        "host", request.getHeader("Host")
+                ));
+                return;
+            }
             audit.warn("OpenAI setup mutation rejected: invalid setup token", Map.of("remoteAddr", request.getRemoteAddr(), "host", request.getHeader("Host")));
             throw new OpenAiException("invalid or expired OpenAI setup token; reload the setup page");
         }
