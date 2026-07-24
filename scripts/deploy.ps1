@@ -1,4 +1,4 @@
-﻿[CmdletBinding(SupportsShouldProcess = $true)]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [string]$Target = "",
 
@@ -19,6 +19,8 @@ param(
     [switch]$NoStart,
 
     [switch]$ReplaceConfig,
+
+    [switch]$PreserveConfig,
 
     [switch]$ForceStop,
 
@@ -346,7 +348,7 @@ function Copy-DeployImageToStage {
 
     New-Item -ItemType Directory -Path $StageRoot -Force | Out-Null
     $preservedRoots = @("data", "logs", ".springsuite", "authority", "tmp", "recovery", "WEB", ".git")
-    if (-not $ReplaceConfig -and (Test-Path -LiteralPath (Join-Path $targetRoot "config") -PathType Container)) {
+    if ($PreserveConfig -and -not $ReplaceConfig -and (Test-Path -LiteralPath (Join-Path $targetRoot "config") -PathType Container)) {
         $preservedRoots += "config"
     }
 

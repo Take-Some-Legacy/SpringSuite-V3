@@ -16,13 +16,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -32,7 +33,7 @@ public class CloudflaredTunnelService {
 
     private final CloudflaredProperties properties;
     private final OperatorLogService operatorLogService;
-    private final TaskExecutor processTaskExecutor;
+    private final Executor processTaskExecutor;
     private final Object lock = new Object();
     private final ArrayDeque<String> recentLines = new ArrayDeque<>();
 
@@ -46,7 +47,7 @@ public class CloudflaredTunnelService {
     public CloudflaredTunnelService(
             CloudflaredProperties properties,
             OperatorLogService operatorLogService,
-            @Qualifier("suiteProcessTaskExecutor") TaskExecutor processTaskExecutor
+            @Qualifier("suiteProcessTaskExecutor") Executor processTaskExecutor
     ) {
         this.properties = properties;
         this.operatorLogService = operatorLogService;
@@ -82,7 +83,32 @@ public class CloudflaredTunnelService {
                 return statusLocked();
             }
 
-            List<String> command = command();
+            Path runtimeRoot = Path.of("").toAbsolutePath().normalize();
+            Optional<Path> resolvedCloudflared = CloudflaredExecutableResolver.resolve(
+                    runtimeRoot,
+                    properties.getExecutable(),
+                    System.getenv()
+            );
+            if (resolvedCloudflared.isEmpty()) {
+                List<String> searched = CloudflaredExecutableResolver.searchCandidates(
+                                runtimeRoot,
+                                properties.getExecutable(),
+                                System.getenv()
+                        ).stream()
+                        .limit(12)
+                        .map(Path::toString)
+                        .collect(Collectors.toList());
+                lastError = "cloudflared executable was not found; configure suite.cloudflared.executable "
+                        + "or " + CloudflaredExecutableResolver.EXECUTABLE_ENV;
+                operatorLogService.append(OperatorLogLevel.ERROR, "cloudflared", lastError, Map.of(
+                        "configuredExecutable", properties.getExecutable(),
+                        "searchedCandidates", searched
+                ));
+                return statusLocked();
+            }
+
+            String cloudflaredExecutable = resolvedCloudflared.get().toString();
+            List<String> command = command(cloudflaredExecutable);
             Path runtimeDirectory = runtimeDirectory();
             try {
                 Files.createDirectories(runtimeDirectory);
@@ -92,8 +118,8 @@ public class CloudflaredTunnelService {
                 builder.directory(runtimeDirectory.toFile());
                 Map<String, String> environment = builder.environment();
                 environment.put("XDG_CACHE_HOME", processCacheDirectory.toString());
-                // Keep HOME and USERPROFILE inherited so locally-managed tunnel credentials
-                // remain visible in %USERPROFILE%\.cloudflared (or ~/.cloudflared).
+                environment.put(CloudflaredExecutableResolver.EXECUTABLE_ENV, cloudflaredExecutable);
+                applyConfiguredUserProfile(environment);
                 String originCertPath = properties.getOriginCertPath();
                 if (originCertPath != null && !originCertPath.isBlank()) {
                     environment.put("TUNNEL_ORIGIN_CERT", resolveConfiguredPath(originCertPath).toString());
@@ -110,6 +136,7 @@ public class CloudflaredTunnelService {
                 operatorLogService.append(OperatorLogLevel.INFO, "cloudflared", "cloudflared process started", Map.of(
                         "pid", startedProcess.pid(),
                         "command", command,
+                        "cloudflaredExecutable", cloudflaredExecutable,
                         "runtimeDirectory", runtimeDirectory.toString()
                 ));
                 processTaskExecutor.execute(() -> readProcessOutput(startedProcess));
@@ -253,12 +280,28 @@ public class CloudflaredTunnelService {
         if (properties.getTunnelName() == null || properties.getTunnelName().isBlank()) {
             return "cloudflared tunnel-name is not configured";
         }
+        String configError = validateConfiguredFile("cloudflared config", properties.getConfigPath());
+        if (configError != null) {
+            return configError;
+        }
+        String credentialsError = validateConfiguredFile("cloudflared credentials", properties.getCredentialsFile());
+        if (credentialsError != null) {
+            return credentialsError;
+        }
         return null;
     }
 
-    private List<String> command() {
+    private String validateConfiguredFile(String label, String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        Path resolved = resolveConfiguredPath(raw);
+        return Files.isRegularFile(resolved) ? null : label + " file not found: " + resolved;
+    }
+
+    private List<String> command(String cloudflaredExecutable) {
         if (shouldUseWrapper()) {
-            return wrapperCommand();
+            return wrapperCommand(cloudflaredExecutable);
         }
         if (properties.isWrapperEnabled() && properties.getWrapperExecutable() != null && !properties.getWrapperExecutable().isBlank()) {
             operatorLogService.append(OperatorLogLevel.WARN, "cloudflared", "cloudflared wrapper unavailable; falling back to legacy cloudflared executable", Map.of(
@@ -266,23 +309,33 @@ public class CloudflaredTunnelService {
                     "fallbackExecutable", properties.getExecutable()
             ));
         }
-        return legacyCloudflaredCommand();
+        return legacyCloudflaredCommand(cloudflaredExecutable);
     }
 
-    private List<String> wrapperCommand() {
+    private List<String> wrapperCommand(String cloudflaredExecutable) {
         ArrayList<String> command = new ArrayList<>();
         command.add(resolveExecutablePath(properties.getWrapperExecutable()).toString());
         command.add("run");
         command.add("--cloudflared");
-        command.add(properties.getExecutable());
+        command.add(cloudflaredExecutable);
+        if (!properties.getConfigPath().isBlank()) {
+            command.add("--config");
+            command.add(resolveConfiguredPath(properties.getConfigPath()).toString());
+        }
+        if (!properties.getCredentialsFile().isBlank()) {
+            command.add("--credentials-file");
+            command.add(resolveConfiguredPath(properties.getCredentialsFile()).toString());
+        }
         if (!properties.getTunnelName().isBlank()) {
             command.add("--mode");
             command.add("run");
             command.add("--tunnel");
             command.add(properties.getTunnelName());
         }
-        command.add("--url");
-        command.add(properties.getTargetUrl());
+        if (properties.getTunnelName().isBlank()) {
+            command.add("--url");
+            command.add(properties.getTargetUrl());
+        }
         command.add("--runtime-dir");
         command.add(runtimeDirectory().toString());
         if (!properties.getExtraArgs().isEmpty()) {
@@ -292,14 +345,22 @@ public class CloudflaredTunnelService {
         return command;
     }
 
-    private List<String> legacyCloudflaredCommand() {
+    private List<String> legacyCloudflaredCommand(String cloudflaredExecutable) {
         ArrayList<String> command = new ArrayList<>();
-        command.add(properties.getExecutable());
+        command.add(cloudflaredExecutable);
         command.add("tunnel");
         command.addAll(properties.getExtraArgs());
+        if (!properties.getConfigPath().isBlank()) {
+            command.add("--config");
+            command.add(resolveConfiguredPath(properties.getConfigPath()).toString());
+        }
+        command.add("run");
+        if (!properties.getCredentialsFile().isBlank()) {
+            command.add("--credentials-file");
+            command.add(resolveConfiguredPath(properties.getCredentialsFile()).toString());
+        }
         command.add("--url");
         command.add(properties.getTargetUrl());
-        command.add("run");
         if (!properties.getTunnelName().isBlank()) {
             command.add(properties.getTunnelName());
         }
@@ -326,6 +387,20 @@ public class CloudflaredTunnelService {
                             ? path.toAbsolutePath().normalize()
                             : runtimeRoot.resolve(path).normalize();
                 });
+    }
+
+    private void applyConfiguredUserProfile(Map<String, String> environment) {
+        String raw = properties.getUserProfile();
+        if (raw == null || raw.isBlank()) {
+            return;
+        }
+        Path userProfile = resolveConfiguredPath(raw);
+        environment.put("USERPROFILE", userProfile.toString());
+        environment.put("HOME", userProfile.toString());
+        Path cloudflaredHome = userProfile.resolve(".cloudflared");
+        if (Files.isDirectory(cloudflaredHome)) {
+            environment.put("CLOUDFLARED_HOME", cloudflaredHome.toString());
+        }
     }
 
     private Path resolveConfiguredPath(String raw) {

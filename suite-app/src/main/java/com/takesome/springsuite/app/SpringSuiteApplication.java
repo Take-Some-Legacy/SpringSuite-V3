@@ -18,6 +18,7 @@ import org.springframework.core.io.DefaultResourceLoader;
 @ConfigurationPropertiesScan(basePackages = "com.takesome.springsuite")
 public class SpringSuiteApplication {
     public static void main(String[] args) {
+        RuntimeLaunchContract.requireSupervisedRuntime();
         if (System.getProperty("os.name", "").toLowerCase().contains("windows")) {
             // Spring Boot defaults to headless mode. Disable it before any AWT class is initialized
             // so SpringSuite can own a system tray icon and contextual desktop overlays.

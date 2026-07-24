@@ -12,23 +12,26 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 )
 
 const appName = "suite-cloudflared-wrapper"
-const appVersion = "0.2.0"
+const appVersion = "0.3.0"
 
 var tryCloudflareURL = regexp.MustCompile(`https://[-a-zA-Z0-9.]+\.trycloudflare\.com`)
 
 type Config struct {
-	Cloudflared string   `json:"cloudflared"`
-	Mode        string   `json:"mode"`
-	URL         string   `json:"url"`
-	Tunnel      string   `json:"tunnel"`
-	RuntimeDir  string   `json:"runtimeDir"`
-	ExtraArgs   []string `json:"extraArgs"`
-	JSON        bool     `json:"json"`
+	Cloudflared     string   `json:"cloudflared"`
+	Mode            string   `json:"mode"`
+	URL             string   `json:"url"`
+	Tunnel          string   `json:"tunnel"`
+	ConfigPath      string   `json:"configPath"`
+	CredentialsFile string   `json:"credentialsFile"`
+	RuntimeDir      string   `json:"runtimeDir"`
+	ExtraArgs       []string `json:"extraArgs"`
+	JSON            bool     `json:"json"`
 }
 
 type Event struct {
@@ -103,6 +106,8 @@ func parseRun(args []string) (Config, error) {
 	fs.StringVar(&cfg.Mode, "mode", cfg.Mode, "quick or run")
 	fs.StringVar(&cfg.URL, "url", cfg.URL, "local service URL exposed through cloudflared")
 	fs.StringVar(&cfg.Tunnel, "tunnel", cfg.Tunnel, "named tunnel for mode=run")
+	fs.StringVar(&cfg.ConfigPath, "config", cfg.ConfigPath, "cloudflared YAML config file")
+	fs.StringVar(&cfg.CredentialsFile, "credentials-file", cfg.CredentialsFile, "named tunnel credentials JSON file")
 	fs.StringVar(&cfg.RuntimeDir, "runtime-dir", cfg.RuntimeDir, "local runtime/cache directory")
 	fs.BoolVar(&cfg.JSON, "json", cfg.JSON, "emit wrapper events as JSON lines to stderr")
 	if err := fs.Parse(args[:split]); err != nil {
@@ -112,8 +117,8 @@ func parseRun(args []string) (Config, error) {
 	if cfg.Mode != "quick" && cfg.Mode != "run" {
 		return cfg, fmt.Errorf("bad --mode: %s", cfg.Mode)
 	}
-	if cfg.URL == "" {
-		return cfg, errors.New("--url is required")
+	if cfg.Mode == "quick" && cfg.URL == "" {
+		return cfg, errors.New("--url is required when --mode=quick")
 	}
 	if cfg.Mode == "run" && cfg.Tunnel == "" {
 		return cfg, errors.New("--tunnel is required when --mode=run")
@@ -124,6 +129,17 @@ func parseRun(args []string) (Config, error) {
 func runCloudflared(cfg Config, stdout io.Writer, stderr io.Writer) error {
 	runtimeDir, cacheDir, err := prepareRuntime(cfg.RuntimeDir)
 	if err != nil {
+		return err
+	}
+	resolvedCloudflared, err := resolveCloudflared(cfg.Cloudflared)
+	if err != nil {
+		return err
+	}
+	cfg.Cloudflared = resolvedCloudflared
+	if cfg.ConfigPath, err = resolveOptionalFile(cfg.ConfigPath, "config"); err != nil {
+		return err
+	}
+	if cfg.CredentialsFile, err = resolveOptionalFile(cfg.CredentialsFile, "credentials file"); err != nil {
 		return err
 	}
 
@@ -185,12 +201,42 @@ func cloudflaredArgs(cfg Config) []string {
 	if cfg.Mode == "run" {
 		args := []string{"tunnel"}
 		args = append(args, cfg.ExtraArgs...)
-		args = append(args, "--url", cfg.URL, "run", cfg.Tunnel)
+		if cfg.ConfigPath != "" {
+			args = append(args, "--config", cfg.ConfigPath)
+		}
+		args = append(args, "run")
+		// A named tunnel obtains ingress and credentials from config.yml.
+		// --url belongs to quick tunnels and causes cloudflared tunnel run
+		// to reject or misinterpret the command. Only use an explicit
+		// credentials file when no config file is available.
+		if cfg.ConfigPath == "" && cfg.CredentialsFile != "" {
+			args = append(args, "--credentials-file", cfg.CredentialsFile)
+		}
+		args = append(args, cfg.Tunnel)
 		return args
 	}
 	args := []string{"tunnel", "--url", cfg.URL}
 	args = append(args, cfg.ExtraArgs...)
 	return args
+}
+
+func resolveOptionalFile(raw string, label string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", nil
+	}
+	absolute, err := filepath.Abs(value)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s: %w", label, err)
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return "", fmt.Errorf("%s does not exist: %s: %w", label, absolute, err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("%s is not a regular file: %s", label, absolute)
+	}
+	return filepath.Clean(absolute), nil
 }
 
 func prepareRuntime(raw string) (string, string, error) {
@@ -286,7 +332,13 @@ func doctor(cfg Config, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	path, err := exec.LookPath(cfg.Cloudflared)
+	path, err := resolveCloudflared(cfg.Cloudflared)
+	if err == nil {
+		cfg.ConfigPath, err = resolveOptionalFile(cfg.ConfigPath, "config")
+	}
+	if err == nil {
+		cfg.CredentialsFile, err = resolveOptionalFile(cfg.CredentialsFile, "credentials file")
+	}
 	status := map[string]any{
 		"ok":           err == nil,
 		"cloudflared":  cfg.Cloudflared,
@@ -296,13 +348,101 @@ func doctor(cfg Config, stdout io.Writer) error {
 		"mode":         cfg.Mode,
 		"url":          cfg.URL,
 		"tunnel":       cfg.Tunnel,
+		"config":       cfg.ConfigPath,
+		"credentials":  cfg.CredentialsFile,
 	}
 	data, _ := json.MarshalIndent(status, "", "  ")
 	_, _ = stdout.Write(append(data, '\n'))
 	if err != nil {
-		return fmt.Errorf("cloudflared not found: %s", cfg.Cloudflared)
+		return err
 	}
 	return nil
+}
+
+func resolveCloudflared(configured string) (string, error) {
+	value := strings.TrimSpace(configured)
+	if override := strings.TrimSpace(os.Getenv("SPRING_SUITE_CLOUDFLARED_EXECUTABLE")); override != "" {
+		if resolved, ok := existingExecutable(override); ok {
+			return resolved, nil
+		}
+	}
+	if value == "" {
+		value = "cloudflared"
+	}
+	if filepath.IsAbs(value) || strings.ContainsAny(value, `/\`) {
+		if resolved, ok := existingExecutable(value); ok {
+			return resolved, nil
+		}
+		return "", fmt.Errorf("cloudflared executable does not exist: %s", value)
+	}
+	if resolved, err := exec.LookPath(value); err == nil {
+		if absolute, absErr := filepath.Abs(resolved); absErr == nil {
+			return filepath.Clean(absolute), nil
+		}
+		return filepath.Clean(resolved), nil
+	}
+
+	candidates := make([]string, 0, 12)
+	if own, err := os.Executable(); err == nil {
+		directory := filepath.Dir(own)
+		candidates = append(candidates, filepath.Join(directory, executableFileName(value)))
+		candidates = append(candidates, filepath.Join(filepath.Dir(directory), executableFileName(value)))
+	}
+	if runtime.GOOS == "windows" {
+		candidates = append(candidates,
+			joinEnv("LOCALAPPDATA", "Microsoft", "WinGet", "Links", "cloudflared.exe"),
+			joinEnv("ChocolateyInstall", "bin", "cloudflared.exe"),
+			joinEnv("SCOOP", "shims", "cloudflared.exe"),
+			joinEnv("USERPROFILE", ".cloudflared", "cloudflared.exe"),
+			joinEnv("ProgramFiles", "cloudflared", "cloudflared.exe"),
+			joinEnv("ProgramFiles(x86)", "cloudflared", "cloudflared.exe"),
+		)
+	}
+	for _, candidate := range candidates {
+		if resolved, ok := existingExecutable(candidate); ok {
+			return resolved, nil
+		}
+	}
+	return "", fmt.Errorf("cloudflared not found: %s (set SPRING_SUITE_CLOUDFLARED_EXECUTABLE or --cloudflared)", value)
+}
+
+func existingExecutable(candidate string) (string, bool) {
+	value := strings.TrimSpace(candidate)
+	if value == "" {
+		return "", false
+	}
+	variants := []string{value}
+	if runtime.GOOS == "windows" && filepath.Ext(value) == "" {
+		variants = append([]string{value + ".exe", value + ".cmd", value + ".bat"}, variants...)
+	}
+	for _, variant := range variants {
+		info, err := os.Stat(variant)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		absolute, err := filepath.Abs(variant)
+		if err != nil {
+			return filepath.Clean(variant), true
+		}
+		return filepath.Clean(absolute), true
+	}
+	return "", false
+}
+
+func executableFileName(value string) string {
+	if runtime.GOOS == "windows" && filepath.Ext(value) == "" {
+		return value + ".exe"
+	}
+	return value
+}
+
+func joinEnv(name string, parts ...string) string {
+	base := strings.TrimSpace(os.Getenv(name))
+	if base == "" {
+		return ""
+	}
+	all := append([]string{base}, parts...)
+	return filepath.Join(all...)
 }
 
 func printHelp(out io.Writer) {
@@ -319,6 +459,8 @@ Flags:
                            run uses:   cloudflared tunnel --url URL run TUNNEL
   --url URL                local target URL, default: http://localhost:8090
   --tunnel NAME            named tunnel for --mode run
+  --config FILE            explicit cloudflared YAML config
+  --credentials-file FILE  explicit named-tunnel credentials JSON
   --runtime-dir DIR        local runtime/cache dir, default: .springsuite/cloudflared
   --json                   mirror wrapper events as JSON lines to stderr
 `)

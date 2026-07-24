@@ -3,6 +3,7 @@ setlocal
 chcp 65001 >nul
 set "ROOT=%~dp0"
 for %%I in ("%ROOT%.") do set "ROOT=%%~fI"
+if exist "%ROOT%\scripts\resolve-cloudflared.cmd" call "%ROOT%\scripts\resolve-cloudflared.cmd" "%ROOT%"
 set "BOOTSTRAP=%ROOT%\suiteBinaries\suite-runtime-bootstrap.exe"
 set "CONTROLLER_CONFIG=%ROOT%\config\runtime-controller.json"
 if exist "%BOOTSTRAP%" if exist "%CONTROLLER_CONFIG%" (

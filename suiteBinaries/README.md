@@ -7,6 +7,7 @@ This directory contains SpringSuite-owned native executables shipped with the ru
 - `suite-runtime-controller.exe` — owns the JVM process tree, health probation, graceful restart and crash recovery.
 - `suite-runtime-replacer.exe` — performs offline transactional replacement and verified rollback.
 - `suite-runtime-bootstrap.exe` — starts or replaces control-plane binaries without letting a process overwrite itself.
+- `suite-runtime-preloader.exe` — compact middle-screen startup popup driven by controller-published lifecycle progress.
 - `suite-runtime-toast.exe` — console CLI for user-session notification installation and diagnostics.
 - `suite-runtime-tray.exe` — GUI notification broker and color-coded SpringSuite tray status indicator.
 - `suite-runtime-toast-host.exe` — native WinToast notification host.

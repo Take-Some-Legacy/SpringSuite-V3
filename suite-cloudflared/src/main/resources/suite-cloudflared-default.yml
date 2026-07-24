@@ -5,10 +5,13 @@ suite:
   cloudflared:
     enabled: true
     auto-start: true
-    executable: cloudflared
+    executable: ${SPRING_SUITE_CLOUDFLARED_EXECUTABLE:cloudflared}
     wrapper-enabled: true
     wrapper-executable: suiteBinaries/suite-cloudflared-wrapper
     origin-cert-path: ${TUNNEL_ORIGIN_CERT:}
+    user-profile: ${SPRING_SUITE_CLOUDFLARED_USER_PROFILE:}
+    config-path: ${SPRING_SUITE_CLOUDFLARED_CONFIG:}
+    credentials-file: ${SPRING_SUITE_CLOUDFLARED_CREDENTIALS:}
     target-url: http://localhost:${server.port:8090}
     tunnel-name: spring-suite-test
     hostname: testspring.kaylas-systems.ru

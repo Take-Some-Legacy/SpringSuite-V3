@@ -17,6 +17,9 @@ class CloudflaredPropertiesTest {
         assertThat(properties.getTunnelName()).isEqualTo("spring-suite-test");
         assertThat(properties.getHostname()).isEqualTo("testspring.kaylas-systems.ru");
         assertThat(properties.getExtraArgs()).containsExactly("--no-autoupdate");
+        assertThat(properties.getUserProfile()).isEmpty();
+        assertThat(properties.getConfigPath()).isEmpty();
+        assertThat(properties.getCredentialsFile()).isEmpty();
     }
 
     @Test

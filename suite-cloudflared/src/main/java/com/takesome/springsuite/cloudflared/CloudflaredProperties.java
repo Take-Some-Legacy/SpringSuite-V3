@@ -18,6 +18,9 @@ public class CloudflaredProperties {
     private String hostname = "testspring.kaylas-systems.ru";
     private String cacheDirectory = ".springsuite/cloudflared";
     private String originCertPath = "";
+    private String userProfile = "";
+    private String configPath = "";
+    private String credentialsFile = "";
     private List<String> extraArgs = new ArrayList<>(List.of("--no-autoupdate"));
     private Duration stopTimeout = Duration.ofSeconds(5);
     private int recentLogLimit = 300;
@@ -102,6 +105,30 @@ public class CloudflaredProperties {
 
     public void setOriginCertPath(String originCertPath) {
         this.originCertPath = originCertPath == null ? "" : originCertPath.trim();
+    }
+
+    public String getUserProfile() {
+        return userProfile;
+    }
+
+    public void setUserProfile(String userProfile) {
+        this.userProfile = userProfile == null ? "" : userProfile.trim();
+    }
+
+    public String getConfigPath() {
+        return configPath;
+    }
+
+    public void setConfigPath(String configPath) {
+        this.configPath = configPath == null ? "" : configPath.trim();
+    }
+
+    public String getCredentialsFile() {
+        return credentialsFile;
+    }
+
+    public void setCredentialsFile(String credentialsFile) {
+        this.credentialsFile = credentialsFile == null ? "" : credentialsFile.trim();
     }
 
     public List<String> getExtraArgs() {

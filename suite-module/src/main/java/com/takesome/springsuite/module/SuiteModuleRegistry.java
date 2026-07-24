@@ -116,6 +116,7 @@ public class SuiteModuleRegistry {
             discovered.add(module);
         }
 
+        requireUniqueModuleIds(discovered);
         Map<SuiteModule, SuiteModuleCompatibilityReport> reports = SuiteModuleDependencyResolver.resolve(discovered);
 
         LinkedHashMap<String, LoadedModule> next = new LinkedHashMap<>();
@@ -175,6 +176,24 @@ public class SuiteModuleRegistry {
                 "capabilities", summary.capabilityCount(),
                 "jars", System.getProperty("suite.modules.count", "0")
         ));
+    }
+
+    private void requireUniqueModuleIds(List<SuiteModule> modules) {
+        LinkedHashMap<String, List<SuiteModule>> byId = new LinkedHashMap<>();
+        for (SuiteModule module : modules) {
+            String moduleId = module.manifest().id();
+            byId.computeIfAbsent(moduleId.toLowerCase(java.util.Locale.ROOT), ignored -> new ArrayList<>())
+                    .add(module);
+        }
+        List<String> duplicates = byId.values().stream()
+                .filter(group -> group.size() > 1)
+                .map(group -> group.get(0).manifest().id() + " -> " + group.stream()
+                        .map(module -> module.manifest().version() + " @ " + module.getClass().getName())
+                        .collect(java.util.stream.Collectors.joining(", ")))
+                .toList();
+        if (!duplicates.isEmpty()) {
+            throw new IllegalStateException("duplicate SpringSuite module IDs discovered by ServiceLoader: " + String.join("; ", duplicates));
+        }
     }
 
     @EventListener(ApplicationReadyEvent.class)

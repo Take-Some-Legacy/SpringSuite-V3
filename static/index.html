@@ -103,7 +103,11 @@
         .nav { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.035); }
         .nav a { padding: 9px 12px; border-radius: 999px; color: var(--muted); transition: .16s ease; }
         .nav a:hover, .nav a:focus-visible { color: var(--text); background: rgba(255,255,255,.07); outline: none; }
-        .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+        .top-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
+        .notification-policy { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:5px 7px 5px 11px; border:1px solid rgba(255,255,255,.10); border-radius:999px; background:rgba(255,255,255,.04); color:var(--muted); font-size:12px; white-space:nowrap; }
+        .notification-policy span { font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+        .notification-policy select { min-height:28px; border:1px solid rgba(143,208,255,.22); border-radius:999px; padding:3px 24px 3px 9px; color:#e4f7ff; background:#111a29; font:700 12px/1 var(--mono); outline:none; cursor:pointer; }
+        .notification-policy select:focus-visible { border-color:rgba(143,208,255,.58); box-shadow:0 0 0 3px rgba(143,208,255,.12); }
 
         .pill, .badge {
             display: inline-flex; align-items: center; gap: 8px;
@@ -254,6 +258,16 @@
         <div class="top-actions">
             <span class="pill"><span class="dot" id="global-dot"></span><span id="global-status">Запуск</span></span>
             <button class="button secondary" type="button" id="request-notifications">Включить уведомления</button>
+            <label class="notification-policy" for="request-notification-lifetime" title="Максимальный срок жизни одного BrowserNotification">
+                <span>TTL</span>
+                <select id="request-notification-lifetime" aria-label="Срок жизни BrowserNotifications">
+                    <option value="3000">3 с</option>
+                    <option value="5000">5 с</option>
+                    <option value="8000">8 с</option>
+                    <option value="15000">15 с</option>
+                    <option value="30000">30 с</option>
+                </select>
+            </label>
             <button class="button secondary" type="button" id="toggle-auto">Авто: вкл</button>
             <button class="button" type="button" id="refresh">Обновить</button>
         </div>
@@ -423,6 +437,7 @@
 
     <footer class="footer"><span>Внешний статический файл: <code>static/index.html</code></span><span id="last-updated">Последнее обновление: ещё не выполнялось</span></footer>
 </div>
+<script src="/js/browser-notifications.js"></script>
 <script>
 (() => {
     const state = {
@@ -443,9 +458,14 @@
         requestNotificationsEnabled: false,
         requestStreamConnected: false,
         requestEventSource: null,
-        requestRefreshTimer: null
+        requestRefreshTimer: null,
+        requestNotificationRotator: null,
+        requestNotificationLifetimeMs: 8000
     };
     const $ = (id) => document.getElementById(id);
+    const REQUEST_NOTIFICATION_ROTATION_MS = 1000;
+    const REQUEST_NOTIFICATION_DEFAULT_LIFETIME_MS = Number(window.BROWSER_NOTIFICATION_DEFAULT_LIFETIME_MS || 8000);
+    const REQUEST_NOTIFICATION_LIFETIME_OPTIONS = new Set([3000, 5000, 8000, 15000, 30000]);
     const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
     const asArray = (value) => Array.isArray(value) ? value : [];
     const json = (value) => JSON.stringify(value, null, 2);
@@ -482,8 +502,42 @@
         catch (_) { /* Browser storage may be disabled. */ }
     }
 
+    function normalizeNotificationLifetime(value) {
+        const lifetime = Number(value);
+        return REQUEST_NOTIFICATION_LIFETIME_OPTIONS.has(lifetime)
+            ? lifetime
+            : REQUEST_NOTIFICATION_DEFAULT_LIFETIME_MS;
+    }
+
+    function readNotificationLifetime() {
+        try { return normalizeNotificationLifetime(localStorage.getItem('springSuite.requestNotificationLifetimeMs')); }
+        catch (_) { return REQUEST_NOTIFICATION_DEFAULT_LIFETIME_MS; }
+    }
+
+    function writeNotificationLifetime(value) {
+        try { localStorage.setItem('springSuite.requestNotificationLifetimeMs', String(value)); }
+        catch (_) { /* Browser storage may be disabled. */ }
+    }
+
+    function formatNotificationSeconds(milliseconds) {
+        return `${Math.round(milliseconds / 1000)} с`;
+    }
+
+    function applyNotificationLifetime(value, persist = true) {
+        const lifetime = normalizeNotificationLifetime(value);
+        state.requestNotificationLifetimeMs = lifetime;
+        if (persist) writeNotificationLifetime(lifetime);
+        state.requestNotificationRotator?.setLifetimeMs(lifetime);
+        const control = $('request-notification-lifetime');
+        if (control) control.value = String(lifetime);
+        updateNotificationButton();
+        return lifetime;
+    }
+
     function notificationsSupported() {
-        return 'Notification' in window && 'EventSource' in window;
+        return 'Notification' in window
+            && 'EventSource' in window
+            && typeof window.BrowserNotificationRotator === 'function';
     }
 
     function updateNotificationButton() {
@@ -500,7 +554,7 @@
             button.title = 'Разрешите уведомления для этого сайта в настройках браузера.';
             return;
         }
-        button.title = '';
+        button.title = `TTL ${formatNotificationSeconds(state.requestNotificationLifetimeMs)}; ротация не чаще одного уведомления в секунду.`;
         if (!state.requestNotificationsEnabled) {
             button.textContent = Notification.permission === 'granted' ? 'Уведомления: выкл' : 'Включить уведомления';
             return;
@@ -515,6 +569,7 @@
             state.requestStreamConnected = false;
             writeNotificationPreference(false);
             closeRequestNotificationStream();
+            clearRequestNotificationQueue();
             updateNotificationButton();
             return;
         }
@@ -535,6 +590,8 @@
     }
 
     function initializeRequestNotifications() {
+        applyNotificationLifetime(readNotificationLifetime(), false);
+        if (notificationsSupported()) ensureRequestNotificationRotator();
         state.requestNotificationsEnabled = notificationsSupported()
             && Notification.permission === 'granted'
             && readNotificationPreference();
@@ -586,28 +643,61 @@
         state.requestStreamConnected = false;
     }
 
+    function ensureRequestNotificationRotator() {
+        if (state.requestNotificationRotator || !notificationsSupported()) {
+            return state.requestNotificationRotator;
+        }
+        state.requestNotificationRotator = new window.BrowserNotificationRotator({
+            lifetimeMs: state.requestNotificationLifetimeMs,
+            rotationMs: REQUEST_NOTIFICATION_ROTATION_MS,
+            maxQueueSize: 100,
+            notificationFactory: (title, options) => new Notification(title, options)
+        });
+        return state.requestNotificationRotator;
+    }
+
+    function clearRequestNotificationQueue() {
+        state.requestNotificationRotator?.clear();
+    }
+
+    function shutdownRequestNotifications() {
+        closeRequestNotificationStream();
+        state.requestNotificationRotator?.dispose();
+        state.requestNotificationRotator = null;
+    }
+
     function showBrowserRequestNotification(request) {
         if (!state.requestNotificationsEnabled || Notification.permission !== 'granted') return;
+        const rotator = ensureRequestNotificationRotator();
+        if (!rotator) return;
+
         const query = request.queryString ? `?${request.queryString}` : '';
         const status = Number(request.responseStatus || 0);
         const failure = request.exceptionType ? ` • ${request.exceptionType}` : '';
         const preview = request.requestPreview ? `
 ${request.requestPreview}` : '';
-        const notification = new Notification(`${request.method || 'HTTP'} ${request.requestUri || '/'}`, {
-            body: `HTTP ${status || '—'} • ${request.durationMs ?? '—'} ms • ${request.remoteAddress || 'неизвестно'}${failure}${preview}`,
-            tag: `spring-suite-request-${request.id}`,
-            icon: '/favicon.ico',
-            badge: '/favicon.ico',
-            renotify: false,
-            timestamp: request.startedAt ? new Date(request.startedAt).getTime() : Date.now(),
-            data: { id: request.id, route: `${request.requestUri || '/'}${query}` }
+        const route = `${request.requestUri || '/'}${query}`;
+        const notificationKey = `spring-suite-request-${request.id || `${request.startedAt || Date.now()}-${route}`}`;
+
+        rotator.enqueue({
+            key: notificationKey,
+            title: `${request.method || 'HTTP'} ${request.requestUri || '/'}`,
+            options: {
+                body: `HTTP ${status || '—'} • ${request.durationMs ?? '—'} ms • ${request.remoteAddress || 'неизвестно'}${failure}${preview}`,
+                tag: notificationKey,
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                renotify: false,
+                timestamp: request.startedAt ? new Date(request.startedAt).getTime() : Date.now(),
+                data: { id: request.id, route }
+            },
+            onClick: notification => {
+                window.focus();
+                window.location.hash = '#requests';
+                if (request.id) loadRequestDetail(request.id);
+                notification.close();
+            }
         });
-        notification.onclick = () => {
-            window.focus();
-            window.location.hash = '#requests';
-            if (request.id) loadRequestDetail(request.id);
-            notification.close();
-        };
     }
 
     function scheduleRequestJournalRefresh() {
@@ -916,6 +1006,7 @@ ${request.requestPreview}` : '';
 
     $('refresh').addEventListener('click', refreshAll);
     $('request-notifications').addEventListener('click', toggleRequestNotifications);
+    $('request-notification-lifetime').addEventListener('change', event => applyNotificationLifetime(event.target.value));
     $('toggle-auto').addEventListener('click', () => setAuto(!state.auto));
     $('tool-filter').addEventListener('input', renderToolList);
     $('command-filter').addEventListener('input', renderCommands);
@@ -946,7 +1037,7 @@ ${request.requestPreview}` : '';
         const target = event.target.closest('[data-request-id]');
         if (target) loadRequestDetail(target.dataset.requestId);
     });
-    window.addEventListener('beforeunload', closeRequestNotificationStream);
+    window.addEventListener('beforeunload', shutdownRequestNotifications);
     initializeRequestNotifications();
     setAuto(true);
     refreshAll();

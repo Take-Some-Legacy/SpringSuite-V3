@@ -2,9 +2,12 @@ import groovy.json.JsonOutput
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Instant
+import java.util.jar.JarFile
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.bundling.Zip
+
+val suiteVersion = "3.3.2"
 
 plugins {
     id("org.springframework.boot") version "3.3.6" apply false
@@ -13,7 +16,7 @@ plugins {
 
 allprojects {
     group = "com.takesome.springsuite"
-    version = "3.2.0"
+    version = suiteVersion
 }
 
 subprojects {
@@ -61,6 +64,7 @@ val runtimeControlPlaneBinaryNames = listOf(
     "suite-runtime-controller.exe",
     "suite-runtime-replacer.exe",
     "suite-runtime-bootstrap.exe",
+    "suite-runtime-preloader.exe",
     "suite-runtime-toast.exe",
     "suite-runtime-tray.exe",
     "suite-runtime-toast-host.exe"
@@ -98,6 +102,26 @@ val runtimeControlPlaneBinarySource = provider {
     }
 }
 
+val cloudflaredWrapperBinaryName = "suite-cloudflared-wrapper.exe"
+val cloudflaredWrapperRootPath = providers.gradleProperty("cloudflaredWrapperRoot")
+    .orElse(providers.environmentVariable("SPRING_SUITE_CLOUDFLARED_WRAPPER_ROOT"))
+    .orElse(layout.projectDirectory.dir("../suite-cloudflared-wrapper-go").asFile.absolutePath)
+val cloudflaredWrapperRoot = provider { file(cloudflaredWrapperRootPath.get()) }
+val cloudflaredWrapperBuild = provider { File(cloudflaredWrapperRoot.get(), "build/$cloudflaredWrapperBinaryName") }
+val buildCloudflaredWrapper = tasks.register<Exec>("buildCloudflaredWrapper") {
+    group = "distribution"
+    description = "Build the sibling cloudflared wrapper instead of packaging a stale checked-in binary."
+    val root = cloudflaredWrapperRoot.get()
+    val buildScript = File(root, "scripts/build.bat")
+    onlyIf { System.getProperty("os.name").lowercase().contains("windows") && buildScript.isFile }
+    workingDir(root)
+    commandLine("cmd.exe", "/d", "/c", buildScript.absolutePath)
+}
+val cloudflaredWrapperBinarySource = provider {
+    val built = cloudflaredWrapperBuild.get()
+    if (built.isFile) built else File(layout.projectDirectory.dir("suiteBinaries").asFile, cloudflaredWrapperBinaryName)
+}
+
 fun sha256(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
     file.inputStream().use { input ->
@@ -114,7 +138,7 @@ fun sha256(file: File): String {
 tasks.register<Sync>("assembleDeploy") {
     group = "distribution"
     description = "Assemble a portable SpringSuite runtime under build/deploy."
-    dependsOn(":suite-app:bootJar", "buildSignedModules", buildRuntimeControlPlane)
+    dependsOn(":suite-app:bootJar", "buildSignedModules", buildRuntimeControlPlane, buildCloudflaredWrapper)
 
     into(deployDirectory)
 
@@ -147,21 +171,25 @@ tasks.register<Sync>("assembleDeploy") {
         into("suiteBinaries")
         exclude("*-debug.exe")
         exclude(runtimeControlPlaneBinaryNames)
+        exclude(cloudflaredWrapperBinaryName)
+    }
+    from(cloudflaredWrapperBinarySource) {
+        into("suiteBinaries")
     }
     from(runtimeControlPlaneBinarySource) {
         into("suiteBinaries")
         include(runtimeControlPlaneBinaryNames)
     }
     from(layout.projectDirectory.dir("suite-dashboard-module/build/signed-modules")) {
-        include("*.jar")
+        include("*-$suiteVersion.jar")
         into("modules")
     }
     from(layout.projectDirectory.dir("suite-diagnostics-module/build/signed-modules")) {
-        include("*.jar")
+        include("*-$suiteVersion.jar")
         into("modules")
     }
     from(layout.projectDirectory.dir("suite-fn-module/build/signed-modules")) {
-        include("*.jar")
+        include("*-$suiteVersion.jar")
         into("modules")
     }
 
@@ -257,7 +285,7 @@ tasks.register<Sync>("assembleDeploy") {
             "schema" to "spring-suite.deploy-manifest.v1",
             "version" to project.version.toString(),
             "builtAt" to Instant.now().toString(),
-            "preservedRoots" to listOf("config", "data", "logs", ".springsuite", "authority"),
+            "preservedRoots" to listOf("data", "logs", ".springsuite", "authority"),
             "controlPlaneFiles" to runtimeControlPlaneBinaryNames.map { "suiteBinaries/$it" },
             "fileCount" to files.size,
             "files" to files
@@ -343,10 +371,17 @@ tasks.register("verifyModuleBoundaries") {
     }
 }
 
+val verifyBrowserNotifications = tasks.register<Exec>("verifyBrowserNotifications") {
+    group = "verification"
+    description = "Run deterministic BrowserNotification lifetime and rotation tests."
+    workingDir(layout.projectDirectory)
+    commandLine("node", "--test", "suite-app/src/test/js/browser-notifications.test.js")
+}
+
 tasks.register("verifyDeployLayout") {
     group = "verification"
     description = "Verify that build/deploy contains a complete runnable SpringSuite image."
-    dependsOn("assembleDeploy", "verifyModuleBoundaries")
+    dependsOn("assembleDeploy", "verifyModuleBoundaries", verifyBrowserNotifications)
 
     doLast {
         val root = deployDirectory.get().asFile
@@ -367,6 +402,8 @@ tasks.register("verifyDeployLayout") {
             "scripts/spring-suite-single-instance-check.ps1",
             "config/suite-cloudflared.yml",
             "config/runtime-controller.json",
+            "static/index.html",
+            "static/js/browser-notifications.js",
             "suiteBinaries/suite-cloudflared-wrapper.exe",
             "suiteBinaries/suite-runtime-controller.exe",
             "suiteBinaries/suite-runtime-replacer.exe",
@@ -385,12 +422,50 @@ tasks.register("verifyDeployLayout") {
             "spring-suite.jar is unexpectedly small: ${jar.length()} bytes"
         }
 
+        val moduleJars = File(root, "modules").listFiles { file -> file.isFile && file.extension.equals("jar", true) }
+            ?.sortedBy { it.name }
+            ?: emptyList()
+        check(moduleJars.size == 3) {
+            "deploy image must contain exactly three runtime module JARs for $suiteVersion, found: ${moduleJars.map { it.name }}"
+        }
+        val moduleIds = moduleJars.map { moduleJar ->
+            check(moduleJar.name.endsWith("-$suiteVersion.jar")) {
+                "stale or mismatched module JAR in deploy image: ${moduleJar.name}; expected version $suiteVersion"
+            }
+            JarFile(moduleJar, false).use { jarFile ->
+                val attributes = jarFile.manifest?.mainAttributes
+                    ?: error("module JAR has no manifest: ${moduleJar.name}")
+                val id = attributes.getValue("SpringSuite-Module")?.trim().orEmpty()
+                val version = attributes.getValue("SpringSuite-Module-Version")?.trim().orEmpty()
+                check(id.isNotBlank()) { "module JAR is missing SpringSuite-Module: ${moduleJar.name}" }
+                check(version == suiteVersion) {
+                    "module JAR ${moduleJar.name} declares version $version, expected $suiteVersion"
+                }
+                id.lowercase()
+            }
+        }
+        check(moduleIds.distinct().size == moduleIds.size) {
+            "deploy image contains duplicate SpringSuite module IDs: $moduleIds"
+        }
+
         val cloudflaredConfig = File(root, "config/suite-cloudflared.yml").readText(StandardCharsets.UTF_8)
         check(Regex("""(?m)^\s*enabled:\s*true\s*$""").containsMatchIn(cloudflaredConfig)) {
             "deploy cloudflared configuration must enable the service"
         }
         check(Regex("""(?m)^\s*auto-start:\s*true\s*$""").containsMatchIn(cloudflaredConfig)) {
             "deploy cloudflared configuration must enable autostart"
+        }
+        check(Regex("""(?m)^\s*wrapper-enabled:\s*true\s*$""").containsMatchIn(cloudflaredConfig)) {
+            "deploy cloudflared configuration must use the suite wrapper"
+        }
+        check(!Regex("""(?m)^\s*tunnel-name:\s*auto\s*$""").containsMatchIn(cloudflaredConfig)) {
+            "deploy cloudflared configuration must not use tunnel-name: auto"
+        }
+        check(cloudflaredConfig.contains("626b902a-712c-4932-b7a4-f6daf7512696")) {
+            "deploy cloudflared configuration must contain the named tunnel id"
+        }
+        check(cloudflaredConfig.contains("credentials-file:")) {
+            "deploy cloudflared configuration must declare the credentials file"
         }
     }
 }

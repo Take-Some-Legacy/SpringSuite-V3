@@ -22,6 +22,9 @@ public final class SuiteModuleBootstrap {
             boolean effectiveEnabled = config.enabled() || SuiteOperatorMode.isElevated();
             boolean effectiveRecursive = config.recursive() || SuiteOperatorMode.isElevated();
             List<Path> discoveredJars = effectiveEnabled ? ModuleJarScanner.scan(config.modulesDir(), effectiveRecursive) : List.of();
+            if (effectiveEnabled) {
+                ModuleJarUniqueness.requireUnique(discoveredJars);
+            }
             List<SuiteModuleJarTrustReport> trustReports = discoveredJars.stream()
                     .map(jar -> ModuleJarTrustReporter.report(jar, config))
                     .toList();

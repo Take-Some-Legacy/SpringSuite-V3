@@ -1,0 +1,101 @@
+{
+  "version": "3.3.1.0",
+  "company": "Take Some",
+  "product": "SpringSuite",
+  "binaries": [
+    {
+      "name": "suite-cloudflared-wrapper",
+      "description": "SpringSuite Cloudflared Wrapper",
+      "resourceLocations": [
+        "suite-cloudflared-wrapper-go\\windows-resources\\suite-cloudflared-wrapper",
+        "SpringSuite\\goSrc\\suite-cloudflared-wrapper-go\\windows-resources\\suite-cloudflared-wrapper"
+      ]
+    },
+    {
+      "name": "suite-desktop-agent",
+      "description": "SpringSuite Desktop Agent",
+      "resourceLocations": [
+        "suite-desktop-agent-go\\windows-resources\\suite-desktop-agent"
+      ]
+    },
+    {
+      "name": "suite-desktop-capture",
+      "description": "SpringSuite Desktop Capture",
+      "resourceLocations": [
+        "SpringSuite\\goSrc\\suite-desktop-capture-go\\windows-resources\\suite-desktop-capture"
+      ]
+    },
+    {
+      "name": "suite-fs-worker",
+      "description": "SpringSuite Filesystem Worker",
+      "resourceLocations": [
+        "SpringSuite\\goSrc\\suite-fs-worker-go\\windows-resources\\suite-fs-worker"
+      ]
+    },
+    {
+      "name": "suite-repo-indexer",
+      "description": "SpringSuite Repository Indexer",
+      "resourceLocations": [
+        "suite-repo-indexer-go\\windows-resources\\suite-repo-indexer",
+        "SpringSuite\\goSrc\\suite-repo-indexer-go\\windows-resources\\suite-repo-indexer"
+      ]
+    },
+    {
+      "name": "suite-runtime-controller",
+      "description": "SpringSuite Runtime Controller",
+      "resourceLocations": [
+        "suite-runtime-controller-go\\windows-resources\\suite-runtime-controller"
+      ]
+    },
+    {
+      "name": "suite-runtime-bootstrap",
+      "description": "SpringSuite Runtime Bootstrap",
+      "resourceLocations": [
+        "suite-runtime-controller-go\\windows-resources\\suite-runtime-bootstrap"
+      ]
+    },
+    {
+      "name": "suite-runtime-preloader",
+      "description": "SpringSuite Runtime Preloader",
+      "resourceLocations": [
+        "suite-runtime-controller-go\\windows-resources\\suite-runtime-preloader"
+      ]
+    },
+    {
+      "name": "suite-runtime-replacer",
+      "description": "SpringSuite Runtime Replacer",
+      "resourceLocations": [
+        "suite-runtime-controller-go\\windows-resources\\suite-runtime-replacer"
+      ]
+    },
+    {
+      "name": "suite-runtime-toast",
+      "description": "SpringSuite Notification Broker",
+      "resourceLocations": [
+        "suite-runtime-controller-go\\windows-resources\\suite-runtime-toast"
+      ]
+    },
+    {
+      "name": "suite-runtime-tray",
+      "description": "SpringSuite Runtime Tray",
+      "resourceLocations": [
+        "suite-runtime-controller-go\\windows-resources\\suite-runtime-tray"
+      ]
+    },
+    {
+      "name": "suite-runtime-toast-host",
+      "description": "SpringSuite Native Toast Host",
+      "resourceLocations": [
+        "suite-runtime-controller-go\\windows-resources\\suite-runtime-toast-host"
+      ]
+    },
+    {
+      "name": "suite-tail-watcher",
+      "description": "SpringSuite Tail Watcher",
+      "resourceLocations": [
+        "suite-tail-watcher-go\\windows-resources\\suite-tail-watcher",
+        "SpringSuite\\goSrc\\suite-tail-watcher-go\\windows-resources\\suite-tail-watcher"
+      ]
+    }
+  ]
+}

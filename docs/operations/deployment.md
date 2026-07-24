@@ -14,7 +14,8 @@ Mutable state is preserved across deployments:
 The Windows runtime is split into two execution domains:
 
 1. `suite-runtime-controller.exe` owns the JVM from Windows Session 0.
-2. `suite-runtime-tray.exe` owns notifications and the notification-area icon from the signed-in user's interactive session.
+2. `suite-runtime-preloader.exe` shows a compact middle-screen startup popup driven by controller state; it starts at 0%, reaches 100% only after READY, and remains visible on failure.
+3. `suite-runtime-tray.exe` owns notifications and the notification-area icon from the signed-in user's interactive session.
 
 A service process must never create notification-area UI directly.
 

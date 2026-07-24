@@ -2,6 +2,14 @@
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+if [ -z "${SPRING_SUITE_CLOUDFLARED_EXECUTABLE:-}" ] && command -v cloudflared >/dev/null 2>&1; then
+  SPRING_SUITE_CLOUDFLARED_EXECUTABLE="$(command -v cloudflared)"
+  export SPRING_SUITE_CLOUDFLARED_EXECUTABLE
+fi
+if [ -z "${SPRING_SUITE_CLOUDFLARED_USER_PROFILE:-}" ] && [ -n "${HOME:-}" ]; then
+  SPRING_SUITE_CLOUDFLARED_USER_PROFILE="$HOME"
+  export SPRING_SUITE_CLOUDFLARED_USER_PROFILE
+fi
 BOOTSTRAP="$ROOT/suiteBinaries/suite-runtime-bootstrap.exe"
 CONFIG="$ROOT/config/runtime-controller.json"
 
