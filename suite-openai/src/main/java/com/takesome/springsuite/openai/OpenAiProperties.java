@@ -273,7 +273,7 @@ public class OpenAiProperties {
         private String endpoint = "/responses";
         private boolean store = false;
         private Duration requestTimeout = Duration.ofSeconds(120);
-        private Integer maxOutputTokens = 4096;
+        private Integer maxOutputTokens;
 
         public String getModel() {
             return model;
@@ -313,7 +313,7 @@ public class OpenAiProperties {
         }
 
         public void setMaxOutputTokens(Integer maxOutputTokens) {
-            this.maxOutputTokens = maxOutputTokens == null || maxOutputTokens < 1 ? 4096 : maxOutputTokens;
+            this.maxOutputTokens = maxOutputTokens == null || maxOutputTokens <= 0 ? null : maxOutputTokens;
         }
     }
 

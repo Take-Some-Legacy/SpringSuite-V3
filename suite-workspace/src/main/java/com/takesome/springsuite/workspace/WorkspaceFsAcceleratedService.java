@@ -1,6 +1,5 @@
 package com.takesome.springsuite.workspace;
 
-import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.logging.OperatorLogService;
 import com.takesome.springsuite.workspace.fs.SuiteFsProperties;
 import com.takesome.springsuite.workspace.fs.WorkspaceFsBackend;
@@ -50,9 +49,7 @@ public class WorkspaceFsAcceleratedService extends WorkspaceService {
         if (!Files.isDirectory(target)) {
             throw new IllegalArgumentException("not a directory: " + pathPolicy.displayPath(target));
         }
-        int safeLimit = SuiteOperatorMode.isElevated()
-                ? (limit <= 0 ? 1000000 : Math.max(1, limit))
-                : (limit <= 0 ? 100 : Math.min(limit, properties.getMaxTreeItems()));
+        int safeLimit = effectiveLimit(limit, properties.getMaxTreeItems());
         List<WorkspaceEntry> raw = fsBackend.list(target, safeLimit + 1, pathPolicy);
         boolean truncated = raw.size() > safeLimit;
         List<WorkspaceEntry> entries = truncated ? raw.subList(0, safeLimit) : raw;
@@ -63,12 +60,8 @@ public class WorkspaceFsAcceleratedService extends WorkspaceService {
     public WorkspaceListResult tree(String path, int depth, int limit) {
         accessGuard.ensureRead();
         Path target = pathPolicy.resolveSafe(path);
-        int safeDepth = SuiteOperatorMode.isElevated()
-                ? (depth <= 0 ? 256 : Math.max(0, depth))
-                : Math.max(0, Math.min(depth <= 0 ? 3 : depth, 12));
-        int safeLimit = SuiteOperatorMode.isElevated()
-                ? (limit <= 0 ? 1000000 : Math.max(1, limit))
-                : (limit <= 0 ? properties.getMaxTreeItems() : Math.min(limit, properties.getMaxTreeItems()));
+        int safeDepth = depth <= 0 ? Integer.MAX_VALUE : depth;
+        int safeLimit = effectiveLimit(limit, properties.getMaxTreeItems());
         List<WorkspaceEntry> raw = fsBackend.tree(target, safeDepth, safeLimit + 1, pathPolicy);
         boolean truncated = raw.size() > safeLimit;
         List<WorkspaceEntry> entries = truncated ? raw.subList(0, safeLimit) : raw;
@@ -81,11 +74,11 @@ public class WorkspaceFsAcceleratedService extends WorkspaceService {
         Path target = pathPolicy.resolveSafe(path);
         textFilePolicy.ensureTextFile(target);
         int safeOffset = Math.max(0, offset);
-        int configuredMax = maxBytes <= 0 ? properties.getMaxReadBytes() : Math.min(maxBytes, properties.getMaxReadBytes());
+        int configuredMax = effectiveLimit(maxBytes, properties.getMaxReadBytes());
         byte[] all = fsBackend.readAllBytes(target);
-        int safeMax = SuiteOperatorMode.isElevated() ? (maxBytes <= 0 ? all.length : Math.max(0, maxBytes)) : configuredMax;
+        int safeMax = Math.min(configuredMax, all.length);
         int start = Math.min(safeOffset, all.length);
-        int end = Math.min(all.length, start + safeMax);
+        int end = (int) Math.min(all.length, (long) start + safeMax);
         byte[] slice = java.util.Arrays.copyOfRange(all, start, end);
         boolean truncated = end < all.length;
         return new WorkspaceReadResult(
@@ -98,4 +91,12 @@ public class WorkspaceFsAcceleratedService extends WorkspaceService {
                 new String(slice, StandardCharsets.UTF_8)
         );
     }
+
+    private static int effectiveLimit(int requested, int configured) {
+        if (requested > 0) {
+            return configured > 0 ? Math.min(requested, configured) : requested;
+        }
+        return configured > 0 ? configured : Integer.MAX_VALUE - 1;
+    }
+
 }

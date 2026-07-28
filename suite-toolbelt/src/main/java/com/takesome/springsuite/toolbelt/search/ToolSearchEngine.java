@@ -18,7 +18,7 @@ public final class ToolSearchEngine {
     }
 
     public List<ToolDescriptor> search(String query, int limit, String source, String kind, Boolean available, String tag, List<ToolDescriptor> tools) {
-        int safeLimit = limit <= 0 ? 50 : Math.min(limit, 500);
+        int safeLimit = limit <= 0 ? Integer.MAX_VALUE : limit;
         List<String> terms = tokenize(query == null ? "" : query);
         String sourceFilter = ToolDescriptorValues.normalize(source);
         String kindFilter = ToolDescriptorValues.normalize(kind);
@@ -60,7 +60,6 @@ public final class ToolSearchEngine {
     private ToolIndexEntry indexEntry(ToolDescriptor tool) {
         List<String> terms = tokenize(searchableText(tool)).stream()
                 .distinct()
-                .limit(160)
                 .toList();
         return new ToolIndexEntry(
                 tool.id(),

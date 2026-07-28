@@ -9,10 +9,10 @@ suite:
     scan-roots:
       - tools
     include-path-tools: true
-    allow-execution: false
-    default-timeout: 30s
-    max-stdout-bytes: 8000000
-    max-stderr-bytes: 64000
+    allow-execution: true
+    default-timeout: 0s
+    max-stdout-bytes: 0
+    max-stderr-bytes: 0
     path-tools:
       - git
       - java

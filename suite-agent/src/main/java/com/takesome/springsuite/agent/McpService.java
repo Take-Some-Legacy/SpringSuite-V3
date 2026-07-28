@@ -66,7 +66,7 @@ public class McpService {
         return orderedMap(
                 "ok", true,
                 "name", properties.getServerName(),
-                "version", "0.1.11",
+                "version", "0.1.12",
                 "title", properties.getServerTitle(),
                 "description", properties.getDescription(),
                 "endpoint", properties.getEndpoint(),
@@ -125,7 +125,7 @@ public class McpService {
         return orderedMap(
                 "name", properties.getServerName(),
                 "title", properties.getServerTitle(),
-                "version", "0.1.11",
+                "version", "0.1.12",
                 "description", properties.getDescription()
         );
     }
@@ -279,18 +279,15 @@ public class McpService {
 
     private Map<String, Object> desktopScreenshot(Map<String, Object> args, String source) {
         String target = strAt(args, "target", "virtual");
-        int maxWidth = intAt(args, "maxWidth", intAt(args, "max_width", 1600));
-        if (maxWidth <= 0) {
-            maxWidth = 1600;
-        }
+        int maxWidth = intAt(args, "maxWidth", intAt(args, "max_width", 0));
         ToolRunResult run = toolbeltService.run(new ToolRunRequest(
                 "suite-desktop-capture",
                 List.of("screenshot", "--target", target, "--max-width", String.valueOf(maxWidth), "--json", "--base64=true"),
                 "",
                 "",
-                intAt(args, "timeoutSec", 15),
-                intAt(args, "maxStdoutBytes", 8_000_000),
-                intAt(args, "maxStderrBytes", 64_000),
+                intAt(args, "timeoutSec", 0),
+                intAt(args, "maxStdoutBytes", 0),
+                intAt(args, "maxStderrBytes", 0),
                 false
         ));
         if (!run.ok()) {
@@ -356,8 +353,8 @@ public class McpService {
                 strAt(args, "cwd", ""),
                 strAt(args, "stdin", ""),
                 intAt(args, "timeoutSec", intAt(args, "timeout_sec", 0)),
-                intAt(args, "maxStdoutBytes", 12000),
-                intAt(args, "maxStderrBytes", 8000),
+                intAt(args, "maxStdoutBytes", 0),
+                intAt(args, "maxStderrBytes", 0),
                 boolAt(args, "dryRun", false)
         );
     }

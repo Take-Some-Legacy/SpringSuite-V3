@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SpringSuite Form Bridge",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Recognizes HTML forms and fills operator-approved values from local memory or the current ChatGPT Plus session without submitting the form.",
   "permissions": [
     "storage",

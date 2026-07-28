@@ -15,7 +15,7 @@ import (
 )
 
 const appName = "suite-repo-indexer"
-const appVersion = "0.1.0"
+const appVersion = "0.1.1"
 
 type rootsFlag []string
 
@@ -134,7 +134,7 @@ func run(args []string, out io.Writer) error {
 }
 
 func parse(args []string) (Config, error) {
-	cfg := Config{Repositories: ".springsuite/repositories.json", Output: ".springsuite/repo-index.json", Depth: 8, MaxFileSize: 2 * 1024 * 1024, Hash: true}
+	cfg := Config{Repositories: ".springsuite/repositories.json", Output: ".springsuite/repo-index.json", Depth: 0, MaxFileSize: 0, Hash: true}
 	var roots rootsFlag
 	fs := flag.NewFlagSet(appName, flag.ContinueOnError)
 	fs.StringVar(&cfg.Repositories, "repositories", cfg.Repositories, "Suite repositories.json path")
@@ -239,7 +239,7 @@ func walkGit(root string, maxDepth int, set map[string]struct{}) {
 		if skipDir(d.Name()) && path != root {
 			return filepath.SkipDir
 		}
-		if relDepth(root, path) > maxDepth {
+		if maxDepth > 0 && relDepth(root, path) > maxDepth {
 			return filepath.SkipDir
 		}
 		if exists(filepath.Join(path, ".git")) {
@@ -277,12 +277,10 @@ func indexRepo(root string, cfg Config) RepoIndex {
 		idx.Files.Count++
 		idx.Files.TotalBytes += size
 		idx.LanguageBytes[lang(path)] += size
-		if cfg.Hash && size <= cfg.MaxFileSize {
+		if cfg.Hash && (cfg.MaxFileSize <= 0 || size <= cfg.MaxFileSize) {
 			if h, err := hashFile(path); err == nil {
 				idx.Files.HashedCount++
-				if len(idx.Samples) < 200 {
-					idx.Samples = append(idx.Samples, FileSample{Path: rel(root, path), Bytes: size, SHA256: h})
-				}
+				idx.Samples = append(idx.Samples, FileSample{Path: rel(root, path), Bytes: size, SHA256: h})
 			} else {
 				idx.Errors = append(idx.Errors, err.Error())
 			}

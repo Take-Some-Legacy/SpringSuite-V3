@@ -19,7 +19,9 @@ Thumbs.db
 /.springsuite/
 /.springsuite-patch-backups/
 **/.springsuite-repository.json
-/config/
+/config/*
+!/config/runtime-controller.json
+!/config/suite-cloudflared.yml
 /data/
 /logs/
 /modules/

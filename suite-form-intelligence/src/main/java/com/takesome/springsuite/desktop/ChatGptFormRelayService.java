@@ -23,7 +23,6 @@ public class ChatGptFormRelayService implements DesktopFormRelay {
     public static final String SOURCE_ID = "chatgpt-5.6";
     private static final String SCHEMA = "spring-suite.chatgpt_form_relay.v1";
     private static final Duration RELAY_TTL = Duration.ofMinutes(15);
-    private static final int MAX_VALUE_CHARS = 4_000;
 
     private final AtomicLong revisions = new AtomicLong();
     private RelayState current;
@@ -211,10 +210,6 @@ public class ChatGptFormRelayService implements DesktopFormRelay {
         }
         if (!isAvailable(field)) {
             warnings.add("Unavailable field rejected: " + fieldId);
-            return;
-        }
-        if (value.length() > MAX_VALUE_CHARS) {
-            warnings.add("Value is too long and was rejected: " + fieldId);
             return;
         }
         if (!field.options().isEmpty() && field.options().stream().noneMatch(value::equals)) {

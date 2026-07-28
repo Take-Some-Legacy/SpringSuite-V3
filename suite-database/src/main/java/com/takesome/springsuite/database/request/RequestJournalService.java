@@ -83,7 +83,12 @@ public class RequestJournalService {
     ) {
         DatabaseProperties.RequestJournal journal = properties.getRequestJournal();
         int size = requestedSize == null ? journal.getDefaultPageSize() : requestedSize;
-        size = Math.max(1, Math.min(size, journal.getMaxPageSize()));
+        if (size <= 0) {
+            size = Integer.MAX_VALUE;
+        }
+        if (journal.getMaxPageSize() > 0) {
+            size = Math.min(size, journal.getMaxPageSize());
+        }
         int safePage = Math.max(0, page);
         StatusRange range = parseStatus(status);
         RequestJournalSearch search = new RequestJournalSearch(

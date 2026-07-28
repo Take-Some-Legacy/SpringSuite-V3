@@ -45,5 +45,5 @@ suite:
       model: gpt-5.5
       endpoint: /responses
       store: false
-      request-timeout: 120s
-      max-output-tokens: 4096
+      request-timeout: 30m
+      max-output-tokens: 0

@@ -95,7 +95,6 @@ public class CloudflaredTunnelService {
                                 properties.getExecutable(),
                                 System.getenv()
                         ).stream()
-                        .limit(12)
                         .map(Path::toString)
                         .collect(Collectors.toList());
                 lastError = "cloudflared executable was not found; configure suite.cloudflared.executable "
@@ -257,7 +256,9 @@ public class CloudflaredTunnelService {
     }
 
     public List<String> recentLogs(int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, properties.getRecentLogLimit()));
+        int safeLimit = limit > 0
+                ? (properties.getRecentLogLimit() > 0 ? Math.min(limit, properties.getRecentLogLimit()) : limit)
+                : (properties.getRecentLogLimit() > 0 ? properties.getRecentLogLimit() : Integer.MAX_VALUE);
         synchronized (lock) {
             ArrayList<String> snapshot = new ArrayList<>(recentLines);
             int from = Math.max(0, snapshot.size() - safeLimit);
@@ -455,7 +456,7 @@ public class CloudflaredTunnelService {
         String cleaned = line == null ? "" : line.strip();
         synchronized (lock) {
             recentLines.addLast(cleaned);
-            while (recentLines.size() > properties.getRecentLogLimit()) {
+            while (properties.getRecentLogLimit() > 0 && recentLines.size() > properties.getRecentLogLimit()) {
                 recentLines.removeFirst();
             }
             Matcher matcher = TRY_CLOUDFLARE_URL.matcher(cleaned);

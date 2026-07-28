@@ -1,4 +1,4 @@
-﻿[CmdletBinding(SupportsShouldProcess = $true)]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [string]$Root = "",
     [ValidateSet("Preflight", "Portable", "Service")]
@@ -701,6 +701,25 @@ switch ($Mode) {
         # The external host survives target replacement. Its config always points
         # to the absolute production runtime root rather than to ProgramData.
         $runtimeConfig.runtime_root = $runtimeRoot
+        if ($null -eq $runtimeConfig.cloudflared) {
+            throw "runtime-controller.json is missing the controller-owned cloudflared block."
+        }
+        $runtimeConfig.cloudflared.enabled = $true
+        $runtimeConfig.cloudflared.required = $true
+        $runtimeConfig.cloudflared.wrapper_path = (Join-Path $runtimeRoot "suiteBinaries\suite-cloudflared-wrapper.exe")
+        $runtimeConfig.cloudflared.executable = $cloudflaredExecutable
+        $runtimeConfig.cloudflared.mode = "run"
+        $runtimeConfig.cloudflared.target_url = "http://127.0.0.1:$runtimePortForService"
+        $runtimeConfig.cloudflared.tunnel = $TunnelId
+        $runtimeConfig.cloudflared.config_path = [string]($machineCloudflared.Config)
+        $runtimeConfig.cloudflared.credentials_file = [string]($machineCloudflared.Credentials)
+        $runtimeConfig.cloudflared.runtime_dir = (Join-Path $runtimeRoot ".springsuite\cloudflared")
+        if ($null -eq $runtimeConfig.application_args) {
+            $runtimeConfig | Add-Member -MemberType NoteProperty -Name application_args -Value @()
+        }
+        if (-not (@($runtimeConfig.application_args) -contains "--suite.cloudflared.auto-start=false")) {
+            $runtimeConfig.application_args = @($runtimeConfig.application_args) + "--suite.cloudflared.auto-start=false"
+        }
         if ($null -eq $runtimeConfig.environment) {
             $runtimeConfig | Add-Member -MemberType NoteProperty -Name environment -Value ([pscustomobject]@{})
         }

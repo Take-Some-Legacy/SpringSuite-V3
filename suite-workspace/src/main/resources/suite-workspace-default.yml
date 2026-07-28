@@ -12,13 +12,13 @@ suite:
     allow-write: true
     allow-delete: false
     create-backups: true
-    max-read-bytes: 65536
-    max-search-results: 100
-    max-tree-items: 500
-    max-file-size-bytes: 2097152
+    max-read-bytes: 0
+    max-search-results: 0
+    max-tree-items: 0
+    max-file-size-bytes: 0
     repository-descriptor-auto-create: true
     repository-descriptor-file: .springsuite-repository.json
-    repository-descriptor-scan-depth: 8
+    repository-descriptor-scan-depth: 0
     repository-cache-enabled: true
     repository-cache-remember-discovered: true
     repository-cache-file: .springsuite/repositories.json

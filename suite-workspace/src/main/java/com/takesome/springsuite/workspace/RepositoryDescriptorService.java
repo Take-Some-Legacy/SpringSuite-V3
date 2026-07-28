@@ -202,7 +202,7 @@ public class RepositoryDescriptorService {
             if (Files.isDirectory(normalized)) {
                 try (Stream<Path> stream = Files.find(
                         normalized,
-                        properties.getRepositoryDescriptorScanDepth(),
+                        properties.getRepositoryDescriptorScanDepth() <= 0 ? Integer.MAX_VALUE : properties.getRepositoryDescriptorScanDepth(),
                         (path, attributes) -> attributes.isDirectory() && Files.exists(path.resolve(".git"))
                 )) {
                     stream.map(path -> path.toAbsolutePath().normalize()).forEach(repositories::add);

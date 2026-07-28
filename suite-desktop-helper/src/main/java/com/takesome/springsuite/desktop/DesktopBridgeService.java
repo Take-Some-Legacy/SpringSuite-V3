@@ -295,7 +295,7 @@ public class DesktopBridgeService implements DesktopSnapshotIngestor {
     }
 
     private String truncate(String value, int limit) {
-        if (value == null || value.length() <= limit) {
+        if (value == null || limit <= 0 || value.length() <= limit) {
             return value == null ? "" : value;
         }
         return value.substring(0, Math.max(0, limit)) + "…";

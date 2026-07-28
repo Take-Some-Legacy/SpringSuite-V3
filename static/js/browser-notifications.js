@@ -7,7 +7,7 @@
     const MAX_ROTATION_MS = 60_000;
     const DEFAULT_LIFETIME_MS = 8_000;
     const DEFAULT_ROTATION_MS = 1_000;
-    const DEFAULT_MAX_QUEUE_SIZE = 100;
+    const DEFAULT_MAX_QUEUE_SIZE = Number.MAX_SAFE_INTEGER;
 
     function clampInteger(value, fallback, minimum, maximum) {
         const number = Number(value);
@@ -40,7 +40,7 @@
                 options.maxQueueSize,
                 DEFAULT_MAX_QUEUE_SIZE,
                 1,
-                10_000
+                Number.MAX_SAFE_INTEGER
             );
             this.queue = [];
             this.pendingKeys = new Set();

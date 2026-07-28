@@ -43,7 +43,7 @@ public class OperatorLogService {
 
         synchronized (entriesLock) {
             entries.addLast(entry);
-            while (entries.size() > properties.getRingBufferSize()) {
+            while (properties.getRingBufferSize() > 0 && entries.size() > properties.getRingBufferSize()) {
                 entries.removeFirst();
             }
         }
@@ -54,7 +54,9 @@ public class OperatorLogService {
     }
 
     public List<OperatorLogEntry> recent(int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, properties.getRingBufferSize()));
+        int safeLimit = limit > 0
+                ? (properties.getRingBufferSize() > 0 ? Math.min(limit, properties.getRingBufferSize()) : limit)
+                : (properties.getRingBufferSize() > 0 ? properties.getRingBufferSize() : Integer.MAX_VALUE);
         synchronized (entriesLock) {
             ArrayList<OperatorLogEntry> snapshot = new ArrayList<>(entries);
             int from = Math.max(0, snapshot.size() - safeLimit);

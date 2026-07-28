@@ -51,7 +51,7 @@ public class AiProperties {
         private String apiKey = "";
         private boolean requiresAuth = true;
         private String defaultModel = "";
-        private Integer defaultMaxTokens = 4096;
+        private Integer defaultMaxTokens;
         private Double defaultTemperature = 1.0;
         private Double defaultTopP;
         private Duration requestTimeout = Duration.ofSeconds(120);
@@ -146,7 +146,7 @@ public class AiProperties {
         }
 
         public void setDefaultMaxTokens(Integer defaultMaxTokens) {
-            this.defaultMaxTokens = defaultMaxTokens == null || defaultMaxTokens < 1 ? 4096 : defaultMaxTokens;
+            this.defaultMaxTokens = defaultMaxTokens == null || defaultMaxTokens <= 0 ? null : defaultMaxTokens;
         }
 
         public Double getDefaultTemperature() {

@@ -80,7 +80,7 @@ public class BrowserDomService {
                     Map.of("pageId", request.pageId(), "url", request.url())
             );
         }
-        if (request.forms().size() > properties.getMaxForms()) {
+        if (properties.getMaxForms() > 0 && request.forms().size() > properties.getMaxForms()) {
             return reject(
                     "browser_dom_form_limit",
                     "Browser snapshot contains too many forms.",
@@ -335,13 +335,13 @@ public class BrowserDomService {
 
     private List<Map<String, Object>> normalizeFields(BrowserDomForm form, List<String> warnings) {
         int limit = properties.getMaxFieldsPerForm();
-        if (form.fields().size() > limit) {
+        if (limit > 0 && form.fields().size() > limit) {
             warnings.add("Web form contains " + form.fields().size() + " fields; only the first " + limit + " are accepted.");
         }
         ArrayList<Map<String, Object>> result = new ArrayList<>();
         int ordinal = 0;
         for (BrowserDomField field : form.fields()) {
-            if (field == null || result.size() >= limit) {
+            if (field == null || (limit > 0 && result.size() >= limit)) {
                 break;
             }
             String type = normalizeFieldType(field.type());
@@ -363,7 +363,9 @@ public class BrowserDomService {
             normalized.put("readOnly", field.readOnly());
             normalized.put("disabled", field.disabled());
             normalized.put("visible", field.visible());
-            normalized.put("options", field.options().stream().limit(properties.getMaxOptionsPerField()).toList());
+            normalized.put("options", properties.getMaxOptionsPerField() > 0
+                    ? field.options().stream().limit(properties.getMaxOptionsPerField()).toList()
+                    : List.copyOf(field.options()));
             Object bounds = field.metadata().get("bounds");
             if (bounds != null) {
                 normalized.put("bounds", bounds);
@@ -394,7 +396,7 @@ public class BrowserDomService {
         if (controls == null || controls.isEmpty()) {
             return List.of();
         }
-        return controls.stream().filter(control -> control != null).limit(32).map(control -> {
+        return controls.stream().filter(control -> control != null).map(control -> {
             LinkedHashMap<String, Object> value = new LinkedHashMap<>();
             value.put("id", control.id());
             value.put("label", control.label());
@@ -406,7 +408,11 @@ public class BrowserDomService {
     }
 
     private List<Map<String, Object>> summarizeForms(List<BrowserDomForm> forms) {
-        return forms.stream().filter(form -> form != null).limit(properties.getMaxForms()).map(form -> {
+        java.util.stream.Stream<BrowserDomForm> stream = forms.stream().filter(form -> form != null);
+        if (properties.getMaxForms() > 0) {
+            stream = stream.limit(properties.getMaxForms());
+        }
+        return stream.map(form -> {
             LinkedHashMap<String, Object> summary = new LinkedHashMap<>();
             summary.put("id", form.id());
             summary.put("name", form.name());

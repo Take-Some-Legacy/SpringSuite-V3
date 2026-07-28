@@ -18,12 +18,12 @@ public class DatabaseProperties {
         private boolean captureRequestBody = true;
         private boolean captureResponseBody = true;
         private boolean redactSensitiveData = true;
-        private int maxRequestBodyBytes = 1_048_576;
-        private int maxResponseBodyBytes = 1_048_576;
-        private int maxHeaderValueChars = 16_384;
-        private int maxSearchDocumentChars = 2_097_152;
-        private int defaultPageSize = 50;
-        private int maxPageSize = 200;
+        private int maxRequestBodyBytes = 0;
+        private int maxResponseBodyBytes = 0;
+        private int maxHeaderValueChars = 0;
+        private int maxSearchDocumentChars = 0;
+        private int defaultPageSize = 0;
+        private int maxPageSize = 0;
         private List<String> includePaths = new ArrayList<>(List.of("/"));
         private List<String> excludePaths = new ArrayList<>(List.of(
                 "/api/admin/requests",
@@ -41,23 +41,22 @@ public class DatabaseProperties {
         public boolean isRedactSensitiveData() { return redactSensitiveData; }
         public void setRedactSensitiveData(boolean redactSensitiveData) { this.redactSensitiveData = redactSensitiveData; }
         public int getMaxRequestBodyBytes() { return maxRequestBodyBytes; }
-        public void setMaxRequestBodyBytes(int value) { this.maxRequestBodyBytes = clamp(value, 1_024, 16 * 1_048_576); }
+        public void setMaxRequestBodyBytes(int value) { this.maxRequestBodyBytes = Math.max(0, value); }
         public int getMaxResponseBodyBytes() { return maxResponseBodyBytes; }
-        public void setMaxResponseBodyBytes(int value) { this.maxResponseBodyBytes = clamp(value, 1_024, 16 * 1_048_576); }
+        public void setMaxResponseBodyBytes(int value) { this.maxResponseBodyBytes = Math.max(0, value); }
         public int getMaxHeaderValueChars() { return maxHeaderValueChars; }
-        public void setMaxHeaderValueChars(int value) { this.maxHeaderValueChars = clamp(value, 256, 131_072); }
+        public void setMaxHeaderValueChars(int value) { this.maxHeaderValueChars = Math.max(0, value); }
         public int getMaxSearchDocumentChars() { return maxSearchDocumentChars; }
-        public void setMaxSearchDocumentChars(int value) { this.maxSearchDocumentChars = clamp(value, 8_192, 4_194_304); }
+        public void setMaxSearchDocumentChars(int value) { this.maxSearchDocumentChars = Math.max(0, value); }
         public int getDefaultPageSize() { return defaultPageSize; }
-        public void setDefaultPageSize(int value) { this.defaultPageSize = clamp(value, 1, 200); }
+        public void setDefaultPageSize(int value) { this.defaultPageSize = Math.max(0, value); }
         public int getMaxPageSize() { return maxPageSize; }
-        public void setMaxPageSize(int value) { this.maxPageSize = clamp(value, 1, 500); }
+        public void setMaxPageSize(int value) { this.maxPageSize = Math.max(0, value); }
         public List<String> getIncludePaths() { return includePaths; }
         public void setIncludePaths(List<String> value) { this.includePaths = normalizePaths(value, List.of("/")); }
         public List<String> getExcludePaths() { return excludePaths; }
         public void setExcludePaths(List<String> value) { this.excludePaths = normalizePaths(value, List.of("/api/admin/requests", "/api/operator/logs/stream", "/api/desktop-helper/browser-dom/snapshot", "/actuator/")); }
 
-        private static int clamp(int value, int minimum, int maximum) { return Math.max(minimum, Math.min(value, maximum)); }
         private static List<String> normalizePaths(List<String> paths, List<String> fallback) {
             if (paths == null) return new ArrayList<>(fallback);
             return paths.stream().filter(value -> value != null && !value.isBlank()).map(String::trim).distinct().toList();

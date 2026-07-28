@@ -253,7 +253,7 @@ public class DesktopHelperService {
             ));
         }
 
-        for (int i = 0; i < form.fields().size() && hints.size() < properties.getMaxSuggestionCount(); i++) {
+        for (int i = 0; i < form.fields().size() && (properties.getMaxSuggestionCount() <= 0 || hints.size() < properties.getMaxSuggestionCount()); i++) {
             DesktopFormField field = form.fields().get(i);
             String id = fieldId(field, i);
             if (isSensitive(field)) {
@@ -292,7 +292,7 @@ public class DesktopHelperService {
             }
         }
 
-        if (!context.url().isBlank() && hints.size() < properties.getMaxSuggestionCount()) {
+        if (!context.url().isBlank() && (properties.getMaxSuggestionCount() <= 0 || hints.size() < properties.getMaxSuggestionCount())) {
             hints.add(new DesktopHint(
                     "context",
                     "Use page URL as intent context",
@@ -1287,7 +1287,7 @@ public class DesktopHelperService {
     }
 
     private <T> List<T> limit(List<T> values, int limit) {
-        if (values.size() <= limit) {
+        if (limit <= 0 || values.size() <= limit) {
             return List.copyOf(values);
         }
         return List.copyOf(values.subList(0, limit));
@@ -1333,7 +1333,7 @@ public class DesktopHelperService {
     }
 
     private String truncate(String value, int limit) {
-        if (value == null || value.length() <= limit) {
+        if (value == null || limit <= 0 || value.length() <= limit) {
             return value == null ? "" : value;
         }
         return value.substring(0, Math.max(0, limit)) + "…";

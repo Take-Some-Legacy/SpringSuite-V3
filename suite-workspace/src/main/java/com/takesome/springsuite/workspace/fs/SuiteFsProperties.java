@@ -12,9 +12,9 @@ public class SuiteFsProperties {
     private int protocolVersion = 1;
     private Duration startTimeout = Duration.ofSeconds(3);
     private Duration requestTimeout = Duration.ofSeconds(30);
-    private int maxEntries = 100_000;
-    private int maxReadBytes = 104_857_600;
-    private int maxLineBytes = 33_554_432;
+    private int maxEntries = 0;
+    private int maxReadBytes = 0;
+    private int maxLineBytes = 0;
     private boolean restartOnCrash = true;
     private int maxRestarts = 3;
     private boolean allowSymlinks = false;
@@ -77,7 +77,7 @@ public class SuiteFsProperties {
     }
 
     public void setMaxEntries(int maxEntries) {
-        this.maxEntries = Math.max(1, maxEntries);
+        this.maxEntries = Math.max(0, maxEntries);
     }
 
     public int getMaxReadBytes() {
@@ -85,7 +85,7 @@ public class SuiteFsProperties {
     }
 
     public void setMaxReadBytes(int maxReadBytes) {
-        this.maxReadBytes = Math.max(1024, maxReadBytes);
+        this.maxReadBytes = Math.max(0, maxReadBytes);
     }
 
     public int getMaxLineBytes() {
@@ -93,7 +93,7 @@ public class SuiteFsProperties {
     }
 
     public void setMaxLineBytes(int maxLineBytes) {
-        this.maxLineBytes = Math.max(1024 * 1024, maxLineBytes);
+        this.maxLineBytes = Math.max(0, maxLineBytes);
     }
 
     public boolean isRestartOnCrash() {

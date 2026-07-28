@@ -25,7 +25,7 @@ final class WorkspaceTextFilePolicy {
             return;
         }
         try {
-            if (Files.size(target) > properties.getMaxFileSizeBytes()) {
+            if (properties.getMaxFileSizeBytes() > 0 && Files.size(target) > properties.getMaxFileSizeBytes()) {
                 throw new IllegalArgumentException("file exceeds suite.workspace.max-file-size-bytes: " + pathPolicy.displayPath(target));
             }
         } catch (IOException ex) {
@@ -48,7 +48,7 @@ final class WorkspaceTextFilePolicy {
             }
         }
         try {
-            if (!Files.isRegularFile(target) || Files.size(target) > properties.getMaxFileSizeBytes()) {
+            if (!Files.isRegularFile(target) || (properties.getMaxFileSizeBytes() > 0 && Files.size(target) > properties.getMaxFileSizeBytes())) {
                 return false;
             }
             byte[] sample = readPrefix(target, 4096);

@@ -34,7 +34,7 @@ final class SensitiveDataSanitizer {
     SensitiveDataSanitizer(ObjectMapper objectMapper, boolean redact, int maxHeaderValueChars) {
         this.objectMapper = objectMapper;
         this.redact = redact;
-        this.maxHeaderValueChars = Math.max(256, maxHeaderValueChars);
+        this.maxHeaderValueChars = Math.max(0, maxHeaderValueChars);
     }
 
     String requestHeaders(HttpServletRequest request) {
@@ -149,7 +149,7 @@ final class SensitiveDataSanitizer {
     }
 
     private String limitHeader(String value) {
-        if (value.length() <= maxHeaderValueChars) return value;
+        if (maxHeaderValueChars <= 0 || value.length() <= maxHeaderValueChars) return value;
         return value.substring(0, maxHeaderValueChars) + "<truncated>";
     }
 

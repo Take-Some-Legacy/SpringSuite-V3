@@ -24,8 +24,7 @@ import org.springframework.stereotype.Component;
 @Component
 public final class IncidentCommand implements SuiteCommand {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
-    private static final int DEFAULT_LIST_LIMIT = 20;
-    private static final int MAX_LIST_LIMIT = 100;
+    private static final int DEFAULT_LIST_LIMIT = Integer.MAX_VALUE;
 
     private final ObjectMapper objectMapper;
 
@@ -165,7 +164,7 @@ public final class IncidentCommand implements SuiteCommand {
 
     private int parseLimit(String raw) {
         try {
-            return Math.max(1, Math.min(MAX_LIST_LIMIT, Integer.parseInt(raw.trim())));
+            return Math.max(1, Integer.parseInt(raw.trim()));
         } catch (Exception ignored) {
             return DEFAULT_LIST_LIMIT;
         }

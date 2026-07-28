@@ -61,4 +61,4 @@ suite:
         destination: active-chat
         args:
           target: virtual
-          maxWidth: 1600
+          maxWidth: 0

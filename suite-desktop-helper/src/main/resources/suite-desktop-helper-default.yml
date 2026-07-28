@@ -18,8 +18,8 @@ suite:
     context-ttl: 30s
     approval-token-ttl-seconds: 120
     max-approval-token-ttl-seconds: 900
-    max-screen-text-chars: 12000
-    max-suggestion-count: 6
+    max-screen-text-chars: 0
+    max-suggestion-count: 0
     browser-dom:
       enabled: true
       require-token: true
@@ -29,9 +29,9 @@ suite:
       command-ttl: 20s
       max-snapshot-age: 20s
       max-future-skew: 30s
-      max-forms: 64
-      max-fields-per-form: 256
-      max-options-per-field: 100
+      max-forms: 0
+      max-fields-per-form: 0
+      max-options-per-field: 0
       allowed-schemes:
         - http
         - https
@@ -74,7 +74,7 @@ suite:
       stable-for: 700ms
       repeat-after: 30s
       minimum-field-count: 1
-      maximum-action-count: 8
+      maximum-action-count: 0
       locale: ru-RU
       sidecar:
         enabled: true

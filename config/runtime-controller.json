@@ -1,0 +1,103 @@
+{
+  "runtime_root": "..",
+  "java_executable": "C:\\Program Files\\BellSoft\\LibericaJDK-17\\bin\\java.exe",
+  "jar_path": "spring-suite.jar",
+  "runtime_port": 8090,
+  "health_port": 8091,
+  "control_address": "127.0.0.1:18091",
+  "control_token_file": "C:\\ProgramData\\NorthStarSuite\\runtime\\authority\\runtime_controller_token.txt",
+  "bridge_token_file": "C:\\ProgramData\\NorthStarSuite\\runtime\\authority\\bridge_access_token.txt",
+  "replacer_path": "suiteBinaries/suite-runtime-replacer.exe",
+  "bootstrap_path": "suiteBinaries/suite-runtime-bootstrap.exe",
+  "state_path": ".springsuite/controller/state.json",
+  "notifications_enabled": true,
+  "notification_spool": ".springsuite/controller/notifications/inbox",
+  "notification_journal": ".springsuite/controller/notifications.jsonl",
+  "startup_timeout": "240s",
+  "stabilization": "30s",
+  "shutdown_timeout": "40s",
+  "port_release_timeout": "40s",
+  "probe_interval": "500ms",
+  "java_args": [
+    "-Xms512m",
+    "-XX:+UseG1GC",
+    "-XX:+ExitOnOutOfMemoryError",
+    "-XX:+HeapDumpOnOutOfMemoryError",
+    "-XX:HeapDumpPath=C:\\Users\\Aiden\\Documents\\Take Some\\NorthStar-Suite-V3\\logs\\crash",
+    "-XX:ErrorFile=C:\\Users\\Aiden\\Documents\\Take Some\\NorthStar-Suite-V3\\logs\\crash\\hs_err_pid%p.log",
+    "-Xlog:gc*:file=C:\\Users\\Aiden\\Documents\\Take Some\\NorthStar-Suite-V3\\logs\\gc.log:time,uptime,level,tags:filecount=5,filesize=20M",
+    "-Dfile.encoding=UTF-8",
+    "-Dstdout.encoding=UTF-8",
+    "-Dstderr.encoding=UTF-8",
+    "-Dsun.stdout.encoding=UTF-8",
+    "-Dsun.stderr.encoding=UTF-8"
+  ],
+  "application_args": [
+    "--server.port=8090",
+    "--management.server.address=127.0.0.1",
+    "--management.server.port=8091",
+    "--suite.cloudflared.auto-start=false",
+    "--suite.auth.runtime-root=C:\\ProgramData\\NorthStarSuite\\runtime",
+    "--suite.desktop-helper.agent.enabled=false",
+    "--suite.desktop-helper.agent.sidecar.auto-start=false",
+    "--management.endpoints.web.base-path=/",
+    "--management.endpoints.web.path-mapping.health=actuator/health",
+    "--management.endpoints.web.path-mapping.runtimeidentity=api/system/status",
+    "--management.endpoints.web.exposure.include=health,info,metrics,prometheus,loggers,shutdown,runtimeidentity"
+  ],
+  "environment": {
+    "SPRING_SUITE_SUPERVISED": "1"
+  },
+  "maintenance": {
+    "enabled": true,
+    "self_check_interval": "10s",
+    "failure_threshold": 3,
+    "auto_restart_on_degradation": true,
+    "incident_directory": ".springsuite/maintenance/incidents",
+    "ai_heartbeat_interval": "10m",
+    "ai_provider": "openai",
+    "ai_model": "",
+    "ai_endpoint": "http://127.0.0.1:8090/api/ai/chat",
+    "ai_outbox": ".springsuite/maintenance/ai-outbox",
+    "proposal_directory": ".springsuite/maintenance/proposals",
+    "update_inbox": ".springsuite/maintenance/update-inbox",
+    "update_scan_interval": "30s",
+    "settings_path": ".springsuite/maintenance/settings.json",
+    "default_auto_update_enabled": false,
+    "trusted_update_keys": {},
+    "source_repositories": [
+      {
+        "name": "SpringSuite",
+        "kind": "java-gradle-application",
+        "path": "C:\\Users\\Aiden\\Documents\\Repos\\SUITE\\SpringSuite",
+        "build_command": ".\\gradlew.bat assembleDeploy verifyDeployLayout --no-daemon --no-problems-report",
+        "test_command": ".\\gradlew.bat clean test verifyModuleBoundaries --no-daemon --no-problems-report",
+        "deploy_command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\deploy.ps1"
+      },
+      {
+        "name": "Runtime Controller",
+        "kind": "go-control-plane",
+        "path": "C:\\Users\\Aiden\\Documents\\Repos\\SUITE\\suite-runtime-controller-go",
+        "build_command": "go build ./...",
+        "test_command": "go test ./... && go vet ./...",
+        "deploy_command": "go build -trimpath -o dist\\suite-runtime-controller.exe .\\cmd\\suite-runtime-controller"
+      }
+    ]
+  },
+  "cloudflared": {
+    "enabled": true,
+    "required": true,
+    "wrapper_path": "suiteBinaries/suite-cloudflared-wrapper.exe",
+    "executable": "C:\\Cloudflared\\bin\\cloudflared.exe",
+    "mode": "run",
+    "target_url": "http://127.0.0.1:8090",
+    "tunnel": "626b902a-712c-4932-b7a4-f6daf7512696",
+    "config_path": "C:\\ProgramData\\NorthStarSuite\\.cloudflared\\config.yml",
+    "credentials_file": "C:\\ProgramData\\NorthStarSuite\\.cloudflared\\626b902a-712c-4932-b7a4-f6daf7512696.json",
+    "runtime_dir": ".springsuite/cloudflared",
+    "extra_args": [
+      "--no-autoupdate"
+    ],
+    "startup_timeout": "20s"
+  }
+}

@@ -608,7 +608,7 @@ public class DesktopAgentService implements DesktopSnapshotConsumer {
 
         ArrayList<DesktopApprovedAction> actions = new ArrayList<>();
         for (DesktopFieldPlan field : plan.fields()) {
-            if (actions.size() >= properties.getMaximumActionCount()) {
+            if (properties.getMaximumActionCount() > 0 && actions.size() >= properties.getMaximumActionCount()) {
                 break;
             }
             if (field.sensitive() || field.needsUserReview()) {
@@ -901,12 +901,11 @@ public class DesktopAgentService implements DesktopSnapshotConsumer {
             return;
         }
         String message = hints.hints().stream()
-                .limit(3)
                 .map(hint -> hint.title() + ": " + hint.message())
                 .reduce((left, right) -> left + " В· " + right)
                 .orElse(hints.summary());
         ui.setOverlayMessage(message);
-        ui.notifyInfo("SpringSuite · подсказки формы", truncate(message, 240));
+        ui.notifyInfo("SpringSuite · подсказки формы", message);
     }
 
     private void suppress(String signature) {
@@ -970,7 +969,7 @@ public class DesktopAgentService implements DesktopSnapshotConsumer {
     private void failAction(String code, String message) {
         telemetry.event("desktop_agent", "action_execution", "failed");
         updateState(code, message);
-        ui.notifyWarning("SpringSuite · действие заблокировано", truncate(message, 240));
+        ui.notifyWarning("SpringSuite · действие заблокировано", message);
         ui.showFillError("Действие не выполнено: " + message);
     }
 

@@ -24,8 +24,8 @@ public class DesktopHelperProperties {
     private Duration contextTtl = Duration.ofSeconds(30);
     private int approvalTokenTtlSeconds = 120;
     private int maxApprovalTokenTtlSeconds = 900;
-    private int maxScreenTextChars = 12_000;
-    private int maxSuggestionCount = 6;
+    private int maxScreenTextChars = 0;
+    private int maxSuggestionCount = 0;
     private ExecutorPolicy executor = new ExecutorPolicy();
     private Map<String, ExecutorOverride> executors = defaultExecutorOverrides();
     private BridgePolicy bridge = new BridgePolicy();
@@ -179,7 +179,7 @@ public class DesktopHelperProperties {
     }
 
     public void setMaxScreenTextChars(int maxScreenTextChars) {
-        this.maxScreenTextChars = clamp(maxScreenTextChars, 1_000, 50_000, 12_000);
+        this.maxScreenTextChars = Math.max(0, maxScreenTextChars);
     }
 
     public int getMaxSuggestionCount() {
@@ -187,7 +187,7 @@ public class DesktopHelperProperties {
     }
 
     public void setMaxSuggestionCount(int maxSuggestionCount) {
-        this.maxSuggestionCount = clamp(maxSuggestionCount, 1, 20, 6);
+        this.maxSuggestionCount = Math.max(0, maxSuggestionCount);
     }
 
     public ExecutorPolicy getExecutor() {

@@ -145,7 +145,6 @@ public final class DashboardShellCommand implements SuiteCommand {
         StringBuilder out = new StringBuilder();
         try (var stream = Files.list(path)) {
             stream.sorted(Comparator.comparing(item -> item.getFileName().toString().toLowerCase(Locale.ROOT)))
-                    .limit(200)
                     .forEach(item -> out.append(item.getFileName()).append(Files.isDirectory(item) ? "/" : "").append("\n"));
         }
         return out.toString();

@@ -20,9 +20,9 @@ public class BrowserDomProperties {
     private Duration maxSnapshotAge = Duration.ofSeconds(20);
     private Duration maxFutureSkew = Duration.ofSeconds(30);
     private Duration commandTtl = Duration.ofSeconds(20);
-    private int maxForms = 64;
-    private int maxFieldsPerForm = 256;
-    private int maxOptionsPerField = 100;
+    private int maxForms = 0;
+    private int maxFieldsPerForm = 0;
+    private int maxOptionsPerField = 0;
     private List<String> allowedSchemes = List.of("http", "https");
 
     public boolean isEnabled() {
@@ -98,7 +98,7 @@ public class BrowserDomProperties {
     }
 
     public void setMaxForms(int maxForms) {
-        this.maxForms = clamp(maxForms, 1, 256, 64);
+        this.maxForms = Math.max(0, maxForms);
     }
 
     public int getMaxFieldsPerForm() {
@@ -106,7 +106,7 @@ public class BrowserDomProperties {
     }
 
     public void setMaxFieldsPerForm(int maxFieldsPerForm) {
-        this.maxFieldsPerForm = clamp(maxFieldsPerForm, 1, 2_000, 256);
+        this.maxFieldsPerForm = Math.max(0, maxFieldsPerForm);
     }
 
     public int getMaxOptionsPerField() {
@@ -114,7 +114,7 @@ public class BrowserDomProperties {
     }
 
     public void setMaxOptionsPerField(int maxOptionsPerField) {
-        this.maxOptionsPerField = clamp(maxOptionsPerField, 1, 1_000, 100);
+        this.maxOptionsPerField = Math.max(0, maxOptionsPerField);
     }
 
     public List<String> getAllowedSchemes() {

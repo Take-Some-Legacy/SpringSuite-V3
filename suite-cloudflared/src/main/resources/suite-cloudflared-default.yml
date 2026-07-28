@@ -19,4 +19,4 @@ suite:
     extra-args:
       - --no-autoupdate
     stop-timeout: 5s
-    recent-log-limit: 300
+    recent-log-limit: 0

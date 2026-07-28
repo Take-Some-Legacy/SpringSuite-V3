@@ -1,0 +1,23 @@
+# SpringSuite Cloudflare Tunnel configuration.
+# Exact named hostname: https://testspring.kaylas-systems.ru
+
+suite:
+  cloudflared:
+    enabled: true
+    # Lifecycle ownership belongs to suite-runtime-controller.
+    auto-start: false
+    executable: 'C:\Cloudflared\bin\cloudflared.exe'
+    target-url: http://localhost:${server.port}
+    tunnel-name: 626b902a-712c-4932-b7a4-f6daf7512696
+    hostname: testspring.kaylas-systems.ru
+    extra-args:
+      - --no-autoupdate
+    stop-timeout: 5s
+    recent-log-limit: 0
+    wrapper-enabled: true
+    wrapper-executable: suiteBinaries/suite-cloudflared-wrapper
+    origin-cert-path: 'C:\ProgramData\NorthStarSuite\.cloudflared\cert.pem'
+    user-profile: 'C:\ProgramData\NorthStarSuite\profile'
+    config-path: 'C:\ProgramData\NorthStarSuite\.cloudflared\config.yml'
+    credentials-file: 'C:\ProgramData\NorthStarSuite\.cloudflared\626b902a-712c-4932-b7a4-f6daf7512696.json'
+    cache-directory: .springsuite/cloudflared

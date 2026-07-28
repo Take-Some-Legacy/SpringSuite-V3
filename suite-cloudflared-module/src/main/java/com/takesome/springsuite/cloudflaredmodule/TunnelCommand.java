@@ -39,7 +39,7 @@ public class TunnelCommand implements SuiteCommand {
             case "start" -> CommandExecutionResult.ok("cloudflared start requested", Map.of("status", tunnelService.start()));
             case "stop" -> CommandExecutionResult.ok("cloudflared stop requested", Map.of("status", tunnelService.stop()));
             case "restart" -> CommandExecutionResult.ok("cloudflared restart requested", Map.of("status", tunnelService.restart()));
-            case "logs" -> CommandExecutionResult.ok("cloudflared recent logs", Map.of("logs", tunnelService.recentLogs(parseLimit(invocation.arg(1), 40))));
+            case "logs" -> CommandExecutionResult.ok("cloudflared recent logs", Map.of("logs", tunnelService.recentLogs(parseLimit(invocation.arg(1), 0))));
             case "help", "--help", "-h" -> CommandExecutionResult.ok("cloudflared tunnel help", Map.of(
                     "usage", "tunnel <status|start|stop|restart|logs|help> [limit]",
                     "tunnel", "spring-suite-test",
@@ -54,7 +54,7 @@ public class TunnelCommand implements SuiteCommand {
             return fallback;
         }
         try {
-            return Math.max(1, Math.min(300, Integer.parseInt(raw.trim())));
+            return Math.max(0, Integer.parseInt(raw.trim()));
         } catch (NumberFormatException ignored) {
             return fallback;
         }

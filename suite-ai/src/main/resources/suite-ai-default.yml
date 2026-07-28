@@ -18,9 +18,9 @@ suite:
         api-key-env: ""
         requires-auth: false
         default-model: ${OLLAMA_MODEL:llama3.2}
-        default-max-tokens: 4096
+        default-max-tokens: 0
         default-temperature: 0.7
-        request-timeout: 120s
+        request-timeout: 30m
         probe:
           enabled: true
           endpoint: /models
@@ -44,9 +44,9 @@ suite:
         api-key-env: ZAI_API_KEY
         requires-auth: true
         default-model: glm-5.2
-        default-max-tokens: 4096
+        default-max-tokens: 0
         default-temperature: 1.0
-        request-timeout: 120s
+        request-timeout: 30m
         thinking:
           enabled: true
           type: enabled
@@ -71,9 +71,9 @@ suite:
         api-key-env: ""
         requires-auth: false
         default-model: local-model
-        default-max-tokens: 4096
+        default-max-tokens: 0
         default-temperature: 0.7
-        request-timeout: 120s
+        request-timeout: 30m
         capabilities:
           - chat
           - chat-completions-api

@@ -1,6 +1,5 @@
 package com.takesome.springsuite.workspace;
 
-import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
 import com.takesome.springsuite.workspace.fs.WorkspacePathPolicy;
@@ -70,10 +69,10 @@ public class WorkspaceService {
 
     public List<WorkspaceOperationDescriptor> operations() {
         return List.of(
-                new WorkspaceOperationDescriptor("list", "GET", "/api/workspace/list?path=.&limit=100", "workspace list [path]", "READ_ONLY", "List directory entries.", "Bounded directory listing inside configured workspace roots."),
-                new WorkspaceOperationDescriptor("tree", "GET", "/api/workspace/tree?path=.&depth=3&limit=500", "workspace tree [path] [depth]", "READ_ONLY", "List a bounded recursive tree.", "Recursive tree view with depth and item limits for agent orientation and human inspection."),
-                new WorkspaceOperationDescriptor("read", "GET", "/api/workspace/read?path=...&offset=0&maxBytes=65536", "workspace read <path>", "READ_ONLY", "Read a UTF-8 text file.", "Bounded text read with SHA-256 for optimistic edit checks."),
-                new WorkspaceOperationDescriptor("search", "GET", "/api/workspace/search?q=...&path=.&limit=100", "workspace search <query> [path]", "READ_ONLY", "Search text files.", "Searches configured text files under a safe workspace path."),
+                new WorkspaceOperationDescriptor("list", "GET", "/api/workspace/list?path=.&limit=0", "workspace list [path]", "READ_ONLY", "List directory entries.", "Directory listing inside configured workspace roots; zero means unlimited."),
+                new WorkspaceOperationDescriptor("tree", "GET", "/api/workspace/tree?path=.&depth=0&limit=0", "workspace tree [path] [depth]", "READ_ONLY", "List a bounded recursive tree.", "Recursive tree view; zero depth and item count mean unlimited."),
+                new WorkspaceOperationDescriptor("read", "GET", "/api/workspace/read?path=...&offset=0&maxBytes=0", "workspace read <path>", "READ_ONLY", "Read a UTF-8 text file.", "Text read with SHA-256 for optimistic edit checks; zero maxBytes means unlimited."),
+                new WorkspaceOperationDescriptor("search", "GET", "/api/workspace/search?q=...&path=.&limit=0", "workspace search <query> [path]", "READ_ONLY", "Search text files.", "Searches configured text files under a safe workspace path."),
                 new WorkspaceOperationDescriptor("write", "POST", "/api/workspace/write", "workspace write <path> <content>", "LOCAL_MUTATION", "Create or replace a text file.", "Write is gated by suite.workspace.allow-write and creates backups when enabled."),
                 new WorkspaceOperationDescriptor("mkdir", "POST", "/api/workspace/mkdir?path=...", "workspace mkdir <path>", "LOCAL_MUTATION", "Create a directory.", "Creates a directory inside configured workspace roots when writing is enabled."),
                 new WorkspaceOperationDescriptor("delete", "POST", "/api/workspace/delete", "workspace delete <path> [--recursive] [--dry-run]", "LOCAL_MUTATION", "Delete a path.", "Delete is separately gated by suite.workspace.allow-delete and supports dry-run.")
@@ -86,7 +85,7 @@ public class WorkspaceService {
         if (!Files.isDirectory(target)) {
             throw new IllegalArgumentException("not a directory: " + pathPolicy.displayPath(target));
         }
-        int safeLimit = SuiteOperatorMode.isElevated() ? (limit <= 0 ? 1000000 : Math.max(1, limit)) : (limit <= 0 ? 100 : Math.min(limit, properties.getMaxTreeItems()));
+        int safeLimit = effectiveLimit(limit, properties.getMaxTreeItems());
         ArrayList<WorkspaceEntry> entries = new ArrayList<>();
         AtomicBoolean truncated = new AtomicBoolean(false);
         try (Stream<Path> stream = Files.list(target)) {
@@ -109,8 +108,8 @@ public class WorkspaceService {
     public WorkspaceListResult tree(String path, int depth, int limit) {
         accessGuard.ensureRead();
         Path target = pathPolicy.resolveSafe(path);
-        int safeDepth = SuiteOperatorMode.isElevated() ? (depth <= 0 ? 256 : Math.max(0, depth)) : Math.max(0, Math.min(depth <= 0 ? 3 : depth, 12));
-        int safeLimit = SuiteOperatorMode.isElevated() ? (limit <= 0 ? 1000000 : Math.max(1, limit)) : (limit <= 0 ? properties.getMaxTreeItems() : Math.min(limit, properties.getMaxTreeItems()));
+        int safeDepth = depth <= 0 ? Integer.MAX_VALUE : depth;
+        int safeLimit = effectiveLimit(limit, properties.getMaxTreeItems());
         ArrayList<WorkspaceEntry> entries = new ArrayList<>();
         AtomicBoolean truncated = new AtomicBoolean(false);
         try (Stream<Path> stream = Files.walk(target, safeDepth, FileVisitOption.FOLLOW_LINKS)) {
@@ -136,12 +135,12 @@ public class WorkspaceService {
         Path target = pathPolicy.resolveSafe(path);
         textFilePolicy.ensureTextFile(target);
         int safeOffset = Math.max(0, offset);
-        int configuredMax = maxBytes <= 0 ? properties.getMaxReadBytes() : Math.min(maxBytes, properties.getMaxReadBytes());
+        int configuredMax = effectiveLimit(maxBytes, properties.getMaxReadBytes());
         try {
             byte[] all = Files.readAllBytes(target);
-            int safeMax = SuiteOperatorMode.isElevated() ? (maxBytes <= 0 ? all.length : Math.max(0, maxBytes)) : configuredMax;
+            int safeMax = Math.min(configuredMax, all.length);
             int start = Math.min(safeOffset, all.length);
-            int end = Math.min(all.length, start + safeMax);
+            int end = (int) Math.min(all.length, (long) start + safeMax);
             byte[] slice = java.util.Arrays.copyOfRange(all, start, end);
             boolean truncated = end < all.length;
             return new WorkspaceReadResult(
@@ -271,6 +270,14 @@ public class WorkspaceService {
     public RepositoryDescriptorCatalog repoForget(String path) {
         accessGuard.ensureWrite();
         return repositoryDescriptorService.forget(path);
+    }
+
+
+    private static int effectiveLimit(int requested, int configured) {
+        if (requested > 0) {
+            return configured > 0 ? Math.min(requested, configured) : requested;
+        }
+        return configured > 0 ? configured : Integer.MAX_VALUE - 1;
     }
 
 }

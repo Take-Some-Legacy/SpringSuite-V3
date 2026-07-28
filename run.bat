@@ -18,6 +18,6 @@ if not exist "%CONTROLLER_CONFIG%" (
   echo [SpringSuite] runtime-controller.json is missing.
   endlocal & exit /b 1
 )
-start "SpringSuite Runtime Bootstrap" /min "%BOOTSTRAP%" start --config "%CONTROLLER_CONFIG%" --timeout 6m
+start "SpringSuite Central Launcher" /min "%BOOTSTRAP%" start --config "%CONTROLLER_CONFIG%" --timeout 6m
 endlocal
 exit /b 0

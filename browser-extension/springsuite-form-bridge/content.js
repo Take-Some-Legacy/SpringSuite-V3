@@ -4,9 +4,9 @@
   const PAGE_ID = typeof crypto?.randomUUID === "function"
     ? crypto.randomUUID()
     : `page-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const MAX_FORMS = 64;
-  const MAX_FIELDS_PER_FORM = 256;
-  const MAX_OPTIONS_PER_FIELD = 100;
+  const MAX_FORMS = Number.MAX_SAFE_INTEGER;
+  const MAX_FIELDS_PER_FORM = Number.MAX_SAFE_INTEGER;
+  const MAX_OPTIONS_PER_FIELD = Number.MAX_SAFE_INTEGER;
   const NON_DATA_INPUT_TYPES = new Set(["hidden", "button", "submit", "reset", "image"]);
   const FIELD_SELECTOR = "input, select, textarea";
   const SUBMIT_SELECTOR = "button[type='submit'], input[type='submit'], button:not([type])";
@@ -91,7 +91,6 @@
       fields: controls.map((field, fieldIndex) => collectField(field, fieldIndex, formSelector, activeElement)),
       submitControls: Array.from(form.elements || [])
         .filter(isSubmitControl)
-        .slice(0, 32)
         .map((button, buttonIndex) => collectSubmit(button, buttonIndex)),
       metadata: {
         cssSelector: formSelector,
@@ -115,7 +114,6 @@
       fields: fields.filter(isRecognizableField).slice(0, MAX_FIELDS_PER_FORM).map((field, fieldIndex) => collectField(field, fieldIndex, formSelector, activeElement)),
       submitControls: Array.from(document.querySelectorAll(SUBMIT_SELECTOR))
         .filter((button) => !button.form)
-        .slice(0, 32)
         .map((button, buttonIndex) => collectSubmit(button, buttonIndex)),
       metadata: {
         cssSelector: formSelector,
@@ -668,7 +666,7 @@
   }
 
   function cleanText(value) {
-    return String(value || "").replace(/\s+/g, " ").trim().slice(0, 500);
+    return String(value || "").replace(/\s+/g, " ").trim();
   }
 
   function firstText(...values) {

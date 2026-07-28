@@ -99,19 +99,19 @@ func opList(req Request) Response {
 	if err != nil {
 		return fail(req.ID, "INVALID_PATH", err.Error())
 	}
-	if req.MaxEntries <= 0 {
-		req.MaxEntries = 10000
-	}
-
 	items, err := os.ReadDir(full)
 	if err != nil {
 		return fail(req.ID, "LIST_FAILED", err.Error())
 	}
 
 	rootAbs := absClean(req.Root)
-	entries := make([]Entry, 0, min(len(items), req.MaxEntries))
+	capacity := len(items)
+	if req.MaxEntries > 0 && req.MaxEntries < capacity {
+		capacity = req.MaxEntries
+	}
+	entries := make([]Entry, 0, capacity)
 	for _, item := range items {
-		if len(entries) >= req.MaxEntries {
+		if req.MaxEntries > 0 && len(entries) >= req.MaxEntries {
 			break
 		}
 		child := filepath.Join(full, item.Name())
@@ -134,9 +134,6 @@ func opWalk(req Request) Response {
 	if err != nil {
 		return fail(req.ID, "INVALID_PATH", err.Error())
 	}
-	if req.MaxEntries <= 0 {
-		req.MaxEntries = 100000
-	}
 	if req.MaxDepth < 0 {
 		req.MaxDepth = 0
 	}
@@ -151,13 +148,13 @@ func opWalk(req Request) Response {
 		if err != nil || rel == "." {
 			return nil
 		}
-		if depthOf(rel) > req.MaxDepth {
+		if req.MaxDepth > 0 && depthOf(rel) > req.MaxDepth {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if len(entries) >= req.MaxEntries {
+		if req.MaxEntries > 0 && len(entries) >= req.MaxEntries {
 			return filepath.SkipAll
 		}
 		info, err := os.Lstat(path)

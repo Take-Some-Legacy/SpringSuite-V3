@@ -7,7 +7,7 @@ import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.bundling.Zip
 
-val suiteVersion = "3.3.2"
+val suiteVersion = "3.3.3"
 
 plugins {
     id("org.springframework.boot") version "3.3.6" apply false
@@ -58,7 +58,8 @@ tasks.register("deploySignedModules") {
 }
 
 
-val deployDirectory = layout.buildDirectory.dir("deploy")
+val deployDirectoryName = providers.gradleProperty("deployDirectoryName").getOrElse("deploy")
+val deployDirectory = layout.buildDirectory.dir(deployDirectoryName)
 
 val runtimeControlPlaneBinaryNames = listOf(
     "suite-runtime-controller.exe",
@@ -452,8 +453,8 @@ tasks.register("verifyDeployLayout") {
         check(Regex("""(?m)^\s*enabled:\s*true\s*$""").containsMatchIn(cloudflaredConfig)) {
             "deploy cloudflared configuration must enable the service"
         }
-        check(Regex("""(?m)^\s*auto-start:\s*true\s*$""").containsMatchIn(cloudflaredConfig)) {
-            "deploy cloudflared configuration must enable autostart"
+        check(Regex("""(?m)^\s*auto-start:\s*false\s*$""").containsMatchIn(cloudflaredConfig)) {
+            "deploy cloudflared configuration must disable JVM autostart because runtime controller owns the tunnel"
         }
         check(Regex("""(?m)^\s*wrapper-enabled:\s*true\s*$""").containsMatchIn(cloudflaredConfig)) {
             "deploy cloudflared configuration must use the suite wrapper"
@@ -466,6 +467,23 @@ tasks.register("verifyDeployLayout") {
         }
         check(cloudflaredConfig.contains("credentials-file:")) {
             "deploy cloudflared configuration must declare the credentials file"
+        }
+
+        val runtimeControllerConfig = File(root, "config/runtime-controller.json").readText(StandardCharsets.UTF_8)
+        check(Regex("""(?s)"cloudflared"\s*:\s*\{.*?"enabled"\s*:\s*true""").containsMatchIn(runtimeControllerConfig)) {
+            "runtime controller configuration must enable controller-owned cloudflared"
+        }
+        check(Regex("""(?s)"cloudflared"\s*:\s*\{.*?"required"\s*:\s*true""").containsMatchIn(runtimeControllerConfig)) {
+            "runtime controller configuration must require cloudflared before READY"
+        }
+        check(runtimeControllerConfig.contains("--suite.cloudflared.auto-start=false")) {
+            "runtime controller configuration must disable JVM cloudflared autostart"
+        }
+        check(!Regex("""(?s)"cloudflared"\s*:\s*\{.*?"tunnel"\s*:\s*"auto"""").containsMatchIn(runtimeControllerConfig)) {
+            "runtime controller configuration must use an explicit named tunnel id, not auto"
+        }
+        check(runtimeControllerConfig.contains("626b902a-712c-4932-b7a4-f6daf7512696")) {
+            "runtime controller configuration must contain the named tunnel id"
         }
     }
 }

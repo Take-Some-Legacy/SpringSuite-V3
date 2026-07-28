@@ -34,7 +34,7 @@ public class LogsCommand implements SuiteCommand {
 
     @Override
     public CommandExecutionResult execute(CommandInvocation invocation) {
-        int limit = parseLimit(invocation.arg(0), 10);
+        int limit = parseLimit(invocation.arg(0), 0);
         List<String> lines = logService.recent(limit).stream()
                 .map(this::line)
                 .toList();
@@ -50,7 +50,7 @@ public class LogsCommand implements SuiteCommand {
             return fallback;
         }
         try {
-            return Math.max(1, Math.min(200, Integer.parseInt(raw.trim())));
+            return Math.max(0, Integer.parseInt(raw.trim()));
         } catch (NumberFormatException ignored) {
             return fallback;
         }

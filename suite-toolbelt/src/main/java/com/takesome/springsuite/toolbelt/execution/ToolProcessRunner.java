@@ -70,13 +70,19 @@ public final class ToolProcessRunner {
                 process.getOutputStream().close();
             }
 
-            int stdoutLimit = Math.min(Math.max(1024, request.maxStdoutBytes()), properties.getMaxStdoutBytes());
-            int stderrLimit = Math.min(Math.max(1024, request.maxStderrBytes()), properties.getMaxStderrBytes());
+            int stdoutLimit = effectiveLimit(request.maxStdoutBytes(), properties.getMaxStdoutBytes());
+            int stderrLimit = effectiveLimit(request.maxStderrBytes(), properties.getMaxStderrBytes());
             Future<String> stdout = executor.submit(() -> readBounded(runningProcess.getInputStream(), stdoutLimit));
             Future<String> stderr = executor.submit(() -> readBounded(runningProcess.getErrorStream(), stderrLimit));
 
             long timeoutSec = request.timeoutSec() > 0 ? request.timeoutSec() : properties.getDefaultTimeout().toSeconds();
-            boolean finished = process.waitFor(timeoutSec, TimeUnit.SECONDS);
+            boolean finished;
+            if (timeoutSec <= 0) {
+                process.waitFor();
+                finished = true;
+            } else {
+                finished = process.waitFor(timeoutSec, TimeUnit.SECONDS);
+            }
             if (!finished) {
                 process.destroyForcibly();
                 return new ToolRunResult(false, descriptor.id(), command, cwd.toString(), null, elapsedMs(started),
@@ -84,7 +90,7 @@ public final class ToolProcessRunner {
             }
             int exit = process.exitValue();
             return new ToolRunResult(exit == 0, descriptor.id(), command, cwd.toString(), exit, elapsedMs(started),
-                    stdout.get(2, TimeUnit.SECONDS), stderr.get(2, TimeUnit.SECONDS), exit == 0 ? "ok" : "non-zero exit", false, start);
+                    stdout.get(), stderr.get(), exit == 0 ? "ok" : "non-zero exit", false, start);
         } catch (Exception ex) {
             if (process != null && process.isAlive()) {
                 process.destroyForcibly();
@@ -104,20 +110,26 @@ public final class ToolProcessRunner {
     }
 
     private String readBounded(java.io.InputStream input, int maxBytes) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream(Math.min(maxBytes, 4096));
-        byte[] buffer = new byte[1024];
+        int initialCapacity = maxBytes > 0 ? Math.min(maxBytes, 64 * 1024) : 64 * 1024;
+        ByteArrayOutputStream out = new ByteArrayOutputStream(initialCapacity);
+        byte[] buffer = new byte[16 * 1024];
         int total = 0;
         int read;
         while ((read = input.read(buffer)) >= 0) {
-            int allowed = Math.min(read, maxBytes - total);
+            int allowed = maxBytes <= 0 ? read : Math.min(read, Math.max(0, maxBytes - total));
             if (allowed > 0) {
                 out.write(buffer, 0, allowed);
                 total += allowed;
             }
-            if (total >= maxBytes) {
-                break;
-            }
+            // Always drain the pipe after the capture cap is reached, otherwise child processes can deadlock.
         }
         return out.toString(StandardCharsets.UTF_8);
+    }
+
+    private static int effectiveLimit(int requested, int configured) {
+        if (requested > 0) {
+            return configured > 0 ? Math.min(requested, configured) : requested;
+        }
+        return configured > 0 ? configured : 0;
     }
 }

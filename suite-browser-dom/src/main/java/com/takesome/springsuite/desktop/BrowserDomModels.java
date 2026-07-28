@@ -216,7 +216,6 @@ public final class BrowserDomModels {
             warnings = warnings == null ? List.of() : warnings.stream()
                     .filter(value -> value != null && !value.isBlank())
                     .map(String::trim)
-                    .limit(32)
                     .toList();
             metadata = DesktopHelperModels.safeMap(metadata);
         }

@@ -20,7 +20,7 @@ import (
 )
 
 const appName = "suite-desktop-capture"
-const appVersion = "0.2.0"
+const appVersion = "0.2.1"
 
 type Result struct {
 	OK             bool              `json:"ok"`
@@ -79,7 +79,7 @@ func run(args []string, out io.Writer) error {
 func screenshotCommand(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet(appName+" screenshot", flag.ContinueOnError)
 	target := fs.String("target", "virtual", "capture target: virtual or primary")
-	maxWidth := fs.Int("max-width", 1600, "maximum output PNG width; 0 disables scaling")
+	maxWidth := fs.Int("max-width", 0, "maximum output PNG width; 0 disables scaling")
 	includeBase64 := fs.Bool("base64", true, "include base64 PNG data")
 	jsonOut := fs.Bool("json", true, "emit JSON result")
 	output := fs.String("output", "", "optional PNG output path")

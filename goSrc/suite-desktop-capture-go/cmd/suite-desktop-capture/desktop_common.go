@@ -161,7 +161,7 @@ func fillCommand(args []string, in io.Reader, out io.Writer) error {
 	}
 
 	var request DesktopFillRequest
-	decoder := json.NewDecoder(io.LimitReader(in, 2<<20))
+	decoder := json.NewDecoder(in)
 	if err := decoder.Decode(&request); err != nil {
 		if errors.Is(err, io.EOF) {
 			return fmt.Errorf("fill request JSON is required on stdin")
@@ -250,7 +250,7 @@ func serveCommand(args []string, out io.Writer) error {
 		}
 		defer r.Body.Close()
 		var request DesktopFillRequest
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20)).Decode(&request); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			writeHTTPJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "code": "invalid_request", "message": err.Error()})
 			return
 		}

@@ -651,8 +651,8 @@ function Get-SafeFileName {
 function Get-FileTail {
     param(
         [string]$Path,
-        [int]$Lines = 80,
-        [int]$MaxBytes = 262144
+        [int]$Lines = 0,
+        [int]$MaxBytes = 0
     )
     if (-not [System.IO.File]::Exists($Path)) {
         return @()
@@ -666,7 +666,8 @@ function Get-FileTail {
             [System.IO.FileAccess]::Read,
             [System.IO.FileShare]::ReadWrite
         )
-        $readLength = [int][Math]::Min([long][Math]::Max(1024, $MaxBytes), $stream.Length)
+        $requestedLength = if ($MaxBytes -le 0) { $stream.Length } else { [long][Math]::Max(1024, $MaxBytes) }
+        $readLength = [int][Math]::Min([int]::MaxValue, [Math]::Min($requestedLength, $stream.Length))
         if ($readLength -le 0) {
             return @()
         }
@@ -680,12 +681,12 @@ function Get-FileTail {
         }
         $text = [System.Text.Encoding]::UTF8.GetString($buffer, 0, $offset)
         $allLines = @($text -split "`r?`n")
-        if ($allLines.Count -le $Lines) {
+        if ($Lines -le 0 -or $allLines.Count -le $Lines) {
             return $allLines
         }
         return @($allLines | Select-Object -Last $Lines)
     } catch {
-        return @("Could not read bounded log tail: " + $_.Exception.Message)
+        return @("Could not read log tail: " + $_.Exception.Message)
     } finally {
         if ($null -ne $stream) {
             $stream.Dispose()

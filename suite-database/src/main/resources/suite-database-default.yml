@@ -10,7 +10,7 @@ spring:
     hikari:
       pool-name: SpringSuiteSql
       minimum-idle: 1
-      maximum-pool-size: 8
+      maximum-pool-size: 64
       connection-timeout: 10000
   flyway:
     enabled: true
@@ -26,12 +26,12 @@ suite:
       capture-request-body: true
       capture-response-body: true
       redact-sensitive-data: true
-      max-request-body-bytes: 1048576
-      max-response-body-bytes: 1048576
-      max-header-value-chars: 16384
-      max-search-document-chars: 2097152
-      default-page-size: 50
-      max-page-size: 200
+      max-request-body-bytes: 0
+      max-response-body-bytes: 0
+      max-header-value-chars: 0
+      max-search-document-chars: 0
+      default-page-size: 0
+      max-page-size: 0
       # Capture every inbound HTTP route by default. Exclusions below prevent recursion and health noise.
       include-paths:
         - /

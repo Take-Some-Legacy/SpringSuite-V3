@@ -18,9 +18,9 @@ public class ToolbeltProperties {
     private List<String> roots = new ArrayList<>();
     private boolean includePathTools = true;
     private boolean allowExecution = false;
-    private Duration defaultTimeout = Duration.ofSeconds(30);
-    private int maxStdoutBytes = 12_000;
-    private int maxStderrBytes = 8_000;
+    private Duration defaultTimeout = Duration.ZERO;
+    private int maxStdoutBytes = 0;
+    private int maxStderrBytes = 0;
     private List<String> pathTools = new ArrayList<>(List.of("git", "java", "javac", "python", "py", "cloudflared", "gradle"));
 
     public boolean isEnabled() {
@@ -72,7 +72,7 @@ public class ToolbeltProperties {
     }
 
     public void setDefaultTimeout(Duration defaultTimeout) {
-        this.defaultTimeout = defaultTimeout == null ? Duration.ofSeconds(30) : defaultTimeout;
+        this.defaultTimeout = defaultTimeout == null || defaultTimeout.isNegative() ? Duration.ZERO : defaultTimeout;
     }
 
     public int getMaxStdoutBytes() {
@@ -80,7 +80,7 @@ public class ToolbeltProperties {
     }
 
     public void setMaxStdoutBytes(int maxStdoutBytes) {
-        this.maxStdoutBytes = Math.max(1024, maxStdoutBytes);
+        this.maxStdoutBytes = Math.max(0, maxStdoutBytes);
     }
 
     public int getMaxStderrBytes() {
@@ -88,7 +88,7 @@ public class ToolbeltProperties {
     }
 
     public void setMaxStderrBytes(int maxStderrBytes) {
-        this.maxStderrBytes = Math.max(1024, maxStderrBytes);
+        this.maxStderrBytes = Math.max(0, maxStderrBytes);
     }
 
     public List<String> getPathTools() {

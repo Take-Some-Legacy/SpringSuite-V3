@@ -209,12 +209,12 @@
     const raw = input?.value || '';
     const first = raw.trimStart().split(/\s+/)[0] || '';
     const names = commandNames();
-    if (!first) return showSuggestions(names.slice(0, 40));
+    if (!first) return showSuggestions(names);
     const matches = names.filter(name => name.startsWith(first.toLowerCase()));
     if (matches.length === 1) {
       input.value = matches[0] + (raw.includes(' ') ? raw.slice(raw.indexOf(' ')) : ' ');
       hideSuggestions();
-    } else showSuggestions(matches.slice(0, 60));
+    } else showSuggestions(matches);
   }
 
   function showSuggestions(items) {

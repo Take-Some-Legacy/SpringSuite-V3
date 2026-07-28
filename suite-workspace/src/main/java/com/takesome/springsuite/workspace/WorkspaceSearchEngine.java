@@ -1,6 +1,5 @@
 package com.takesome.springsuite.workspace;
 
-import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import com.takesome.springsuite.workspace.fs.WorkspacePathPolicy;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -30,12 +29,12 @@ final class WorkspaceSearchEngine {
             throw new IllegalArgumentException("search query is required");
         }
         Path target = pathPolicy.resolveSafe(path == null || path.isBlank() ? "." : path);
-        int safeLimit = SuiteOperatorMode.isElevated() ? (limit <= 0 ? Integer.MAX_VALUE - 1 : Math.max(1, limit)) : (limit <= 0 ? properties.getMaxSearchResults() : Math.min(limit, properties.getMaxSearchResults()));
+        int safeLimit = effectiveLimit(limit, properties.getMaxSearchResults());
         ArrayList<WorkspaceSearchMatch> matches = new ArrayList<>();
         AtomicBoolean truncated = new AtomicBoolean(false);
         Pattern pattern = regex ? Pattern.compile(query, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE) : null;
         String needle = caseSensitive ? query : query.toLowerCase(Locale.ROOT);
-        try (Stream<Path> stream = Files.walk(target, 16)) {
+        try (Stream<Path> stream = Files.walk(target)) {
             List<Path> files = stream.filter(Files::isRegularFile)
                     .filter(pathPolicy::isNotDenied)
                     .filter(textFilePolicy::isProbablyText)
@@ -57,7 +56,7 @@ final class WorkspaceSearchEngine {
     private void searchFile(Path file, String needle, Pattern pattern, boolean caseSensitive,
                             ArrayList<WorkspaceSearchMatch> matches, int limit, AtomicBoolean truncated) {
         try {
-            if (!SuiteOperatorMode.isElevated() && Files.size(file) > properties.getMaxFileSizeBytes()) {
+            if (properties.getMaxFileSizeBytes() > 0 && Files.size(file) > properties.getMaxFileSizeBytes()) {
                 return;
             }
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
@@ -79,4 +78,12 @@ final class WorkspaceSearchEngine {
             // Search must continue across unreadable or non-UTF files.
         }
     }
+
+    private static int effectiveLimit(int requested, int configured) {
+        if (requested > 0) {
+            return configured > 0 ? Math.min(requested, configured) : requested;
+        }
+        return configured > 0 ? configured : Integer.MAX_VALUE - 1;
+    }
+
 }

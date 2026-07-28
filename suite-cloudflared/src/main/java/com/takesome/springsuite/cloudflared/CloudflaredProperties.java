@@ -23,7 +23,7 @@ public class CloudflaredProperties {
     private String credentialsFile = "";
     private List<String> extraArgs = new ArrayList<>(List.of("--no-autoupdate"));
     private Duration stopTimeout = Duration.ofSeconds(5);
-    private int recentLogLimit = 300;
+    private int recentLogLimit = 0;
 
     public boolean isEnabled() {
         return enabled;
@@ -152,6 +152,6 @@ public class CloudflaredProperties {
     }
 
     public void setRecentLogLimit(int recentLogLimit) {
-        this.recentLogLimit = Math.max(50, recentLogLimit);
+        this.recentLogLimit = Math.max(0, recentLogLimit);
     }
 }

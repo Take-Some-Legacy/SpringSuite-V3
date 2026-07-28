@@ -167,7 +167,7 @@ test('clear removes the queue, timer and active notification', () => {
         active: false,
         lifetimeMs: DEFAULT_LIFETIME_MS,
         rotationMs: DEFAULT_ROTATION_MS,
-        maxQueueSize: 100,
+        maxQueueSize: Number.MAX_SAFE_INTEGER,
         disposed: false
     });
 

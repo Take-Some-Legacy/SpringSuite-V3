@@ -69,8 +69,11 @@ public class RequestJournalFilter extends OncePerRequestFilter {
         String correlationId = normalizeCorrelationId(request.getHeader(CORRELATION_ID_HEADER), id);
         response.setHeader(REQUEST_ID_HEADER, id);
 
-        ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request, config.getMaxRequestBodyBytes());
-        int responseCaptureLimit = config.isCaptureResponseBody() ? config.getMaxResponseBodyBytes() : 0;
+        int requestCaptureLimit = config.getMaxRequestBodyBytes() > 0 ? config.getMaxRequestBodyBytes() : Integer.MAX_VALUE;
+        ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(request, requestCaptureLimit);
+        int responseCaptureLimit = config.isCaptureResponseBody()
+                ? (config.getMaxResponseBodyBytes() > 0 ? config.getMaxResponseBodyBytes() : Integer.MAX_VALUE)
+                : 0;
         CapturingHttpServletResponseWrapper responseWrapper = new CapturingHttpServletResponseWrapper(response, responseCaptureLimit);
         Throwable failure = null;
         try {
@@ -109,6 +112,7 @@ public class RequestJournalFilter extends OncePerRequestFilter {
         long declaredRequestSize = request.getContentLengthLong();
         long requestSize = declaredRequestSize >= 0 ? declaredRequestSize : requestBytes.length;
         boolean requestTruncated = config.isCaptureRequestBody()
+                && config.getMaxRequestBodyBytes() > 0
                 && (requestSize > requestBytes.length || requestBytes.length >= config.getMaxRequestBodyBytes());
         byte[] responseBytes = config.isCaptureResponseBody() ? response.capturedBody() : new byte[0];
         long responseSize = response.totalBytes();
@@ -223,7 +227,7 @@ public class RequestJournalFilter extends OncePerRequestFilter {
     }
 
     private static String limitSearchDocument(String value, int maxChars) {
-        return value.length() <= maxChars ? value : value.substring(0, maxChars);
+        return maxChars <= 0 || value.length() <= maxChars ? value : value.substring(0, maxChars);
     }
 
     private static String value(String value) { return value == null ? "" : value; }

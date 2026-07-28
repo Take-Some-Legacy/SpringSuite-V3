@@ -52,7 +52,7 @@ suite:
       allow-shutdown-over-api: false
   operator:
     logging:
-      ring-buffer-size: 2000
+      ring-buffer-size: 0
   cloudflared:
     enabled: true
     auto-start: true
@@ -66,17 +66,17 @@ suite:
     extra-args:
       - --no-autoupdate
     stop-timeout: 5s
-    recent-log-limit: 300
+    recent-log-limit: 0
 
   toolbelt:
     enabled: true
     scan-roots:
       - tools
     include-path-tools: true
-    allow-execution: false
-    default-timeout: 30s
-    max-stdout-bytes: 12000
-    max-stderr-bytes: 8000
+    allow-execution: true
+    default-timeout: 0s
+    max-stdout-bytes: 0
+    max-stderr-bytes: 0
     path-tools:
       - git
       - java

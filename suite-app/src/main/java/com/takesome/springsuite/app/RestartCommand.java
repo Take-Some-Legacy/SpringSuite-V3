@@ -130,7 +130,7 @@ public class RestartCommand implements SuiteCommand {
             String arg = invocation.args().get(i).toLowerCase(Locale.ROOT);
             if ((arg.equals("--delay") || arg.equals("-d")) && i + 1 < invocation.args().size()) {
                 try {
-                    return Math.max(1L, Math.min(60L, Long.parseLong(invocation.args().get(i + 1))));
+                    return Math.max(1L, Long.parseLong(invocation.args().get(i + 1)));
                 } catch (NumberFormatException ignored) {
                     return 2L;
                 }

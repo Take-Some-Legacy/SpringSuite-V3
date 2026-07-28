@@ -14,7 +14,7 @@ public class DesktopAgentProperties {
     private Duration stableFor = Duration.ofMillis(700);
     private Duration repeatAfter = Duration.ofSeconds(30);
     private int minimumFieldCount = 1;
-    private int maximumActionCount = 8;
+    private int maximumActionCount = 0;
     private String locale = "ru-RU";
     private Map<String, Object> autofillProfile = new LinkedHashMap<>();
     private Map<String, Object> constraints = new LinkedHashMap<>();
@@ -72,7 +72,7 @@ public class DesktopAgentProperties {
     }
 
     public void setMinimumFieldCount(int minimumFieldCount) {
-        this.minimumFieldCount = Math.max(1, Math.min(100, minimumFieldCount));
+        this.minimumFieldCount = Math.max(1, minimumFieldCount);
     }
 
     public int getMaximumActionCount() {
@@ -80,7 +80,7 @@ public class DesktopAgentProperties {
     }
 
     public void setMaximumActionCount(int maximumActionCount) {
-        this.maximumActionCount = Math.max(1, Math.min(50, maximumActionCount));
+        this.maximumActionCount = Math.max(0, maximumActionCount);
     }
 
     public String getLocale() {

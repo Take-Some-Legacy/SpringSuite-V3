@@ -127,7 +127,7 @@ public final class DashboardCommand implements SuiteCommand {
             String value = args.get(i);
             if ((value.equals("--ticks") || value.equals("-n")) && i + 1 < args.size()) {
                 try {
-                    return Math.max(1, Math.min(3600, Integer.parseInt(args.get(i + 1))));
+                    return Math.max(1, Integer.parseInt(args.get(i + 1)));
                 } catch (NumberFormatException ignored) {
                     return fallback;
                 }

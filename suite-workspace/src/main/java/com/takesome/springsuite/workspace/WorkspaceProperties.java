@@ -16,13 +16,13 @@ public class WorkspaceProperties {
     private boolean allowWrite = true;
     private boolean allowDelete = false;
     private boolean createBackups = true;
-    private int maxReadBytes = 65_536;
-    private int maxSearchResults = 100;
-    private int maxTreeItems = 500;
-    private long maxFileSizeBytes = 2_097_152;
+    private int maxReadBytes = 0;
+    private int maxSearchResults = 0;
+    private int maxTreeItems = 0;
+    private long maxFileSizeBytes = 0;
     private boolean repositoryDescriptorAutoCreate = true;
     private String repositoryDescriptorFile = ".springsuite-repository.json";
-    private int repositoryDescriptorScanDepth = 8;
+    private int repositoryDescriptorScanDepth = 0;
     private boolean repositoryCacheEnabled = true;
     private boolean repositoryCacheRememberDiscovered = true;
     private String repositoryCacheFile = ".springsuite/repositories.json";
@@ -97,7 +97,7 @@ public class WorkspaceProperties {
     }
 
     public void setMaxReadBytes(int maxReadBytes) {
-        this.maxReadBytes = Math.max(1024, maxReadBytes);
+        this.maxReadBytes = Math.max(0, maxReadBytes);
     }
 
     public int getMaxSearchResults() {
@@ -105,7 +105,7 @@ public class WorkspaceProperties {
     }
 
     public void setMaxSearchResults(int maxSearchResults) {
-        this.maxSearchResults = Math.max(1, maxSearchResults);
+        this.maxSearchResults = Math.max(0, maxSearchResults);
     }
 
     public int getMaxTreeItems() {
@@ -113,7 +113,7 @@ public class WorkspaceProperties {
     }
 
     public void setMaxTreeItems(int maxTreeItems) {
-        this.maxTreeItems = Math.max(1, maxTreeItems);
+        this.maxTreeItems = Math.max(0, maxTreeItems);
     }
 
     public long getMaxFileSizeBytes() {
@@ -121,7 +121,7 @@ public class WorkspaceProperties {
     }
 
     public void setMaxFileSizeBytes(long maxFileSizeBytes) {
-        this.maxFileSizeBytes = Math.max(1024, maxFileSizeBytes);
+        this.maxFileSizeBytes = Math.max(0L, maxFileSizeBytes);
     }
 
 
@@ -148,7 +148,7 @@ public class WorkspaceProperties {
     }
 
     public void setRepositoryDescriptorScanDepth(int repositoryDescriptorScanDepth) {
-        this.repositoryDescriptorScanDepth = Math.max(1, repositoryDescriptorScanDepth);
+        this.repositoryDescriptorScanDepth = Math.max(0, repositoryDescriptorScanDepth);
     }
 
     public boolean isRepositoryCacheEnabled() {

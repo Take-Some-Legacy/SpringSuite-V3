@@ -46,7 +46,6 @@ public class ControlPanelController {
                 .map(CommandLite::from)
                 .toList();
         List<ToolLite> tools = toolbeltService.index().stream()
-                .limit(24)
                 .map(ToolLite::from)
                 .toList();
         Instant generatedAt = Instant.now();
