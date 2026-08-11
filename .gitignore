@@ -36,8 +36,8 @@ Thumbs.db
 /build/distributions/
 
 # Native build/debug outputs outside the production suiteBinaries payload
-/goSrc/**/*.exe
-/goSrc/**/*.test
+/native/go/**/*.exe
+/native/go/**/*.test
 /suiteBinaries/*-debug.exe
 /suiteBinaries/*.bak-*
 

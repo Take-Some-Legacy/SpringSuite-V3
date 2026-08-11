@@ -112,7 +112,7 @@ try {
             "*-debug.exe"
         )
 
-        Remove-MatchingFiles -Root (Join-Path $repositoryRoot "goSrc") -Patterns @(
+        Remove-MatchingFiles -Root (Join-Path $repositoryRoot "native\go") -Patterns @(
             "*.exe",
             "*.test"
         )

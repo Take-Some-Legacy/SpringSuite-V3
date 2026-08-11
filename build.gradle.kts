@@ -7,7 +7,7 @@ import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.bundling.Zip
 
-val suiteVersion = "3.3.3"
+val suiteVersion = providers.gradleProperty("suiteVersion").get()
 
 plugins {
     id("org.springframework.boot") version "3.3.6" apply false
@@ -45,16 +45,80 @@ subprojects {
     }
 }
 
+data class SignedRuntimeModuleSpec(
+    val projectPath: String,
+    val moduleId: String,
+    val title: String,
+    val deployDirectoryProperty: String? = null
+)
+
+val signedRuntimeModules = listOf(
+    SignedRuntimeModuleSpec(
+        projectPath = ":suite-diagnostics-module",
+        moduleId = "spring-suite-diagnostics",
+        title = "SpringSuite Diagnostics Module"
+    ),
+    SignedRuntimeModuleSpec(
+        projectPath = ":suite-dashboard-module",
+        moduleId = "spring-suite-dashboard",
+        title = "SpringSuite Dashboard Module"
+    ),
+    SignedRuntimeModuleSpec(
+        projectPath = ":suite-fn-module",
+        moduleId = "spring-suite-fn",
+        title = "SpringSuite FN Operator Module",
+        deployDirectoryProperty = "suite.v3.modules.dir"
+    )
+)
+
+val moduleSigningAlias = providers.gradleProperty("suite.module.signing.alias")
+    .orElse("spring-suite-module-dev")
+val moduleSigningStorePass = providers.gradleProperty("suite.module.signing.storePass")
+    .orElse("changeit")
+val moduleSigningKeyPass = providers.gradleProperty("suite.module.signing.keyPass")
+    .orElse(moduleSigningStorePass)
+val moduleSigningKeystore = layout.buildDirectory.file("module-signing/spring-suite-module-dev.jks")
+
+tasks.register<Exec>("ensureModuleSigningKeystore") {
+    group = "modules"
+    description = "Generate the shared local development keystore used by signed runtime modules."
+    outputs.file(moduleSigningKeystore)
+    onlyIf { !moduleSigningKeystore.get().asFile.isFile }
+    doFirst { moduleSigningKeystore.get().asFile.parentFile.mkdirs() }
+    commandLine(
+        "keytool",
+        "-genkeypair",
+        "-alias", moduleSigningAlias.get(),
+        "-keystore", moduleSigningKeystore.get().asFile.absolutePath,
+        "-storepass", moduleSigningStorePass.get(),
+        "-keypass", moduleSigningKeyPass.get(),
+        "-dname", "CN=SpringSuite Module Dev,O=TakeSome,OU=SuiteLab",
+        "-keyalg", "RSA",
+        "-keysize", "3072",
+        "-validity", "3650"
+    )
+}
+
+signedRuntimeModules.forEach { spec ->
+    val moduleProject = project(spec.projectPath)
+    moduleProject.extensions.extraProperties["springSuiteModuleId"] = spec.moduleId
+    moduleProject.extensions.extraProperties["springSuiteModuleTitle"] = spec.title
+    spec.deployDirectoryProperty?.let {
+        moduleProject.extensions.extraProperties["springSuiteModuleDeployDirectoryProperty"] = it
+    }
+    moduleProject.apply(mapOf("from" to rootProject.file("gradle/runtime-module-signing.gradle.kts")))
+}
+
 tasks.register("buildSignedModules") {
     group = "modules"
     description = "Build signed SpringSuite runtime modules without embedding them into the core application."
-    dependsOn(":suite-diagnostics-module:signModuleJar", ":suite-dashboard-module:signModuleJar", ":suite-fn-module:signModuleJar")
+    dependsOn(signedRuntimeModules.map { "${it.projectPath}:signModuleJar" })
 }
 
 tasks.register("deploySignedModules") {
     group = "modules"
-    description = "Build, sign and copy runtime modules into the external modules directory."
-    dependsOn(":suite-diagnostics-module:deploySignedModule", ":suite-dashboard-module:deploySignedModule", ":suite-fn-module:deploySignedModule")
+    description = "Build, sign and copy runtime modules into configured external module directories."
+    dependsOn(signedRuntimeModules.map { "${it.projectPath}:deploySignedModule" })
 }
 
 
@@ -65,6 +129,7 @@ val runtimeControlPlaneBinaryNames = listOf(
     "suite-runtime-controller.exe",
     "suite-runtime-replacer.exe",
     "suite-runtime-bootstrap.exe",
+    "suite-runtime-console.exe",
     "suite-runtime-preloader.exe",
     "suite-runtime-toast.exe",
     "suite-runtime-tray.exe",
@@ -143,7 +208,7 @@ tasks.register<Sync>("assembleDeploy") {
 
     into(deployDirectory)
 
-    from(layout.projectDirectory.file("suite-app/build/libs/spring-suite.jar"))
+    from(project(":suite-app").layout.buildDirectory.file("libs/spring-suite.jar"))
     from(layout.projectDirectory.file("README.md"))
     from(layout.projectDirectory.files("run.bat", "run-console.bat", "run-elevated.bat", "run.sh", "run-elevated.sh"))
     from(layout.projectDirectory.dir("scripts")) {
@@ -181,17 +246,11 @@ tasks.register<Sync>("assembleDeploy") {
         into("suiteBinaries")
         include(runtimeControlPlaneBinaryNames)
     }
-    from(layout.projectDirectory.dir("suite-dashboard-module/build/signed-modules")) {
-        include("*-$suiteVersion.jar")
-        into("modules")
-    }
-    from(layout.projectDirectory.dir("suite-diagnostics-module/build/signed-modules")) {
-        include("*-$suiteVersion.jar")
-        into("modules")
-    }
-    from(layout.projectDirectory.dir("suite-fn-module/build/signed-modules")) {
-        include("*-$suiteVersion.jar")
-        into("modules")
+    signedRuntimeModules.forEach { spec ->
+        from(project(spec.projectPath).layout.buildDirectory.dir("signed-modules")) {
+            include("*-$suiteVersion.jar")
+            into("modules")
+        }
     }
 
     doLast {
@@ -317,7 +376,7 @@ tasks.register("verifyModuleBoundaries") {
         val errors = mutableListOf<String>()
 
         forbiddenEdges.forEach { (module, forbidden) ->
-            val buildFile = file("$module/build.gradle.kts")
+            val buildFile = project(":$module").layout.projectDirectory.file("build.gradle.kts").asFile
             check(buildFile.isFile) { "Missing module build file: ${buildFile.path}" }
             val dependencies = projectDependencyPattern.findAll(buildFile.readText(StandardCharsets.UTF_8))
                 .map { it.groupValues[1] }
@@ -351,7 +410,7 @@ tasks.register("verifyModuleBoundaries") {
             )
         )
         forbiddenSourceTokens.forEach { (module, tokens) ->
-            val sourceRoot = file("$module/src/main/java")
+            val sourceRoot = project(":$module").layout.projectDirectory.dir("src/main/java").asFile
             if (!sourceRoot.isDirectory) return@forEach
             sourceRoot.walkTopDown()
                 .filter { it.isFile && it.extension == "java" }
@@ -372,17 +431,47 @@ tasks.register("verifyModuleBoundaries") {
     }
 }
 
+val verifyVersionConsistency = tasks.register("verifyVersionConsistency") {
+    group = "verification"
+    description = "Verify Java and native Windows resources use the same SpringSuite release version."
+
+    doLast {
+        val nativeVersion = "$suiteVersion.0"
+        val mismatches = mutableListOf<String>()
+        val nativeRoot = layout.projectDirectory.dir("native/go").asFile
+        if (nativeRoot.isDirectory) {
+            nativeRoot.walkTopDown()
+                .filter { it.isFile && it.name == "winres.json" }
+                .forEach { resource ->
+                    val content = resource.readText(StandardCharsets.UTF_8)
+                    if (!content.contains("\"version\": \"$nativeVersion\"") ||
+                        !content.contains("\"product_version\": \"$nativeVersion\"")) {
+                        mismatches += resource.relativeTo(projectDir).invariantSeparatorsPath
+                    }
+                }
+        }
+        val resourceIndex = layout.projectDirectory.file("windows-resources-index.json").asFile
+        if (!resourceIndex.readText(StandardCharsets.UTF_8).contains("\"version\": \"$nativeVersion\"")) {
+            mismatches += resourceIndex.relativeTo(projectDir).invariantSeparatorsPath
+        }
+        check(mismatches.isEmpty()) {
+            "Version mismatch: expected $nativeVersion in ${mismatches.joinToString()}"
+        }
+    }
+}
+
 val verifyBrowserNotifications = tasks.register<Exec>("verifyBrowserNotifications") {
     group = "verification"
     description = "Run deterministic BrowserNotification lifetime and rotation tests."
-    workingDir(layout.projectDirectory)
-    commandLine("node", "--test", "suite-app/src/test/js/browser-notifications.test.js")
+    val appProject = project(":suite-app")
+    workingDir(appProject.projectDir)
+    commandLine("node", "--test", "src/test/js/browser-notifications.test.js")
 }
 
 tasks.register("verifyDeployLayout") {
     group = "verification"
     description = "Verify that build/deploy contains a complete runnable SpringSuite image."
-    dependsOn("assembleDeploy", "verifyModuleBoundaries", verifyBrowserNotifications)
+    dependsOn("assembleDeploy", "verifyModuleBoundaries", verifyVersionConsistency, verifyBrowserNotifications)
 
     doLast {
         val root = deployDirectory.get().asFile
@@ -409,6 +498,7 @@ tasks.register("verifyDeployLayout") {
             "suiteBinaries/suite-runtime-controller.exe",
             "suiteBinaries/suite-runtime-replacer.exe",
             "suiteBinaries/suite-runtime-bootstrap.exe",
+            "suiteBinaries/suite-runtime-console.exe",
             "suiteBinaries/suite-runtime-toast.exe",
             "suiteBinaries/suite-runtime-toast-host.exe",
             "deploy-manifest.json"

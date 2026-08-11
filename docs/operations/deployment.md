@@ -16,6 +16,7 @@ The Windows runtime is split into two execution domains:
 1. `suite-runtime-controller.exe` owns the JVM from Windows Session 0.
 2. `suite-runtime-preloader.exe` shows a compact middle-screen startup popup driven by controller state; it starts at 0%, reaches 100% only after READY, and remains visible on failure.
 3. `suite-runtime-tray.exe` owns notifications and the notification-area icon from the signed-in user's interactive session.
+4. `suite-runtime-console.exe` provides the signed-in operator with live SSE state, startup diagnostics, JVM telemetry and command dispatch; it never runs in Session 0.
 
 A service process must never create notification-area UI directly.
 

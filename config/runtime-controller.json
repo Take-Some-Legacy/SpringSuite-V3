@@ -99,5 +99,14 @@
       "--no-autoupdate"
     ],
     "startup_timeout": "20s"
-  }
+  },
+  "telemetry_interval": "2s",
+  "operator_console": {
+    "enabled": true,
+    "auto_start": true,
+    "refresh_interval": "500ms",
+    "reconnect_interval": "2s",
+    "max_timeline": 12
+  },
+  "startup_journal": ".springsuite/controller/startup.jsonl"
 }

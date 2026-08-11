@@ -1,0 +1,60 @@
+{
+  "RT_GROUP_ICON": {
+    "APP": {
+      "0000": [
+        "icon.png"
+      ]
+    }
+  },
+  "RT_MANIFEST": {
+    "#1": {
+      "0409": {
+        "identity": {
+          "name": "TakeSome.SpringSuite.RepoIndexer",
+          "version": "3.5.0.0"
+        },
+        "description": "SpringSuite Repository Indexer",
+        "minimum-os": "win7",
+        "execution-level": "as invoker",
+        "ui-access": false,
+        "auto-elevate": false,
+        "dpi-awareness": "system",
+        "disable-theming": false,
+        "disable-window-filtering": false,
+        "high-resolution-scrolling-aware": true,
+        "ultra-high-resolution-scrolling-aware": true,
+        "long-path-aware": true,
+        "printer-driver-isolation": false,
+        "gdi-scaling": false,
+        "segment-heap": true,
+        "use-common-controls-v6": true
+      }
+    }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0000": {
+        "fixed": {
+          "file_version": "3.5.0.0",
+          "product_version": "3.5.0.0"
+        },
+        "info": {
+          "0409": {
+            "Comments": "Repository discovery and source dataset indexing sidecar.",
+            "CompanyName": "Take Some",
+            "FileDescription": "SpringSuite Repository Indexer",
+            "FileVersion": "3.5.0.0",
+            "InternalName": "suite-repo-indexer",
+            "LegalCopyright": "Copyright (c) 2026 Take Some",
+            "LegalTrademarks": "",
+            "OriginalFilename": "suite-repo-indexer.exe",
+            "PrivateBuild": "",
+            "ProductName": "SpringSuite",
+            "ProductVersion": "3.5.0.0",
+            "SpecialBuild": ""
+          }
+        }
+      }
+    }
+  }
+}

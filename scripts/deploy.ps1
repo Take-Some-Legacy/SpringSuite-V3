@@ -121,8 +121,8 @@ function Assert-SourceRepositoryHealthy {
                 throw "Source repository is incomplete; missing $required"
             }
         }
-        if (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot 'suite-app\src') -PathType Container)) {
-            throw "Source repository is incomplete; suite-app/src is missing"
+        if (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot 'components\application\suite-app\src') -PathType Container)) {
+            throw "Source repository is incomplete; components/application/suite-app/src is missing"
         }
     }
 }

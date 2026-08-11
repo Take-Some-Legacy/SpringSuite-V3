@@ -10,6 +10,7 @@ This directory contains SpringSuite-owned native executables shipped with the ru
 - `suite-runtime-preloader.exe` — compact middle-screen startup popup driven by controller-published lifecycle progress.
 - `suite-runtime-toast.exe` — console CLI for user-session notification installation and diagnostics.
 - `suite-runtime-tray.exe` — GUI notification broker and color-coded SpringSuite tray status indicator.
+- `suite-runtime-console.exe` — interactive Go live diagnostics and command console for the controller/SpringSuite runtime.
 - `suite-runtime-toast-host.exe` — native WinToast notification host.
 
 The control-plane sources live in the sibling repository `../suite-runtime-controller-go`. WinToast lives in the sibling upstream checkout `../WinToast`.

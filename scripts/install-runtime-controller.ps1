@@ -36,6 +36,7 @@ $serviceHostSourcePath = if ([string]::IsNullOrWhiteSpace($ServiceHostSource)) {
     [System.IO.Path]::GetFullPath($ServiceHostSource)
 }
 $bootstrap = Join-Path $runtimeRoot "suiteBinaries\suite-runtime-bootstrap.exe"
+$operatorConsole = Join-Path $runtimeRoot "suiteBinaries\suite-runtime-console.exe"
 $preloader = Join-Path $runtimeRoot "suiteBinaries\suite-runtime-preloader.exe"
 $toast = Join-Path $runtimeRoot "suiteBinaries\suite-runtime-toast.exe"
 $tray = Join-Path $runtimeRoot "suiteBinaries\suite-runtime-tray.exe"
@@ -427,7 +428,7 @@ function Get-ListeningPortOwners {
     )
 }
 
-$required = @($configPath, $controller, $bootstrap, $preloader, $toast, $tray, $toastHost, $replacer, $jar)
+$required = @($configPath, $controller, $bootstrap, $operatorConsole, $preloader, $toast, $tray, $toastHost, $replacer, $jar)
 $cloudflaredExecutable = Resolve-CloudflaredExecutable -RuntimeRoot $runtimeRoot
 $cloudflaredUserProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
 if (-not [string]::IsNullOrWhiteSpace($cloudflaredExecutable)) {

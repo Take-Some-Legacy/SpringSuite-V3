@@ -199,7 +199,7 @@ Do not debug SpringSuite until this direct request succeeds.
 The built-in configuration is located at:
 
 ```text
-suite-ai/src/main/resources/suite-ai-default.yml
+components/intelligence/suite-ai/src/main/resources/suite-ai-default.yml
 ```
 
 Relevant section:
@@ -1012,7 +1012,7 @@ Invoke-RestMethod `
 The integration test class is:
 
 ```text
-suite-ai/src/test/java/com/takesome/springsuite/ai/OpenAiCompatibleChatProviderTest.java
+components/intelligence/suite-ai/src/test/java/com/takesome/springsuite/ai/OpenAiCompatibleChatProviderTest.java
 ```
 
 It uses the JDK `HttpServer` as a deterministic local Ollama-compatible stub.

@@ -1,5 +1,5 @@
 {
-  "version": "3.3.3.0",
+  "version": "3.5.0.0",
   "company": "Take Some",
   "product": "SpringSuite",
   "binaries": [
@@ -8,7 +8,7 @@
       "description": "SpringSuite Cloudflared Wrapper",
       "resourceLocations": [
         "suite-cloudflared-wrapper-go\\windows-resources\\suite-cloudflared-wrapper",
-        "SpringSuite\\goSrc\\suite-cloudflared-wrapper-go\\windows-resources\\suite-cloudflared-wrapper"
+        "SpringSuite\\native\\go\\suite-cloudflared-wrapper-go\\windows-resources\\suite-cloudflared-wrapper"
       ]
     },
     {
@@ -22,14 +22,14 @@
       "name": "suite-desktop-capture",
       "description": "SpringSuite Desktop Capture",
       "resourceLocations": [
-        "SpringSuite\\goSrc\\suite-desktop-capture-go\\windows-resources\\suite-desktop-capture"
+        "SpringSuite\\native\\go\\suite-desktop-capture-go\\windows-resources\\suite-desktop-capture"
       ]
     },
     {
       "name": "suite-fs-worker",
       "description": "SpringSuite Filesystem Worker",
       "resourceLocations": [
-        "SpringSuite\\goSrc\\suite-fs-worker-go\\windows-resources\\suite-fs-worker"
+        "SpringSuite\\native\\go\\suite-fs-worker-go\\windows-resources\\suite-fs-worker"
       ]
     },
     {
@@ -37,7 +37,7 @@
       "description": "SpringSuite Repository Indexer",
       "resourceLocations": [
         "suite-repo-indexer-go\\windows-resources\\suite-repo-indexer",
-        "SpringSuite\\goSrc\\suite-repo-indexer-go\\windows-resources\\suite-repo-indexer"
+        "SpringSuite\\native\\go\\suite-repo-indexer-go\\windows-resources\\suite-repo-indexer"
       ]
     },
     {
@@ -94,7 +94,7 @@
       "description": "SpringSuite Tail Watcher",
       "resourceLocations": [
         "suite-tail-watcher-go\\windows-resources\\suite-tail-watcher",
-        "SpringSuite\\goSrc\\suite-tail-watcher-go\\windows-resources\\suite-tail-watcher"
+        "SpringSuite\\native\\go\\suite-tail-watcher-go\\windows-resources\\suite-tail-watcher"
       ]
     }
   ]
