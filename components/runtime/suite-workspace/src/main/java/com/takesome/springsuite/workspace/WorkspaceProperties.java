@@ -1,5 +1,6 @@
 package com.takesome.springsuite.workspace;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -16,10 +17,14 @@ public class WorkspaceProperties {
     private boolean allowWrite = true;
     private boolean allowDelete = false;
     private boolean createBackups = true;
-    private int maxReadBytes = 0;
-    private int maxSearchResults = 0;
-    private int maxTreeItems = 0;
-    private long maxFileSizeBytes = 0;
+    private int maxReadBytes = 2 * 1024 * 1024;
+    private int maxSearchResults = 200;
+    private int maxTreeItems = 2000;
+    private long maxFileSizeBytes = 8L * 1024L * 1024L;
+    private int maxSearchFiles = 25_000;
+    private long maxSearchBytes = 256L * 1024L * 1024L;
+    private Duration maxSearchDuration = Duration.ofSeconds(8);
+    private Duration repositoryHousekeepingDelay = Duration.ofSeconds(30);
     private boolean repositoryDescriptorAutoCreate = true;
     private String repositoryDescriptorFile = ".springsuite-repository.json";
     private int repositoryDescriptorScanDepth = 0;
@@ -37,7 +42,9 @@ public class WorkspaceProperties {
     private List<String> textExtensions = new ArrayList<>(List.of(
             ".java", ".kt", ".kts", ".gradle", ".xml", ".yml", ".yaml", ".json", ".md", ".txt",
             ".properties", ".toml", ".ini", ".bat", ".cmd", ".ps1", ".sh", ".py", ".rs", ".js", ".ts",
-            ".css", ".html", ".gitignore"
+            ".css", ".html", ".gitignore", ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hxx",
+            ".go", ".cs", ".lua", ".sql", ".proto", ".cmake", ".glsl", ".vert", ".frag", ".comp", ".hlsl",
+            ".wgsl", ".tsx", ".jsx", ".scss", ".vue", ".svelte", ".gltf"
     ));
 
     public boolean isEnabled() {
@@ -122,6 +129,40 @@ public class WorkspaceProperties {
 
     public void setMaxFileSizeBytes(long maxFileSizeBytes) {
         this.maxFileSizeBytes = Math.max(0L, maxFileSizeBytes);
+    }
+
+    public int getMaxSearchFiles() {
+        return maxSearchFiles;
+    }
+
+    public void setMaxSearchFiles(int maxSearchFiles) {
+        this.maxSearchFiles = Math.max(0, maxSearchFiles);
+    }
+
+    public long getMaxSearchBytes() {
+        return maxSearchBytes;
+    }
+
+    public void setMaxSearchBytes(long maxSearchBytes) {
+        this.maxSearchBytes = Math.max(0L, maxSearchBytes);
+    }
+
+    public Duration getMaxSearchDuration() {
+        return maxSearchDuration;
+    }
+
+    public void setMaxSearchDuration(Duration maxSearchDuration) {
+        this.maxSearchDuration = maxSearchDuration == null || maxSearchDuration.isNegative() ? Duration.ZERO : maxSearchDuration;
+    }
+
+    public Duration getRepositoryHousekeepingDelay() {
+        return repositoryHousekeepingDelay;
+    }
+
+    public void setRepositoryHousekeepingDelay(Duration repositoryHousekeepingDelay) {
+        this.repositoryHousekeepingDelay = repositoryHousekeepingDelay == null || repositoryHousekeepingDelay.isNegative()
+                ? Duration.ZERO
+                : repositoryHousekeepingDelay;
     }
 
 

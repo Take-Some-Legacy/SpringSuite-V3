@@ -1,0 +1,50 @@
+{
+  "schema": "com.takesome.springsuite.tool.v1",
+  "id": "vendor.php",
+  "name": "php",
+  "title": "PHP CLI",
+  "kind": "external-cli",
+  "description": "Bundled PHP command-line runtime for SpringSuite development, diagnostics, linting, and script execution.",
+  "owner": "PHP Group",
+  "maturity": "stable",
+  "source_type": "suite-bundled-third-party",
+  "windows": {
+    "executable": "C:\\Users\\Aiden\\Documents\\Take Some\\Tools\\toolbelt\\third_party\\php\\php.exe"
+  },
+  "default_args": [
+    "--version"
+  ],
+  "validation_args": [
+    "--version"
+  ],
+  "capabilities": [
+    "php",
+    "php-cli",
+    "script-execution",
+    "syntax-check",
+    "web-development"
+  ],
+  "tags": [
+    "php",
+    "cli",
+    "third-party",
+    "windows",
+    "development"
+  ],
+  "safe_commands": [
+    "--version",
+    "-v",
+    "--help",
+    "-h",
+    "--modules",
+    "-m",
+    "--info",
+    "-i",
+    "--syntax-check",
+    "-l"
+  ],
+  "runtime": {
+    "working_directory": "."
+  },
+  "package_root": "C:\\Users\\Aiden\\Documents\\Take Some\\Tools\\toolbelt\\third_party\\php"
+}

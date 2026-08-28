@@ -1,6 +1,5 @@
 package com.takesome.springsuite.toolbelt;
 
-import com.takesome.springsuite.core.mode.SuiteOperatorMode;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +17,8 @@ public class ToolbeltProperties {
     private List<String> roots = new ArrayList<>();
     private boolean includePathTools = true;
     private boolean allowExecution = false;
+    private boolean validateBeforePublish = true;
+    private Duration validationTimeout = Duration.ofSeconds(2);
     private Duration defaultTimeout = Duration.ZERO;
     private int maxStdoutBytes = 0;
     private int maxStderrBytes = 0;
@@ -65,6 +66,22 @@ public class ToolbeltProperties {
 
     public void setAllowExecution(boolean allowExecution) {
         this.allowExecution = allowExecution;
+    }
+
+    public boolean isValidateBeforePublish() {
+        return validateBeforePublish;
+    }
+
+    public void setValidateBeforePublish(boolean validateBeforePublish) {
+        this.validateBeforePublish = validateBeforePublish;
+    }
+
+    public Duration getValidationTimeout() {
+        return validationTimeout;
+    }
+
+    public void setValidationTimeout(Duration validationTimeout) {
+        this.validationTimeout = validationTimeout == null || validationTimeout.isNegative() ? Duration.ofSeconds(2) : validationTimeout;
     }
 
     public Duration getDefaultTimeout() {

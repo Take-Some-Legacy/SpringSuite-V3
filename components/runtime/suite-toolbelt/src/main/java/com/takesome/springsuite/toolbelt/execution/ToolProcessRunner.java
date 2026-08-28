@@ -12,7 +12,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -28,6 +30,55 @@ public final class ToolProcessRunner {
     public ToolProcessRunner(ToolbeltProperties properties, DescriptorToolRuntime descriptorRuntime) {
         this.properties = properties;
         this.descriptorRuntime = descriptorRuntime;
+    }
+
+    public String validate(ToolDescriptor descriptor) {
+        if (descriptor == null) {
+            return "descriptor is null";
+        }
+        if (!descriptor.available()) {
+            return descriptor.availabilityMessage().isBlank() ? "tool is unavailable" : descriptor.availabilityMessage();
+        }
+        if (descriptor.executable().isBlank()) {
+            return "tool executable is empty";
+        }
+        try {
+            Path executable = Paths.get(descriptor.executable());
+            if (!Files.isRegularFile(executable)) {
+                return "tool executable is not a regular file: " + executable;
+            }
+        } catch (Exception ex) {
+            return "invalid executable path: " + descriptor.executable();
+        }
+        if (descriptor.validationArgs().isEmpty()) {
+            return "";
+        }
+
+        List<String> command = descriptorRuntime.buildRuntimeCommand(descriptor, descriptor.validationArgs());
+        if (command.isEmpty() || descriptorRuntime.isDescriptorSentinel(command.get(0))) {
+            return "validation command is not resolvable";
+        }
+
+        Process process = null;
+        try {
+            ProcessBuilder builder = new ProcessBuilder(command);
+            builder.directory(ToolbeltPaths.runtimeRoot().toFile());
+            builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            builder.redirectError(ProcessBuilder.Redirect.DISCARD);
+            process = builder.start();
+            long timeoutMs = Math.max(1L, properties.getValidationTimeout().toMillis());
+            boolean finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return "validation timed out after " + timeoutMs + " ms";
+            }
+            return process.exitValue() == 0 ? "" : "validation exited with code " + process.exitValue();
+        } catch (Exception ex) {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
+            return "validation failed: " + (ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
+        }
     }
 
     public ToolRunResult run(ToolDescriptor descriptor, ToolRunRequest request) {

@@ -5,9 +5,9 @@ import com.takesome.springsuite.workspace.WorkspaceProperties;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
@@ -15,9 +15,25 @@ import org.springframework.stereotype.Component;
 @Component
 public class WorkspacePathPolicy {
     private final WorkspaceProperties properties;
+    private final List<Path> allowedRoots;
+    private final Set<String> deniedSegments;
+    private final List<String> deniedGlobs;
 
     public WorkspacePathPolicy(WorkspaceProperties properties) {
         this.properties = properties;
+        this.allowedRoots = computeAllowedRoots();
+        LinkedHashSet<String> normalizedSegments = new LinkedHashSet<>();
+        for (String value : properties.effectiveDenySegments()) {
+            if (value != null && !value.isBlank()) {
+                normalizedSegments.add(value.trim().toLowerCase(Locale.ROOT));
+            }
+        }
+        this.deniedSegments = Set.copyOf(normalizedSegments);
+        this.deniedGlobs = properties.effectiveDenyGlobs().stream()
+                .map(this::normalizeGlob)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
     }
 
     public Path resolveSafe(String rawPath) {
@@ -28,41 +44,38 @@ public class WorkspacePathPolicy {
         if (SuiteOperatorMode.isElevated()) {
             return resolved;
         }
-        Optional<Path> root = allowedRoots().stream().filter(allowed -> startsWith(resolved, allowed)).findFirst();
-        if (root.isEmpty()) {
+        if (containingAllowedRoot(resolved) == null) {
             throw new IllegalArgumentException("path escapes configured workspace roots: " + rawPath);
         }
-        if (!isNotDenied(resolved)) {
+        if (!isNotDeniedForScan(resolved)) {
             throw new IllegalArgumentException("path denied by workspace policy: " + rawPath);
         }
         return resolved;
     }
 
     public List<Path> allowedRoots() {
-        ArrayList<Path> roots = new ArrayList<>();
-        for (String raw : properties.effectiveRoots()) {
-            if (raw == null || raw.isBlank()) {
-                continue;
-            }
-            Path path = Paths.get(raw);
-            roots.add(path.isAbsolute() ? path.toAbsolutePath().normalize() : runtimeRoot().resolve(path).toAbsolutePath().normalize());
-        }
-        return roots.isEmpty() ? List.of(runtimeRoot()) : List.copyOf(roots);
+        return allowedRoots;
     }
 
     public boolean isNotDenied(Path path) {
-        if (SuiteOperatorMode.isElevated()) {
-            return true;
-        }
+        return SuiteOperatorMode.isElevated() || isNotDeniedForScan(path);
+    }
+
+    /**
+     * Strict traversal policy for recursive scans. Unlike direct elevated access, recursive scans
+     * must never descend into denied build/cache/VCS trees: doing so turns a read-only search into
+     * an unbounded filesystem operation on large workspaces.
+     */
+    public boolean isNotDeniedForScan(Path path) {
         Path normalized = path.toAbsolutePath().normalize();
-        Optional<Path> root = allowedRoots().stream().filter(allowed -> startsWith(normalized, allowed)).findFirst();
-        Path policyPath = root.map(value -> relativizeSafe(value, normalized)).orElse(normalized);
+        Path root = containingAllowedRoot(normalized);
+        Path policyPath = root == null ? normalized : relativizeSafe(root, normalized);
         return !hasDeniedSegment(policyPath) && !matchesDeniedGlob(policyPath);
     }
 
     public String displayPath(Path path) {
         Path normalized = path.toAbsolutePath().normalize();
-        for (Path root : allowedRoots()) {
+        for (Path root : allowedRoots) {
             if (startsWith(normalized, root)) {
                 try {
                     String rel = root.relativize(normalized).toString().replace('\\', '/');
@@ -83,6 +96,28 @@ public class WorkspacePathPolicy {
         return Paths.get(System.getProperty("suite.project.root", System.getProperty("user.dir"))).toAbsolutePath().normalize();
     }
 
+    private List<Path> computeAllowedRoots() {
+        ArrayList<Path> roots = new ArrayList<>();
+        Path runtimeRoot = runtimeRoot();
+        for (String raw : properties.effectiveRoots()) {
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            Path path = Paths.get(raw);
+            roots.add(path.isAbsolute() ? path.toAbsolutePath().normalize() : runtimeRoot.resolve(path).toAbsolutePath().normalize());
+        }
+        return roots.isEmpty() ? List.of(runtimeRoot) : List.copyOf(roots);
+    }
+
+    private Path containingAllowedRoot(Path path) {
+        for (Path root : allowedRoots) {
+            if (startsWith(path, root)) {
+                return root;
+            }
+        }
+        return null;
+    }
+
     private boolean startsWith(Path path, Path root) {
         return path.toAbsolutePath().normalize().startsWith(root.toAbsolutePath().normalize());
     }
@@ -96,11 +131,8 @@ public class WorkspacePathPolicy {
     }
 
     private boolean hasDeniedSegment(Path policyPath) {
-        Set<String> denied = properties.effectiveDenySegments().stream()
-                .map(value -> value.toLowerCase(Locale.ROOT))
-                .collect(java.util.stream.Collectors.toSet());
         for (Path part : policyPath) {
-            if (denied.contains(part.toString().toLowerCase(Locale.ROOT))) {
+            if (deniedSegments.contains(part.toString().toLowerCase(Locale.ROOT))) {
                 return true;
             }
         }
@@ -112,8 +144,8 @@ public class WorkspacePathPolicy {
         if (rel.isBlank() || rel.equals(".")) {
             return false;
         }
-        for (String raw : properties.effectiveDenyGlobs()) {
-            if (globMatches(normalizeGlob(raw), rel)) {
+        for (String glob : deniedGlobs) {
+            if (globMatches(glob, rel)) {
                 return true;
             }
         }

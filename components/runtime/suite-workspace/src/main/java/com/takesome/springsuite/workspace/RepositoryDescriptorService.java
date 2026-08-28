@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.takesome.springsuite.logging.OperatorLogLevel;
 import com.takesome.springsuite.logging.OperatorLogService;
 import com.takesome.springsuite.workspace.fs.WorkspacePathPolicy;
+import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -34,6 +38,12 @@ public class RepositoryDescriptorService {
     private final WorkspacePathPolicy pathPolicy;
     private final OperatorLogService logService;
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    private final ScheduledExecutorService housekeepingExecutor = Executors.newSingleThreadScheduledExecutor(task -> {
+        Thread thread = new Thread(task, "suite-repository-housekeeping");
+        thread.setDaemon(true);
+        thread.setPriority(Thread.MIN_PRIORITY);
+        return thread;
+    });
 
     public RepositoryDescriptorService(
             WorkspaceProperties properties,
@@ -50,29 +60,74 @@ public class RepositoryDescriptorService {
         if (!properties.isRepositoryDescriptorAutoCreate() && !properties.isRepositoryCacheEnabled()) {
             return;
         }
-        Set<Path> repositories = discoverRepositoryRoots();
-        if (properties.isRepositoryCacheEnabled() && properties.isRepositoryCacheRememberDiscovered()) {
-            rememberAll(repositories, "startup-scan", false);
+        housekeepingExecutor.schedule(
+                this::runRepositoryHousekeeping,
+                properties.getRepositoryHousekeepingDelay().toMillis(),
+                TimeUnit.MILLISECONDS
+        );
+    }
+
+    @PreDestroy
+    public void closeRepositoryHousekeeping() {
+        housekeepingExecutor.shutdownNow();
+    }
+
+    private void runRepositoryHousekeeping() {
+        long startedNanos = System.nanoTime();
+        int created = 0;
+        int updated = 0;
+        int failed = 0;
+        try {
+            Set<Path> repositories = startupRepositoryRoots();
+            if (properties.isRepositoryCacheEnabled() && properties.isRepositoryCacheRememberDiscovered()) {
+                rememberAll(repositories, "startup-scan", false);
+            }
+            if (properties.isRepositoryDescriptorAutoCreate()) {
+                for (Path repository : repositories) {
+                    try {
+                        RepositoryDescriptorResult result = ensureAtRoot(repository, false);
+                        if (result.created()) {
+                            created++;
+                        }
+                        if (result.updated()) {
+                            updated++;
+                        }
+                    } catch (Exception ex) {
+                        failed++;
+                        logService.append(OperatorLogLevel.WARN, "workspace", "repository descriptor check failed", Map.of(
+                                "repository", repository.toString(),
+                                "error", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()
+                        ));
+                    }
+                }
+            }
+            logService.append(OperatorLogLevel.INFO, "workspace", "repository housekeeping complete", Map.of(
+                    "repositories", repositories.size(),
+                    "created", created,
+                    "updated", updated,
+                    "failed", failed,
+                    "durationMs", (System.nanoTime() - startedNanos) / 1_000_000L
+            ));
+        } catch (Exception ex) {
+            logService.append(OperatorLogLevel.ERROR, "workspace", "repository housekeeping failed", Map.of(
+                    "error", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage(),
+                    "durationMs", (System.nanoTime() - startedNanos) / 1_000_000L
+            ));
         }
-        if (!properties.isRepositoryDescriptorAutoCreate()) {
-            return;
-        }
-        for (Path repository : repositories) {
-            try {
-                RepositoryDescriptorResult result = ensureAtRoot(repository, false);
-                logService.append(OperatorLogLevel.INFO, "workspace", "repository descriptor checked", Map.of(
-                        "repository", result.repositoryRoot(),
-                        "descriptor", result.descriptorPath(),
-                        "created", result.created(),
-                        "updated", result.updated()
-                ));
-            } catch (Exception ex) {
-                logService.append(OperatorLogLevel.WARN, "workspace", "repository descriptor check failed", Map.of(
-                        "repository", repository.toString(),
-                        "error", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()
-                ));
+    }
+
+    private Set<Path> startupRepositoryRoots() {
+        LinkedHashSet<Path> repositories = new LinkedHashSet<>();
+        for (Path cached : cachedRepositoryRoots()) {
+            if (Files.exists(cached.resolve(".git"))) {
+                repositories.add(cached);
             }
         }
+        for (String configured : properties.getRepositoryCacheRoots()) {
+            Path path = resolveConfiguredPath(configured);
+            findRepositoryRoot(path).ifPresent(repositories::add);
+        }
+        return repositories.isEmpty() ? discoverRepositoryRoots() : repositories;
     }
 
     public RepositoryDescriptorResult read(String path) {

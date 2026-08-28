@@ -66,7 +66,7 @@ public class McpService {
         return orderedMap(
                 "ok", true,
                 "name", properties.getServerName(),
-                "version", "0.1.12",
+                "version", serverVersion(),
                 "title", properties.getServerTitle(),
                 "description", properties.getDescription(),
                 "endpoint", properties.getEndpoint(),
@@ -91,11 +91,15 @@ public class McpService {
     }
 
     public Map<String, Object> handle(Map<String, Object> request, AuthContext auth) {
+        return handle(request, auth, properties.getProtocolVersion());
+    }
+
+    public Map<String, Object> handle(Map<String, Object> request, AuthContext auth, String protocolVersion) {
         Object id = request.get("id");
         String method = String.valueOf(request.getOrDefault("method", ""));
         try {
             Object result = switch (method) {
-                case "initialize" -> initialize();
+                case "initialize" -> initialize(protocolVersion);
                 case "notifications/initialized" -> Map.of("ok", true);
                 case "ping" -> Map.of();
                 case "tools/list" -> Map.of("tools", tools());
@@ -112,27 +116,36 @@ public class McpService {
         }
     }
 
-    private Map<String, Object> initialize() {
+    private Map<String, Object> initialize(String protocolVersion) {
+        String negotiatedVersion = properties.supportsProtocolVersion(protocolVersion)
+                ? protocolVersion
+                : properties.getProtocolVersion();
         return orderedMap(
-                "protocolVersion", properties.getProtocolVersion(),
+                "protocolVersion", negotiatedVersion,
                 "serverInfo", serverInfo(),
                 "capabilities", capabilities(),
                 "instructions", "SpringSuite Agent Bridge. Use tools/list, then tools/call. File access is bounded by suite.workspace roots and OAuth scopes."
         );
     }
 
+    private String serverVersion() {
+        Package pkg = McpService.class.getPackage();
+        String implementationVersion = pkg == null ? null : pkg.getImplementationVersion();
+        return implementationVersion == null || implementationVersion.isBlank() ? "3.5.2" : implementationVersion;
+    }
+
     private Map<String, Object> serverInfo() {
         return orderedMap(
                 "name", properties.getServerName(),
                 "title", properties.getServerTitle(),
-                "version", "0.1.12",
+                "version", serverVersion(),
                 "description", properties.getDescription()
         );
     }
 
     private Map<String, Object> capabilities() {
         return orderedMap(
-                "tools", Map.of("listChanged", false),
+                "tools", Map.of("listChanged", true),
                 "resources", Map.of("subscribe", false, "listChanged", false),
                 "prompts", Map.of("listChanged", false)
         );
@@ -177,6 +190,9 @@ public class McpService {
                         "summary", str("Brief summary shown in the overlay.")
                 ), List.of("relayId", "fields")), false));
         for (ToolIndexEntry entry : toolbeltService.index()) {
+            if (!entry.available()) {
+                continue;
+            }
             out.add(tool(entry.publicName(), "Descriptor tool: " + entry.name() + " [" + entry.source() + "/" + entry.kind() + "]", schema(orderedMap("args", array("Arguments."), "cwd", str("Working directory."), "stdin", str("Optional stdin."), "timeoutSec", integer("Timeout seconds."), "dryRun", bool("Dry-run command construction.")), List.of()), false));
         }
         return out;
@@ -330,12 +346,11 @@ public class McpService {
     }
 
     private Object dynamicTool(String name, Map<String, Object> args) {
-        for (ToolIndexEntry entry : toolbeltService.index()) {
-            if (entry.publicName().equals(name)) {
-                return toolbeltService.run(toolRunRequest(entry.id(), args));
-            }
+        ToolDescriptor descriptor = toolbeltService.find(name).orElse(null);
+        if (descriptor != null && descriptor.available()) {
+            return toolbeltService.run(toolRunRequest(descriptor.id(), args));
         }
-        throw new McpException(-32602, "unknown tool: " + name);
+        throw new McpException(-32602, "unknown or unvalidated tool: " + name);
     }
 
     private List<String> listAt(Map<String, Object> map, String key) {

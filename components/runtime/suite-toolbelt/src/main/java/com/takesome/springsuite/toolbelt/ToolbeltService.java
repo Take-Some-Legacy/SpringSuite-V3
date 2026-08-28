@@ -10,10 +10,15 @@ import com.takesome.springsuite.toolbelt.inventory.ToolbeltInventoryFactory;
 import com.takesome.springsuite.toolbelt.search.ToolSearchEngine;
 import com.takesome.springsuite.toolbelt.state.ToolbeltCatalog;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -25,6 +30,11 @@ public class ToolbeltService {
     private final ToolbeltInventoryFactory inventoryFactory = new ToolbeltInventoryFactory(searchEngine);
     private final ToolDescriptorScanner descriptorScanner;
     private final ToolProcessRunner processRunner;
+    private final ExecutorService warmupExecutor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "suite-toolbelt-warmup");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public ToolbeltService(
             ToolbeltProperties properties,
@@ -40,7 +50,23 @@ public class ToolbeltService {
 
     @PostConstruct
     public void init() {
-        refresh();
+        // Do not hold Spring startup on filesystem/PATH discovery or validation probes.
+        // Until the first atomic publish completes MCP advertises only its built-in routes.
+        catalog.clear(Instant.now());
+        warmupExecutor.submit(() -> {
+            try {
+                refresh();
+            } catch (Exception ex) {
+                logService.append(OperatorLogLevel.ERROR, "toolbelt", "toolbelt asynchronous warmup failed", Map.of(
+                        "error", ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage()
+                ));
+            }
+        });
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        warmupExecutor.shutdownNow();
     }
 
     public ToolbeltSummary summary() {
@@ -73,25 +99,73 @@ public class ToolbeltService {
         return catalog.find(idOrName, searchEngine);
     }
 
-    public ToolbeltSummary refresh() {
+    public synchronized ToolbeltSummary refresh() {
         if (!properties.isEnabled()) {
             catalog.clear(Instant.now());
             return summary();
         }
 
         ToolDiscoveryResult discovery = descriptorScanner.discover();
-        catalog.replace(discovery.tools(), discovery.diagnostics(), discovery.resolvedRoots(), Instant.now());
+        LinkedHashMap<String, ToolDescriptor> validated = new LinkedHashMap<>();
+        ArrayList<String> diagnostics = new ArrayList<>(discovery.diagnostics());
+        for (ToolDescriptor descriptor : discovery.tools().values()) {
+            String validationFailure = properties.isValidateBeforePublish() ? processRunner.validate(descriptor) : "";
+            if (validationFailure.isBlank()) {
+                validated.put(descriptor.id(), descriptor);
+            } else {
+                validated.put(descriptor.id(), withAvailability(descriptor, false, validationFailure));
+                diagnostics.add("tool validation failed: " + descriptor.id() + " -> " + validationFailure);
+            }
+        }
+
+        // The catalog swap is the publication boundary. Readers never observe a half-built registry.
+        catalog.replace(validated, diagnostics, discovery.resolvedRoots(), Instant.now());
         ToolbeltSummary summary = summary();
         logService.append(OperatorLogLevel.INFO, "toolbelt", "toolbelt scan complete", Map.of(
+                "generation", catalog.generation(),
                 "count", summary.count(),
                 "available", summary.availableCount(),
                 "unavailable", summary.unavailableCount(),
-                "diagnostics", discovery.diagnostics().size()
+                "diagnostics", diagnostics.size()
         ));
         return summary;
     }
 
     public ToolRunResult run(ToolRunRequest request) {
         return processRunner.run(find(request.toolId()).orElse(null), request);
+    }
+
+    private ToolDescriptor withAvailability(ToolDescriptor descriptor, boolean available, String message) {
+        return new ToolDescriptor(
+                descriptor.id(),
+                descriptor.name(),
+                descriptor.title(),
+                descriptor.source(),
+                descriptor.kind(),
+                descriptor.description(),
+                descriptor.descriptorPath(),
+                descriptor.executable(),
+                descriptor.commandTemplate(),
+                descriptor.safeCommandIds(),
+                descriptor.tags(),
+                descriptor.schema(),
+                descriptor.owner(),
+                descriptor.maturity(),
+                descriptor.sourceType(),
+                descriptor.root(),
+                descriptor.packageRoot(),
+                descriptor.sourceRoot(),
+                descriptor.cargoManifest(),
+                descriptor.installPath(),
+                descriptor.defaultArgs(),
+                descriptor.validationArgs(),
+                descriptor.capabilities(),
+                descriptor.formats(),
+                descriptor.contentKinds(),
+                available,
+                message,
+                descriptor.alwaysWrite(),
+                descriptor.raw()
+        );
     }
 }

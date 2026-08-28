@@ -253,7 +253,7 @@ public final class ToolDescriptorScanner {
                     "",
                     "",
                     List.of(),
-                    List.of(),
+                    pathValidationArgs(tool),
                     List.of(),
                     List.of(),
                     List.of(),
@@ -263,6 +263,15 @@ public final class ToolDescriptorScanner {
                     Map.of()
             ));
         }
+    }
+
+    private List<String> pathValidationArgs(String tool) {
+        String normalized = tool == null ? "" : tool.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "java", "javac" -> List.of("-version");
+            case "cloudflared" -> List.of("version");
+            default -> List.of("--version");
+        };
     }
 
     private boolean isSkippedDescriptorPath(Path root, Path descriptorPath) {
